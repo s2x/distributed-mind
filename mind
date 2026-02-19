@@ -1,11 +1,16 @@
-#/bin/bash
+#!/bin/bash
 
 set -e
-
-# This is a script that works as a shortcut for running mind
 
 # Get the directory of this script
 root_path=$(dirname "$0")
 
+# Check if it's a completion request
+if [ "$1" = "--complete" ]; then
+    shift # Remove --complete from args
+    bun run ${root_path}/src/complete.ts "$@"
+    exit 0
+fi
 
+# Normal execution
 bun run ${root_path}/src/mind.ts "$@"
