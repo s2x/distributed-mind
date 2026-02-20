@@ -1,8 +1,11 @@
 {
   "name": "mind",
-  "module": "src/mind.ts",
+  "module": "cli/src/mind.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "test": "bun test cli/test"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

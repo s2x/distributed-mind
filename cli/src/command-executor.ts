@@ -10,10 +10,14 @@ export const param = (name: string): string => {
 const ARG_PARSERS = {
     HELP: new ArgParser(['help|h'], 'Lists all available commands'),
     CREATE_SPACE: new ArgParser(['create|c', param('space'), param('description')], 'Creates a new space'),
+    LIST_MEMORIES: new ArgParser(['list|ls|l', param('space')], 'Lists memory names of a space'),
     LIST_SPACES: new ArgParser(['list|ls|l'], 'Lists all spaces'),
-    READ_SPACE: new ArgParser(['read|r', param('space')], 'Reads a space memories'),
+    READ_SPACE: new ArgParser(['read|r', param('space'), param('name')], 'Reads a single memory by name from a space'),
     RENAME_SPACE: new ArgParser(['rename|rn', param('old'), param('new')], 'Renames a space'),
-    ADD_TO_SPACE: new ArgParser(['add|a', param('space'), param('value')], 'Adds a memory to a space'),
+    ADD_TO_SPACE: new ArgParser(
+        ['add|a', param('space'), param('name'), param('description')],
+        'Adds a memory (name + description) to a space'
+    ),
     REMOVE_FROM_SPACE: new ArgParser(['remove|rm', param('space'), param('index')], 'Removes a memory from a space'),
     DELETE_SPACE: new ArgParser(['delete|d', param('space')], 'Deletes a space'),
     CHANGE_SPACE_DESCRIPTION: new ArgParser(
@@ -30,9 +34,10 @@ export const executeCommand = (args: string[], brainProvider: BrainProvider, log
     const { createSpace, saveBrain, getBrain } = brainProvider;
     const { logInfo } = logger;
 
-    const printMemories = (memories: string[]) => {
+    const printMemories = (memories: { name: string; description: string }[]) => {
         for (let i = 0; i < memories.length; i++) {
-            logInfo(`   ${style(`${i + 1}.`, ['bold'])} ${memories[i]}`);
+            const m = memories[i]!;
+            logInfo(`   ${style(`${i + 1}. ${m.name}`, ['bold'])}: ${style(m.description || '(no description)', ['gray'])}`);
         }
     };
 
@@ -55,6 +60,25 @@ export const executeCommand = (args: string[], brainProvider: BrainProvider, log
         return;
     }
 
+    if (ARG_PARSERS.LIST_MEMORIES.matches(args)) {
+        const { space } = ARG_PARSERS.LIST_MEMORIES.getParams(args);
+        const brain = getBrain();
+        if (brain[space] === undefined) {
+            throw new Error(`Space ${space} does not exist`);
+        }
+        const memories = brain[space].memories;
+        if (memories.length === 0) {
+            logInfo('No memories found');
+            return;
+        }
+        logInfo(style(`📋 Memories in ${space}:`, ['bold', 'magenta']));
+        for (let i = 0; i < memories.length; i++) {
+            const m = memories[i]!;
+            logInfo(`   ${style(`${i + 1}. ${m.name}`, ['bold'])}`);
+        }
+        return;
+    }
+
     if (ARG_PARSERS.LIST_SPACES.matches(args)) {
         const brain = getBrain();
         const spaces = Object.keys(brain);
@@ -71,17 +95,20 @@ export const executeCommand = (args: string[], brainProvider: BrainProvider, log
     }
 
     if (ARG_PARSERS.READ_SPACE.matches(args)) {
-        const { space } = ARG_PARSERS.READ_SPACE.getParams(args);
+        const { space, name } = ARG_PARSERS.READ_SPACE.getParams(args);
         const brain = getBrain();
         if (brain[space] === undefined) {
             throw new Error(`Space ${space} does not exist`);
         }
-        const content = brain[space];
-        logInfo(style(`🛸 ${space}:`, ['bold', 'blue']));
-        if (content.memories.length === 0) {
-            logInfo(style('   No memories found!', ['dim']));
+        const memory = brain[space].memories.find((m) => m.name === name);
+        if (!memory) {
+            throw new Error(`Memory ${name} not found in space ${space}`);
+        }
+        logInfo(style(`🛸 ${space} › ${memory.name}:`, ['bold', 'blue']));
+        if (memory.description) {
+            logInfo(style(memory.description, ['dim']));
         } else {
-            printMemories(content.memories);
+            logInfo(style('(no description)', ['dim']));
         }
         return;
     }
@@ -100,14 +127,14 @@ export const executeCommand = (args: string[], brainProvider: BrainProvider, log
     }
 
     if (ARG_PARSERS.ADD_TO_SPACE.matches(args)) {
-        const { space, value } = ARG_PARSERS.ADD_TO_SPACE.getParams(args);
+        const { space, name, description } = ARG_PARSERS.ADD_TO_SPACE.getParams(args);
         const brain = getBrain();
         if (brain[space] === undefined) {
             throw new Error(`Space ${space} does not exist`);
         }
-        brain[space].memories.push(value);
+        brain[space].memories.push({ name, description: description ?? '' });
         saveBrain(brain);
-        logInfo(style(`✅ Memory added: `, ['bold', 'green']) + `\n   ${style(value, ['dim'])}`);
+        logInfo(style(`✅ Memory added: `, ['bold', 'green']) + `\n   ${style(name, ['bold'])}: ${style(description ?? '', ['dim'])}`);
         return;
     }
 
@@ -123,7 +150,7 @@ export const executeCommand = (args: string[], brainProvider: BrainProvider, log
         const memory = brain[space].memories[index - 1]!;
         brain[space].memories.splice(index - 1, 1);
         saveBrain(brain);
-        logInfo(style(`✅ Memory removed: `, ['bold', 'green']) + `\n   ${style(memory, ['dim'])}`);
+        logInfo(style(`✅ Memory removed: `, ['bold', 'green']) + `\n   ${style(memory.name, ['bold'])}: ${style(memory.description ?? '', ['dim'])}`);
         return;
     }
 
@@ -171,9 +198,7 @@ export const executeCommand = (args: string[], brainProvider: BrainProvider, log
         if (toIndex === 0) {
             brain[space].memories.unshift(memory);
         } else if (toIndex === -1) {
-            console.log(memory);
             brain[space].memories.push(memory);
-            console.log(brain[space].memories);
         } else {
             brain[space].memories.splice(toIndex - 1, 0, memory);
         }

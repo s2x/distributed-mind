@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>mind — brain</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/base16-dark.min.css" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div id="app">
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <h1>mind</h1>
+                <button type="button" id="btn-new-space" class="btn btn-primary">+ New space</button>
+            </header>
+            <ul id="space-list" class="space-list"></ul>
+        </aside>
+        <main class="main">
+            <div id="empty-state" class="empty-state">
+                <p>Select a space or create one.</p>
+            </div>
+            <div id="space-detail" class="space-detail hidden">
+                <header class="space-header">
+                    <input type="text" id="space-name" class="space-name-input" placeholder="Space name" title="Edit and blur to rename" />
+                    <div class="space-actions">
+                        <button type="button" id="btn-delete-space" class="btn btn-danger">Delete space</button>
+                    </div>
+                </header>
+                <div class="space-description-wrap">
+                    <label for="space-description">Description</label>
+                    <textarea id="space-description" class="space-description" rows="2" placeholder="Description"></textarea>
+                </div>
+                <div class="memories-header">
+                    <h2>Memories</h2>
+                    <button type="button" id="btn-add-memory" class="btn btn-primary">+ Add memory</button>
+                </div>
+                <ul id="memory-list" class="memory-list"></ul>
+            </div>
+        </main>
+    </div>
+
+    <div id="modal-new-space" class="modal hidden">
+        <div class="modal-content">
+            <h2>New space</h2>
+            <label for="new-space-name">Name</label>
+            <input type="text" id="new-space-name" placeholder="space-name" />
+            <label for="new-space-description">Description</label>
+            <input type="text" id="new-space-description" placeholder="Short description" />
+            <div class="modal-actions">
+                <button type="button" id="modal-cancel" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="modal-create" class="btn btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

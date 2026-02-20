@@ -1,0 +1,9 @@
+{
+    "name": "mind-web",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "start": "bun run server.ts",
+        "dev": "bun run --watch server.ts"
+    }
+}
