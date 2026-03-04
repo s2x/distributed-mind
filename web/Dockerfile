@@ -2,11 +2,14 @@ FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-COPY web/server.ts .
-COPY web/public ./public
+# Copy the whole project (server.ts imports from ../cli/src/)
+COPY package.json bun.lock ./
+COPY cli/ ./cli/
+COPY web/ ./web/
 
-ENV BRAIN_PATH=/data/brain.json
-ENV PORT=3000
+RUN bun install --frozen-lockfile
+
+WORKDIR /app/web
 
 EXPOSE 3000
 

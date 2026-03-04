@@ -1,297 +1,461 @@
-(function () {
-    const API = '/api/brain';
+// ── mind web UI ──────────────────────────────────────────────────────────────
 
-    /** @type {Record<string, { description: string, memories: { name: string, description: string }[] }>} */
-    let brain = {};
-    /** @type {string | null} */
-    let selectedSpaceName = null;
-    /** @type {CodeMirror.EditorFromTextArea | null} */
-    let memoryEditor = null;
-    /** @type {number | null} index of memory being edited, or null for new */
-    let editingMemoryIndex = null;
+// ── API ───────────────────────────────────────────────────────────────────────
+const api = {
+    async get(path) {
+        const r = await fetch(path);
+        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+        return r.json();
+    },
+    async post(path, body) {
+        const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+        return r.json();
+    },
+    async patch(path, body) {
+        const r = await fetch(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+        return r.json();
+    },
+    async del(path) {
+        const r = await fetch(path, { method: 'DELETE' });
+        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+        return r.json();
+    },
+};
 
-    const $ = (id) => document.getElementById(id);
-    const $spaceList = $('space-list');
-    const $emptyState = $('empty-state');
-    const $spaceDetail = $('space-detail');
-    const $spaceName = $('space-name');
-    const $spaceDescription = $('space-description');
-    const $memoryList = $('memory-list');
-    const $modalNewSpace = $('modal-new-space');
-    const $newSpaceName = $('new-space-name');
-    const $newSpaceDescription = $('new-space-description');
+// ── State ─────────────────────────────────────────────────────────────────────
+let state = {
+    spaces: [],
+    currentSpace: null,
+    memories: [],      // MemorySummary[]
+    currentMemory: null, // Memory (full)
+    searchActive: false,
+    searchResults: [],
+};
 
-    async function loadBrain() {
-        const res = await fetch(API);
-        if (!res.ok) throw new Error('Failed to load brain');
-        brain = await res.json();
-        render();
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+
+const elSpaceList       = $('space-list');
+const elEmptyState      = $('empty-state');
+const elSpaceDetail     = $('space-detail');
+const elSearchResults   = $('search-results');
+const elMemoryPanel     = $('memory-panel');
+const elGlobalSearch    = $('global-search');
+const elSpaceTitle      = $('space-title');
+const elSpaceDesc       = $('space-desc');
+const elSpaceTagsRow    = $('space-tags-row');
+const elSearchList      = $('search-list');
+const elSearchHeading   = $('search-heading');
+const elMemTitle        = $('mem-title');
+const elMemTierBadge    = $('mem-tier-badge');
+const elMemTagsRow      = $('mem-tags-row');
+const elMemContent      = $('mem-content');
+const elMemEditArea     = $('mem-edit-area');
+const elMemEditInput    = $('mem-edit-input');
+
+// ── Tier helpers ──────────────────────────────────────────────────────────────
+const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold' };
+const TIER_CLASS = { 1: 't1', 2: 't2', 3: 't3' };
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+
+function renderSpaceList() {
+    elSpaceList.innerHTML = '';
+    for (const sp of state.spaces) {
+        const li = document.createElement('li');
+        li.className = 'space-item' + (state.currentSpace?.name === sp.name ? ' active' : '');
+        li.dataset.name = sp.name;
+        li.innerHTML = `
+            <span class="space-item-name">${esc(sp.name)}</span>
+            <span class="space-item-count">${sp.memory_count}</span>
+        `;
+        li.addEventListener('click', () => selectSpace(sp.name));
+        elSpaceList.appendChild(li);
     }
+}
 
-    async function saveBrain() {
-        const res = await fetch(API, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(brain),
-        });
-        if (!res.ok) throw new Error('Failed to save brain');
-        brain = await res.json();
-        render();
-    }
+function renderSpaceDetail() {
+    const sp = state.currentSpace;
+    if (!sp) return;
 
-    function render() {
-        const spaceNames = Object.keys(brain);
-        $spaceList.innerHTML = spaceNames
-            .map(
-                (name) =>
-                    `<li><button type="button" data-space="${escapeAttr(name)}" class="${selectedSpaceName === name ? 'active' : ''}">${escapeHtml(name)}</button></li>`
-            )
-            .join('');
+    elSpaceTitle.textContent = sp.name;
+    elSpaceDesc.textContent = sp.description || 'No description';
 
-        $emptyState.classList.toggle('hidden', selectedSpaceName !== null);
-        $spaceDetail.classList.toggle('hidden', selectedSpaceName === null);
-
-        if (selectedSpaceName && brain[selectedSpaceName]) {
-            const space = brain[selectedSpaceName];
-            $spaceName.value = selectedSpaceName;
-            $spaceDescription.value = space.description;
-            $spaceName.dataset.current = selectedSpaceName;
-
-            $memoryList.innerHTML = space.memories
-                .map(
-                    (m, i) =>
-                        `<li class="memory-item" data-index="${i}">
-          <div class="memory-toolbar">
-            <button type="button" class="btn btn-sm btn-secondary memory-move-up">↑</button>
-            <button type="button" class="btn btn-sm btn-secondary memory-move-down">↓</button>
-            <button type="button" class="btn btn-sm btn-secondary memory-edit">Edit</button>
-            <button type="button" class="btn btn-sm btn-danger memory-delete">Delete</button>
-          </div>
-          <div class="memory-title">${escapeHtml((m && m.name) || '(no name)')}</div>
-          <div class="memory-content markdown-body">${renderMarkdown((m && m.description) || '')}</div>
-        </li>`
-                )
-                .join('');
-
-            $memoryList.querySelectorAll('.memory-move-up').forEach((btn) => btn.addEventListener('click', onMoveUp));
-            $memoryList.querySelectorAll('.memory-move-down').forEach((btn) => btn.addEventListener('click', onMoveDown));
-            $memoryList.querySelectorAll('.memory-edit').forEach((btn) => btn.addEventListener('click', onEditMemory));
-            $memoryList.querySelectorAll('.memory-delete').forEach((btn) => btn.addEventListener('click', onDeleteMemory));
+    // Tags
+    renderTagRow(elSpaceTagsRow, sp.tags ?? [], async (tag) => {
+        await api.patch(`/api/spaces/${enc(sp.name)}`, { removeTag: tag });
+        await refreshSpace(sp.name);
+    }, async () => {
+        const tag = prompt('Tag name:');
+        if (tag) {
+            await api.patch(`/api/spaces/${enc(sp.name)}`, { addTag: tag.trim().toLowerCase() });
+            await refreshSpace(sp.name);
         }
-    }
-
-    function escapeAttr(s) {
-        const div = document.createElement('div');
-        div.textContent = s;
-        return div.innerHTML.replace(/"/g, '&quot;');
-    }
-
-    function escapeHtml(s) {
-        const div = document.createElement('div');
-        div.textContent = s;
-        return div.innerHTML;
-    }
-
-    function renderMarkdown(text) {
-        if (typeof marked !== 'undefined') return marked.parse(text || '');
-        return escapeHtml(text || '');
-    }
-
-    $spaceList.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-space]');
-        if (!btn) return;
-        selectedSpaceName = btn.dataset.space;
-        render();
     });
 
-    $('btn-new-space').addEventListener('click', () => {
-        $newSpaceName.value = '';
-        $newSpaceDescription.value = '';
-        $modalNewSpace.classList.remove('hidden');
-        $newSpaceName.focus();
-    });
-
-    $('modal-cancel').addEventListener('click', () => {
-        $modalNewSpace.classList.add('hidden');
-    });
-
-    $('modal-create').addEventListener('click', () => {
-        const name = $newSpaceName.value.trim();
-        const description = $newSpaceDescription.value.trim();
-        if (!name) return;
-        if (brain[name]) {
-            alert('A space with that name already exists.');
-            return;
-        }
-        brain[name] = { description, memories: [] };
-        $modalNewSpace.classList.add('hidden');
-        saveBrain().then(() => {
-            selectedSpaceName = name;
-            render();
-        });
-    });
-
-    function applySpaceNameChange() {
-        if (!selectedSpaceName || !brain[selectedSpaceName]) return;
-        const newName = $spaceName.value.trim();
-        if (!newName || newName === selectedSpaceName) return;
-        if (brain[newName]) {
-            alert('A space with that name already exists.');
-            $spaceName.value = selectedSpaceName;
-            return;
-        }
-        brain[newName] = brain[selectedSpaceName];
-        delete brain[selectedSpaceName];
-        selectedSpaceName = newName;
-        saveBrain();
-    }
-
-    $spaceName.addEventListener('blur', applySpaceNameChange);
-
-    $('btn-delete-space').addEventListener('click', () => {
-        if (!selectedSpaceName) return;
-        if (!confirm(`Delete space "${selectedSpaceName}" and all its memories?`)) return;
-        delete brain[selectedSpaceName];
-        selectedSpaceName = null;
-        saveBrain();
-    });
-
-    $spaceDescription.addEventListener('change', () => {
-        if (!selectedSpaceName || !brain[selectedSpaceName]) return;
-        brain[selectedSpaceName].description = $spaceDescription.value;
-        saveBrain();
-    });
-
-    $('btn-add-memory').addEventListener('click', () => {
-        openMemoryModal(null);
-    });
-
-    function openMemoryModal(index) {
-        editingMemoryIndex = index;
-        const container = document.getElementById('memory-editor-modal');
-        if (!container) {
-            const div = document.createElement('div');
-            div.id = 'memory-editor-modal';
-            div.className = 'modal';
-            div.innerHTML = `
-        <div class="modal-content modal-content-wide modal-content-editor">
-          <h2>${index !== null ? 'Edit memory' : 'Add memory'}</h2>
-          <label for="memory-editor-name">Name</label>
-          <input type="text" id="memory-editor-name" class="memory-name-input" placeholder="Memory name" />
-          <label for="memory-editor-ta">Description (Markdown)</label>
-          <div class="memory-editor-area">
-            <textarea id="memory-editor-ta"></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" id="memory-editor-cancel" class="btn btn-secondary">Cancel</button>
-            <button type="button" id="memory-editor-save" class="btn btn-primary">Save</button>
-          </div>
-        </div>`;
-            document.body.appendChild(div);
-            div.querySelector('#memory-editor-cancel').addEventListener('click', () => closeMemoryModal());
-            div.querySelector('#memory-editor-save').addEventListener('click', saveMemoryFromModal);
-        }
-        const modal = document.getElementById('memory-editor-modal');
-        const nameInput = document.getElementById('memory-editor-name');
-        const ta = document.getElementById('memory-editor-ta');
-        const memory =
-            selectedSpaceName && brain[selectedSpaceName] && editingMemoryIndex !== null
-                ? brain[selectedSpaceName].memories[editingMemoryIndex]
-                : null;
-        nameInput.value = memory ? (memory.name || '') : '';
-        ta.value = memory ? (memory.description || '') : '';
-        if (memoryEditor) {
-            memoryEditor.toTextArea();
-            memoryEditor = null;
-        }
-        memoryEditor = CodeMirror.fromTextArea(ta, {
-            mode: 'markdown',
-            theme: 'base16-dark',
-            lineWrapping: true,
-            lineNumbers: false,
-            indentUnit: 2,
-        });
-        modal.classList.remove('hidden');
-        const editorHeight = () => {
-            const area = modal.querySelector('.memory-editor-area');
-            if (area) memoryEditor?.setSize(null, area.clientHeight);
-        };
-        editorHeight();
-        setTimeout(() => { editorHeight(); memoryEditor?.refresh(); }, 50);
-        window.addEventListener('resize', editorHeight);
-        modal._resizeCleanup = () => window.removeEventListener('resize', editorHeight);
-    }
-
-    function closeMemoryModal() {
-        const modal = document.getElementById('memory-editor-modal');
-        if (modal && typeof modal._resizeCleanup === 'function') modal._resizeCleanup();
-        if (memoryEditor) {
-            memoryEditor.toTextArea();
-            memoryEditor = null;
-        }
-        if (modal) modal.classList.add('hidden');
-    }
-
-    function saveMemoryFromModal() {
-        const nameInput = document.getElementById('memory-editor-name');
-        if (!memoryEditor || !nameInput || !selectedSpaceName || !brain[selectedSpaceName]) {
-            closeMemoryModal();
-            return;
-        }
-        const name = nameInput.value.trim();
-        const description = memoryEditor.getValue();
-        const value = { name, description };
-        if (editingMemoryIndex !== null) {
-            brain[selectedSpaceName].memories[editingMemoryIndex] = value;
+    // Tier containers
+    for (const tier of [1, 2, 3]) {
+        const ul = document.querySelector(`#tiers .memory-list[data-tier="${tier}"]`);
+        const mems = state.memories.filter(m => m.tier === tier);
+        ul.innerHTML = '';
+        if (mems.length === 0) {
+            ul.innerHTML = '<li class="tier-empty">Empty</li>';
         } else {
-            brain[selectedSpaceName].memories.push(value);
+            for (const mem of mems) {
+                ul.appendChild(renderMemoryItem(mem, sp.name));
+            }
         }
-        closeMemoryModal();
-        saveBrain();
     }
+}
 
-    function onEditMemory(e) {
-        const item = e.target.closest('.memory-item');
-        if (!item) return;
-        const index = parseInt(item.dataset.index, 10);
-        openMemoryModal(index);
+function renderMemoryItem(mem, spaceName) {
+    const li = document.createElement('li');
+    li.className = 'memory-item' + (state.currentMemory?.id === mem.id ? ' active' : '');
+    li.dataset.id = mem.id;
+    li.dataset.name = mem.name;
+
+    const tags = (mem.tags ?? []).slice(0, 3).map(t => `<span class="memory-item-tag">${esc(t)}</span>`).join('');
+
+    li.innerHTML = `
+        <span class="memory-item-pin">${mem.pinned ? '📌' : ''}</span>
+        <span class="memory-item-name">${esc(mem.name)}</span>
+        <span class="memory-item-tags">${tags}</span>
+        <span class="memory-item-count" title="${mem.access_count} accesses">${mem.access_count > 0 ? mem.access_count + '×' : ''}</span>
+    `;
+    li.addEventListener('click', () => selectMemory(spaceName, mem.name));
+    return li;
+}
+
+function renderTagRow(container, tags, onRemove, onAdd) {
+    container.innerHTML = '';
+    for (const tag of tags) {
+        const span = document.createElement('span');
+        span.className = 'tag';
+        span.textContent = '#' + tag;
+        span.title = 'Click to remove';
+        span.style.cursor = 'pointer';
+        span.addEventListener('click', () => onRemove(tag));
+        container.appendChild(span);
     }
+    const addBtn = document.createElement('button');
+    addBtn.className = 'tag-add';
+    addBtn.textContent = '+ tag';
+    addBtn.addEventListener('click', onAdd);
+    container.appendChild(addBtn);
+}
 
-    function onDeleteMemory(e) {
-        const item = e.target.closest('.memory-item');
-        if (!item) return;
-        const index = parseInt(item.dataset.index, 10);
-        if (!selectedSpaceName || !brain[selectedSpaceName]) return;
-        const memory = brain[selectedSpaceName].memories[index];
-        const name = memory ? (memory.name || '(no name)') : '(no name)';
-        if (!confirm(`Delete memory "${name}"? This cannot be undone.`)) return;
-        brain[selectedSpaceName].memories.splice(index, 1);
-        saveBrain();
-    }
+function renderMemoryPanel(memory) {
+    elMemTitle.textContent = memory.name;
+    elMemTierBadge.textContent = TIER_LABEL[memory.tier];
+    elMemTierBadge.className = 'tier-badge ' + TIER_CLASS[memory.tier];
 
-    function onMoveUp(e) {
-        const item = e.target.closest('.memory-item');
-        if (!item) return;
-        const index = parseInt(item.dataset.index, 10);
-        if (index <= 0 || !selectedSpaceName || !brain[selectedSpaceName]) return;
-        const arr = brain[selectedSpaceName].memories;
-        [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
-        saveBrain();
-    }
-
-    function onMoveDown(e) {
-        const item = e.target.closest('.memory-item');
-        if (!item) return;
-        const index = parseInt(item.dataset.index, 10);
-        if (!selectedSpaceName || !brain[selectedSpaceName]) return;
-        const arr = brain[selectedSpaceName].memories;
-        if (index >= arr.length - 1) return;
-        [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
-        saveBrain();
-    }
-
-    loadBrain().catch((err) => {
-        console.error(err);
-        document.body.innerHTML = '<p style="padding: 2rem; color: #dc2626;">Failed to load brain. Is the server running?</p>';
+    renderTagRow(elMemTagsRow, memory.tags ?? [], async (tag) => {
+        await api.patch(`/api/spaces/${enc(memory.space_name)}/memories/${enc(memory.name)}`, { removeTag: tag });
+        await refreshMemory(memory.space_name, memory.name);
+    }, async () => {
+        const tag = prompt('Tag name:');
+        if (tag) {
+            await api.patch(`/api/spaces/${enc(memory.space_name)}/memories/${enc(memory.name)}`, { addTag: tag.trim().toLowerCase() });
+            await refreshMemory(memory.space_name, memory.name);
+        }
     });
-})();
+
+    elMemContent.innerHTML = marked.parse(memory.content || '');
+    $('btn-mem-pin').textContent = memory.pinned ? '📌 Unpin' : '📌 Pin';
+
+    // Show content, hide editor
+    elMemContent.classList.remove('hidden');
+    elMemEditArea.classList.add('hidden');
+}
+
+function renderSearchResults(results, query) {
+    elSearchHeading.textContent = `"${query}" — ${results.length} result${results.length !== 1 ? 's' : ''}`;
+    elSearchList.innerHTML = '';
+    if (results.length === 0) {
+        elSearchList.innerHTML = '<li class="tier-empty">No results.</li>';
+        return;
+    }
+    for (const r of results) {
+        const li = document.createElement('li');
+        li.className = 'memory-item';
+        li.innerHTML = `
+            <span class="memory-item-name">${esc(r.name)}</span>
+            <span class="memory-item-tags">${(r.tags ?? []).slice(0, 2).map(t => `<span class="memory-item-tag">${esc(t)}</span>`).join('')}</span>
+            <div class="search-result-space">${esc(r.space_name)}</div>
+        `;
+        li.addEventListener('click', () => {
+            state.searchActive = false;
+            showPanel('space');
+            // Navigate to the space first, then open memory
+            selectSpace(r.space_name).then(() => selectMemory(r.space_name, r.name));
+        });
+        elSearchList.appendChild(li);
+    }
+}
+
+// ── Panels ────────────────────────────────────────────────────────────────────
+function showPanel(panel) {
+    elEmptyState.classList.add('hidden');
+    elSpaceDetail.classList.add('hidden');
+    elSearchResults.classList.add('hidden');
+
+    if (panel === 'empty') elEmptyState.classList.remove('hidden');
+    else if (panel === 'space') elSpaceDetail.classList.remove('hidden');
+    else if (panel === 'search') elSearchResults.classList.remove('hidden');
+}
+
+function showMemoryPanel(show) {
+    if (show) elMemoryPanel.classList.remove('hidden');
+    else elMemoryPanel.classList.add('hidden');
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+async function loadSpaces() {
+    state.spaces = await api.get('/api/spaces');
+    renderSpaceList();
+}
+
+async function selectSpace(name) {
+    state.currentSpace = state.spaces.find(s => s.name === name) ?? { name };
+    state.currentMemory = null;
+    showMemoryPanel(false);
+
+    const [spaceData, memories] = await Promise.all([
+        api.get(`/api/spaces/${enc(name)}`),
+        api.get(`/api/spaces/${enc(name)}/memories`),
+    ]);
+    state.currentSpace = spaceData;
+    state.memories = memories;
+
+    showPanel('space');
+    renderSpaceList();
+    renderSpaceDetail();
+}
+
+async function refreshSpace(name) {
+    const [spaceData, memories] = await Promise.all([
+        api.get(`/api/spaces/${enc(name)}`),
+        api.get(`/api/spaces/${enc(name)}/memories`),
+        loadSpaces(),
+    ]);
+    state.currentSpace = spaceData;
+    state.memories = memories;
+    renderSpaceDetail();
+}
+
+async function selectMemory(spaceName, memName) {
+    const memory = await api.get(`/api/spaces/${enc(spaceName)}/memories/${enc(memName)}`);
+    state.currentMemory = memory;
+    renderMemoryPanel(memory);
+    showMemoryPanel(true);
+    // Re-render memory list to show active state
+    renderSpaceDetail();
+}
+
+async function refreshMemory(spaceName, memName) {
+    const memory = await api.get(`/api/spaces/${enc(spaceName)}/memories/${enc(memName)}`);
+    state.currentMemory = memory;
+    renderMemoryPanel(memory);
+    await refreshSpace(spaceName);
+}
+
+// ── Inline editing ────────────────────────────────────────────────────────────
+function makeEditable(el, onSave) {
+    el.addEventListener('click', () => {
+        const current = el.textContent;
+        const input = document.createElement('input');
+        input.value = current;
+        input.className = el.className;
+        input.style.background = 'var(--bg3)';
+        input.style.border = '1px solid var(--accent)';
+        input.style.borderRadius = '4px';
+        input.style.padding = '2px 6px';
+        input.style.color = 'var(--text)';
+        input.style.width = '100%';
+        el.replaceWith(input);
+        input.focus();
+        input.select();
+
+        const done = async (save) => {
+            if (save && input.value !== current) await onSave(input.value);
+            input.replaceWith(el);
+            if (save) el.textContent = input.value;
+        };
+        input.addEventListener('blur', () => done(true));
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); done(true); }
+            if (e.key === 'Escape') done(false);
+        });
+    });
+}
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
+
+// Space title inline edit (rename)
+makeEditable(elSpaceTitle, async (newName) => {
+    const oldName = state.currentSpace.name;
+    await api.patch(`/api/spaces/${enc(oldName)}`, { newName });
+    state.currentSpace.name = newName;
+    await loadSpaces();
+});
+
+// Space description inline edit
+makeEditable(elSpaceDesc, async (desc) => {
+    await api.patch(`/api/spaces/${enc(state.currentSpace.name)}`, { description: desc });
+    state.currentSpace.description = desc;
+});
+
+// New space modal
+$('btn-new-space').addEventListener('click', () => $('modal-new-space').classList.remove('hidden'));
+$('modal-space-cancel').addEventListener('click', () => $('modal-new-space').classList.add('hidden'));
+$('modal-space-create').addEventListener('click', async () => {
+    const name = $('new-space-name').value.trim();
+    const desc = $('new-space-desc').value.trim();
+    const tags = $('new-space-tags').value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    if (!name) return;
+    await api.post('/api/spaces', { name, description: desc, tags });
+    $('modal-new-space').classList.add('hidden');
+    $('new-space-name').value = '';
+    $('new-space-desc').value = '';
+    $('new-space-tags').value = '';
+    await loadSpaces();
+    await selectSpace(name);
+});
+
+// Delete space
+$('btn-delete-space').addEventListener('click', async () => {
+    const name = state.currentSpace?.name;
+    if (!name) return;
+    if (!confirm(`Delete space "${name}" and all its memories?`)) return;
+    await api.del(`/api/spaces/${enc(name)}`);
+    state.currentSpace = null;
+    state.currentMemory = null;
+    showMemoryPanel(false);
+    showPanel('empty');
+    await loadSpaces();
+});
+
+// New memory modal
+$('btn-add-memory').addEventListener('click', () => $('modal-new-memory').classList.remove('hidden'));
+$('modal-mem-cancel').addEventListener('click', () => $('modal-new-memory').classList.add('hidden'));
+$('modal-mem-create').addEventListener('click', async () => {
+    const name = $('new-mem-name').value.trim();
+    const content = $('new-mem-content').value;
+    const tags = $('new-mem-tags').value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    const tier = Number($('new-mem-tier').value);
+    if (!name || !state.currentSpace) return;
+    await api.post(`/api/spaces/${enc(state.currentSpace.name)}/memories`, { name, content, tags, tier });
+    $('modal-new-memory').classList.add('hidden');
+    $('new-mem-name').value = '';
+    $('new-mem-content').value = '';
+    $('new-mem-tags').value = '';
+    $('new-mem-tier').value = '2';
+    await refreshSpace(state.currentSpace.name);
+});
+
+// Memory panel actions
+$('btn-mem-close').addEventListener('click', () => {
+    state.currentMemory = null;
+    showMemoryPanel(false);
+    renderSpaceDetail();
+});
+
+$('btn-mem-edit').addEventListener('click', () => {
+    elMemEditInput.value = state.currentMemory?.content ?? '';
+    elMemContent.classList.add('hidden');
+    elMemEditArea.classList.remove('hidden');
+    elMemEditInput.focus();
+});
+
+$('btn-mem-cancel-edit').addEventListener('click', () => {
+    elMemContent.classList.remove('hidden');
+    elMemEditArea.classList.add('hidden');
+});
+
+$('btn-mem-save').addEventListener('click', async () => {
+    const mem = state.currentMemory;
+    if (!mem) return;
+    const content = elMemEditInput.value;
+    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { content });
+    await refreshMemory(mem.space_name, mem.name);
+});
+
+$('btn-mem-promote').addEventListener('click', async () => {
+    const mem = state.currentMemory;
+    if (!mem) return;
+    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { promote: true });
+    await refreshMemory(mem.space_name, mem.name);
+});
+
+$('btn-mem-demote').addEventListener('click', async () => {
+    const mem = state.currentMemory;
+    if (!mem) return;
+    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { demote: true });
+    await refreshMemory(mem.space_name, mem.name);
+});
+
+$('btn-mem-pin').addEventListener('click', async () => {
+    const mem = state.currentMemory;
+    if (!mem) return;
+    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { pinned: !mem.pinned });
+    await refreshMemory(mem.space_name, mem.name);
+});
+
+$('btn-mem-delete').addEventListener('click', async () => {
+    const mem = state.currentMemory;
+    if (!mem || !confirm(`Delete memory "${mem.name}"?`)) return;
+    await api.del(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`);
+    state.currentMemory = null;
+    showMemoryPanel(false);
+    await refreshSpace(mem.space_name);
+});
+
+// Close search
+$('btn-close-search').addEventListener('click', () => {
+    state.searchActive = false;
+    elGlobalSearch.value = '';
+    if (state.currentSpace) showPanel('space');
+    else showPanel('empty');
+});
+
+// Global search (debounced)
+let searchTimer = null;
+elGlobalSearch.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const q = elGlobalSearch.value.trim();
+    if (!q) {
+        state.searchActive = false;
+        if (state.currentSpace) showPanel('space');
+        else showPanel('empty');
+        return;
+    }
+    searchTimer = setTimeout(async () => {
+        state.searchResults = await api.get(`/api/search?q=${encodeURIComponent(q)}`);
+        state.searchActive = true;
+        showPanel('search');
+        renderSearchResults(state.searchResults, q);
+    }, 300);
+});
+
+// Modal keyboard close
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        $('modal-new-space').classList.add('hidden');
+        $('modal-new-memory').classList.add('hidden');
+    }
+});
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function esc(str) {
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function enc(str) {
+    return encodeURIComponent(str);
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadSpaces();

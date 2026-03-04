@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - BRAIN_PATH=/data/brain.json
+      - MIND_DATA_DIR=/data
       - PORT=3000
     volumes:
       - ${BRAIN_DATA_DIR:-./data}:/data
