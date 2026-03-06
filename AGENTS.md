@@ -55,6 +55,7 @@ User → ./mind <command> [args] [--flag value]
 | Schema | `cli/src/store/schema.ts` | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 3 (migrates v1→v2→v3). |
 | Config | `cli/src/config.ts` | `CONFIG.dataDir`, `CONFIG.dbPath`, `CONFIG.legacyJsonPath`, `CONFIG.rag`. Respects `MIND_DATA_DIR` and `MIND_DB_PATH` env vars. `TIER_LIMITS` per-tier capacity constants. |
 | Types | `cli/src/types.ts` | All domain types: `Space`, `Memory`, `Link`, `Tier`, `SearchResult`, `StatusResult`, `LegacyBrain`, etc. |
+| Utils | `cli/src/utils.ts` | Utility functions: `normalizeTag()`, `normalizeTags()` for tag normalization. |
 | RAG | `cli/src/rag.ts` | Optional RAG module: `getEmbedding()`, `cosineSimilarity()`, `semanticSearch()`, `vectorToBlob()`/`blobToVector()`, `isRagEnabled()`. |
 | Logger | `cli/src/logger.ts` | `logInfo` / `logError`; default implementation uses console. |
 | Web server | `web/server.ts` | Bun HTTP server: REST API + static files from `web/public/`. Uses `MIND_DATA_DIR` or `/data` in Docker. |
@@ -75,7 +76,7 @@ User → ./mind <command> [args] [--flag value]
   - New memories can be added to T1, T2, or T3 only; `--tier 4` is rejected at the command level.
   - **Pinned memories are immune to auto-promotion and LRU eviction.**
 - **Link:** Directional edge between two memories with a label (default: `"related"`). Stored as `(source_id, target_id, label)`.
-- **Tags:** Both spaces and memories can have multiple string tags (lowercase, trimmed).
+- **Tags:** Both spaces and memories can have multiple string tags. Tags are normalized on input: converted to lowercase, leading `#` stripped, validated against allowed characters (`a-z`, `0-9`, `-`, `_`, `.`, `:`, `/`, `=`, `+`, `@`). Tags cannot be empty or contain spaces. Displayed with `#` prefix in CLI output.
 - **FTS:** `memories_fts` virtual FTS5 table, synced manually on add/update/delete. Supports fuzzy matching via porter tokenizer.
 
 ### 2.4 SQLite schema tables
@@ -183,6 +184,7 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 | Search | `search` | `s` | `<query>` | `--space`, `--tag`, `--tier`, `--detail` | Full-text search across memories (includes T4). Default output: names only. `--detail` adds content preview. Use `term*` for prefix match. |
 | Status (global) | `status` | — | — | — | Show storage info and per-tier breakdown. |
 | Status (space) | `status` | — | `<space>` | — | Show tier breakdown for a specific space. |
+| List tags | `tags` | `tgs` | — | `--spaces`, `--memories` | List all tags in the system (defaults to both). |
 | Guide | `guide` | `g` | — | — | Show usage guide (human mode). |
 | Guide (mode) | `guide` | `g` | `<mode>` | — | Show guide (`agent` or `human`). |
 | Import | `import` | — | — | — | Import legacy `brain.json` into SQLite. |

@@ -5,6 +5,7 @@ import { statSync } from 'fs';
 import { initializeDatabase } from './schema';
 import { TIER_LIMITS } from '../config';
 import { isRagEnabled, getEmbedding, semanticSearch, blobToVector, vectorToBlob } from '../rag';
+import { normalizeTag, normalizeTags } from '../utils';
 import type { MindStore } from './mind-store';
 import type {
     Space,
@@ -149,9 +150,10 @@ export function createSqliteStore(dbPath: string): MindStore {
         ]);
 
         if (tags && tags.length > 0) {
+            const normalizedTags = normalizeTags(tags);
             const stmt = db.prepare('INSERT OR IGNORE INTO space_tags (space_name, tag) VALUES (?, ?)');
-            for (const tag of tags) {
-                stmt.run(name, tag.toLowerCase().trim());
+            for (const tag of normalizedTags) {
+                stmt.run(name, tag);
             }
         }
     }
@@ -173,6 +175,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         let params: any[];
 
         if (filter?.tag) {
+            const normalizedFilter = normalizeTag(filter.tag);
             sql = `
                 SELECT s.name, s.description,
                        (SELECT COUNT(*) FROM memories m WHERE m.space_name = s.name) AS memory_count
@@ -180,7 +183,7 @@ export function createSqliteStore(dbPath: string): MindStore {
                 JOIN space_tags st ON st.space_name = s.name AND st.tag = ?
                 ORDER BY s.name
             `;
-            params = [filter.tag.toLowerCase().trim()];
+            params = [normalizedFilter];
         } else {
             sql = `
                 SELECT s.name, s.description,
@@ -228,15 +231,17 @@ export function createSqliteStore(dbPath: string): MindStore {
 
     function addSpaceTag(space: string, tag: string): void {
         requireSpace(space);
+        const normalized = normalizeTag(tag);
         db.run('INSERT OR IGNORE INTO space_tags (space_name, tag) VALUES (?, ?)', [
             space,
-            tag.toLowerCase().trim(),
+            normalized,
         ]);
     }
 
     function removeSpaceTag(space: string, tag: string): void {
         requireSpace(space);
-        db.run('DELETE FROM space_tags WHERE space_name = ? AND tag = ?', [space, tag.toLowerCase().trim()]);
+        const normalized = normalizeTag(tag);
+        db.run('DELETE FROM space_tags WHERE space_name = ? AND tag = ?', [space, normalized]);
     }
 
     // ── Memories ──
@@ -268,9 +273,10 @@ export function createSqliteStore(dbPath: string): MindStore {
         ftsInsert(id, name, content);
 
         if (opts?.tags && opts.tags.length > 0) {
+            const normalizedTags = normalizeTags(opts.tags);
             const stmt = db.prepare('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)');
-            for (const tag of opts.tags) {
-                stmt.run(id, tag.toLowerCase().trim());
+            for (const tag of normalizedTags) {
+                stmt.run(id, tag);
             }
         }
 
@@ -306,8 +312,9 @@ export function createSqliteStore(dbPath: string): MindStore {
         const whereParams: any[] = [space];
 
         if (filter?.tag) {
+            const normalizedFilter = normalizeTag(filter.tag);
             sql += ' JOIN memory_tags mt ON mt.memory_id = m.id AND mt.tag = ?';
-            joinParams.push(filter.tag.toLowerCase().trim());
+            joinParams.push(normalizedFilter);
         }
 
         if (filter?.tier !== undefined) {
@@ -407,15 +414,23 @@ export function createSqliteStore(dbPath: string): MindStore {
 
     function addMemoryTag(memoryId: number, tag: string): void {
         requireMemory(memoryId);
+        const normalized = normalizeTag(tag);
         db.run('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)', [
             memoryId,
-            tag.toLowerCase().trim(),
+            normalized,
         ]);
     }
 
     function removeMemoryTag(memoryId: number, tag: string): void {
         requireMemory(memoryId);
-        db.run('DELETE FROM memory_tags WHERE memory_id = ? AND tag = ?', [memoryId, tag.toLowerCase().trim()]);
+        const normalized = normalizeTag(tag);
+        db.run('DELETE FROM memory_tags WHERE memory_id = ? AND tag = ?', [memoryId, normalized]);
+    }
+
+    function listAllTags(): { spaces: { tag: string; count: number }[]; memories: { tag: string; count: number }[] } {
+        const spaceTags = db.query('SELECT tag, COUNT(*) as count FROM space_tags GROUP BY tag ORDER BY tag').all() as { tag: string; count: number }[];
+        const memoryTags = db.query('SELECT tag, COUNT(*) as count FROM memory_tags GROUP BY tag ORDER BY tag').all() as { tag: string; count: number }[];
+        return { spaces: spaceTags, memories: memoryTags };
     }
 
     // ── Tiers ──
@@ -534,10 +549,10 @@ export function createSqliteStore(dbPath: string): MindStore {
 
         // Post-filter by tag (requires join)
         if (filter?.tag) {
-            const tagLower = filter.tag.toLowerCase().trim();
+            const normalizedTag = normalizeTag(filter.tag);
             rows = rows.filter((r) => {
                 const tags = getTagsForMemory(r.id);
-                return tags.includes(tagLower);
+                return tags.includes(normalizedTag);
             });
         }
 
@@ -739,6 +754,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         recordAccess,
         addMemoryTag,
         removeMemoryTag,
+        listAllTags,
         promote,
         demote,
         pin,

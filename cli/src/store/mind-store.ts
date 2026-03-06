@@ -52,6 +52,7 @@ export interface MindStore {
     // Tags
     addMemoryTag(memoryId: number, tag: string): void;
     removeMemoryTag(memoryId: number, tag: string): void;
+    listAllTags(): { spaces: { tag: string; count: number }[]; memories: { tag: string; count: number }[] };
 
     // Tiers
     /**

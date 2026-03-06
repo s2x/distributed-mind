@@ -4,6 +4,7 @@ import type { Logger } from './logger';
 import type { Tier } from './types';
 import { TIER_LIMITS, CONFIG } from './config';
 import { style } from 'bun-style';
+import { normalizeTag } from './utils';
 
 const p = (name: string) => ArgParser.param(name);
 
@@ -92,6 +93,16 @@ const CMD = {
     STATUS: new ArgParser(['status'], 'Shows storage info and per-tier breakdown'),
     STATUS_SPACE: new ArgParser(['status', p('space')], 'Shows tier breakdown for a specific space'),
 
+    // Tags
+    LIST_TAGS: new ArgParser(
+        ['tags|tgs'],
+        'Lists all tags in the system',
+        [
+            { name: 'spaces', hasValue: false, description: 'show only space tags' },
+            { name: 'memories', hasValue: false, description: 'show only memory tags' },
+        ]
+    ),
+
     // Guide
     GUIDE: new ArgParser(['guide|g'], 'Shows usage guide'),
     GUIDE_MODE: new ArgParser(['guide|g', p('mode')], 'Shows usage guide (agent or human)'),
@@ -121,6 +132,13 @@ function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderCommands(cmds: ArgParser[], logger: Logger): void {
+    const { logInfo } = logger;
+    for (const cmd of cmds) {
+        logInfo(`   ${cmd.getRendered()}`);
+    }
 }
 
 // ── Main executor ──
@@ -163,6 +181,9 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
         for (const cmd of [CMD.STATUS, CMD.STATUS_SPACE]) {
             logInfo(`   ${cmd.getRendered()}`);
         }
+        logInfo('');
+        logInfo(style('Tags:', ['bold', 'magenta']));
+        logInfo(`   ${CMD.LIST_TAGS.getRendered()}`);
         logInfo('');
         logInfo(style('Other:', ['bold', 'magenta']));
         for (const cmd of [CMD.GUIDE, CMD.GUIDE_MODE, CMD.IMPORT]) {
@@ -325,7 +346,8 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
         const memory = store.getMemory(space, name);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
         store.addMemoryTag(memory.id, tag);
-        logInfo(style(`✅ Tag #${tag} added to "${name}"`, ['bold', 'green']));
+        const normalizedMem = normalizeTag(tag);
+        logInfo(style(`✅ Tag #${normalizedMem} added to "${name}"`, ['bold', 'green']));
         return;
     }
 
@@ -333,7 +355,8 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
     if (CMD.TAG_SPACE.matches(args)) {
         const { space, tag } = CMD.TAG_SPACE.getParams(args);
         store.addSpaceTag(space, tag);
-        logInfo(style(`✅ Tag #${tag} added to space "${space}"`, ['bold', 'green']));
+        const normalizedSpace = normalizeTag(tag);
+        logInfo(style(`✅ Tag #${normalizedSpace} added to space "${space}"`, ['bold', 'green']));
         return;
     }
 
@@ -343,7 +366,8 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
         const memory = store.getMemory(space, name);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
         store.removeMemoryTag(memory.id, tag);
-        logInfo(style(`✅ Tag #${tag} removed from "${name}"`, ['bold', 'green']));
+        const normalizedMem = normalizeTag(tag);
+        logInfo(style(`✅ Tag #${normalizedMem} removed from "${name}"`, ['bold', 'green']));
         return;
     }
 
@@ -351,7 +375,8 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
     if (CMD.UNTAG_SPACE.matches(args)) {
         const { space, tag } = CMD.UNTAG_SPACE.getParams(args);
         store.removeSpaceTag(space, tag);
-        logInfo(style(`✅ Tag #${tag} removed from space "${space}"`, ['bold', 'green']));
+        const normalizedSpace = normalizeTag(tag);
+        logInfo(style(`✅ Tag #${normalizedSpace} removed from space "${space}"`, ['bold', 'green']));
         return;
     }
 
@@ -506,6 +531,34 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
         return;
     }
 
+    // ── Tags ──
+    if (CMD.LIST_TAGS.matches(args)) {
+        const flags = CMD.LIST_TAGS.getFlags(args);
+        const showSpaces = flags.spaces !== undefined || (flags.spaces === undefined && flags.memories === undefined);
+        const showMemories = flags.memories !== undefined || (flags.spaces === undefined && flags.memories === undefined);
+        const tags = store.listAllTags();
+
+        const allTags = [...tags.spaces, ...tags.memories];
+        if (allTags.length === 0) {
+            logInfo('No tags found');
+            return;
+        }
+
+        if (showSpaces && tags.spaces.length > 0) {
+            logInfo(style('🏷️  Space Tags:', ['bold', 'magenta']));
+            const tagStr = tags.spaces.map((t) => style(`#${t.tag}`, ['cyan']) + style(` (${t.count})`, ['dim'])).join(' ');
+            logInfo(`   ${tagStr}`);
+            logInfo('');
+        }
+
+        if (showMemories && tags.memories.length > 0) {
+            logInfo(style('🏷️  Memory Tags:', ['bold', 'magenta']));
+            const tagStr = tags.memories.map((t) => style(`#${t.tag}`, ['cyan']) + style(` (${t.count})`, ['dim'])).join(' ');
+            logInfo(`   ${tagStr}`);
+        }
+        return;
+    }
+
     // ── Guide ──
     if (CMD.GUIDE.matches(args)) {
         printGuide(logger, 'human');
@@ -605,40 +658,23 @@ function printGuide(logger: Logger, mode: string): void {
         logInfo('  Link     Directional edge between two memories with a label.');
         logInfo('');
         logInfo(style('Spaces:', ['bold']));
-        logInfo('  mind create <space> <description> [--tags a,b]    Create a space');
-        logInfo('  mind list                                          List all spaces');
-        logInfo('  mind delete <space>                                Delete space + all memories');
-        logInfo('  mind rename <old> <new>                            Rename a space');
-        logInfo('  mind describe <space> <description>                Change description');
+        renderCommands([CMD.CREATE_SPACE, CMD.LIST_SPACES, CMD.DELETE_SPACE, CMD.RENAME_SPACE, CMD.DESCRIBE_SPACE, CMD.TAG_SPACE, CMD.UNTAG_SPACE], logger);
         logInfo('');
         logInfo(style('Memories:', ['bold']));
-        logInfo('  mind add <space> <name> <content> [--tags a,b] [--tier 1|2|3]');
-        logInfo('  mind read <space> <name>              Read content (bumps access, auto-promotes)');
-        logInfo('  mind edit <space> <name> <content>    Update content');
-        logInfo('  mind remove <space> <name>            Delete a memory');
-        logInfo('  mind list <space>                     List T1+T2 memories (--tier 3 for cold)');
+        renderCommands([CMD.ADD_MEMORY, CMD.READ_MEMORY, CMD.EDIT_MEMORY, CMD.REMOVE_MEMORY, CMD.LIST_MEMORIES, CMD.TAG_MEMORY, CMD.UNTAG_MEMORY], logger);
         logInfo('');
         logInfo(style('Search:', ['bold']));
-        logInfo('  mind search <query>                   Full-text search (includes T4), names only');
-        logInfo('  mind search <query> --detail          Include content preview');
-        logInfo('  mind search "auth*"                   Prefix wildcard');
-        logInfo('  mind search <query> --space X --tag Y --tier 1   Combined filters');
+        renderCommands([CMD.SEARCH], logger);
         logInfo('');
         logInfo(style('Organization:', ['bold']));
-        logInfo('  mind tag <space> <tag>                Tag a space (2 args)');
-        logInfo('  mind tag <space> <name> <tag>         Tag a memory (3 args)');
-        logInfo('  mind untag <space> [<name>] <tag>     Remove a tag');
-        logInfo('  mind promote <space> <name>           T4→T3, T3→T2, T2→T1 (with LRU eviction)');
-        logInfo('  mind demote <space> <name>            T1→T2, T2→T3, T3→T4');
-        logInfo('  mind pin <space> <name>               Immune to auto-promotion and LRU eviction');
-        logInfo('  mind unpin <space> <name>             Remove pin');
-        logInfo('  mind link <space/name> <space/name> [--label reason]');
-        logInfo('  mind unlink <space/name> <space/name>');
-        logInfo('  mind links <space> <name>             Show links for a memory');
+        renderCommands([CMD.TAG_SPACE, CMD.UNTAG_SPACE, CMD.LIST_TAGS, CMD.PROMOTE, CMD.DEMOTE, CMD.PIN, CMD.UNPIN, CMD.LINK, CMD.UNLINK, CMD.LINKS], logger);
         logInfo('');
         logInfo(style('Status:', ['bold']));
-        logInfo('  mind status                           Global tier breakdown + storage info');
-        logInfo('  mind status <space>                   Tier breakdown for a space');
+        renderCommands([CMD.STATUS, CMD.STATUS_SPACE], logger);
+        logInfo('');
+        logInfo(style('Considerations:', ['bold']));
+        logInfo('  Tags: normalized on creation (lowercase, # prefix stripped).');
+        logInfo('  Valid chars: a-z, 0-9, -, _, ., :, /, =, +, @');
         logInfo('');
         logInfo(style('Best practices:', ['bold']));
         logInfo('  - Search before adding to avoid duplicates (search covers T4 too)');
@@ -654,22 +690,10 @@ function printGuide(logger: Logger, mode: string): void {
         logInfo('Data is organized in spaces, each containing memories with tiers.');
         logInfo('');
         logInfo(style('Getting started:', ['bold']));
-        logInfo('  mind help                                  Show all commands');
-        logInfo('  mind create my-project "Project notes"     Create a space');
-        logInfo('  mind add my-project "auth" "JWT flow..."   Add a memory');
-        logInfo('  mind list                                  List all spaces');
-        logInfo('  mind list my-project                       List active memories (T1+T2)');
-        logInfo('  mind list my-project --tier 3              List cold memories (T3)');
-        logInfo('  mind read my-project auth                  Read a memory');
-        logInfo('  mind edit my-project auth "new content"    Update content');
-        logInfo('  mind remove my-project auth                Delete a memory');
-        logInfo('  mind delete my-project                     Delete a space');
+        renderCommands([CMD.HELP, CMD.CREATE_SPACE, CMD.ADD_MEMORY, CMD.LIST_SPACES, CMD.LIST_MEMORIES, CMD.READ_MEMORY, CMD.EDIT_MEMORY, CMD.REMOVE_MEMORY, CMD.DELETE_SPACE], logger);
         logInfo('');
         logInfo(style('Search:', ['bold']));
-        logInfo('  mind search "authentication"               Exact match, names only (includes T4)');
-        logInfo('  mind search "auth*"                        Prefix wildcard');
-        logInfo('  mind search "auth" --detail                Include content preview');
-        logInfo('  mind search "auth" --space X --tier 1      Combined filters');
+        renderCommands([CMD.SEARCH], logger);
         logInfo('');
         logInfo(style('Tiers (CPU-cache style):', ['bold']));
         logInfo('  🔴 T1 hot    (25/space)  — Frequently accessed');
@@ -680,18 +704,14 @@ function printGuide(logger: Logger, mode: string): void {
         logInfo('  Pinned memories are immune to auto-promotion and LRU eviction.');
         logInfo('');
         logInfo(style('Organization:', ['bold']));
-        logInfo('  mind tag my-project project                Tag a space');
-        logInfo('  mind tag my-project auth backend           Tag a memory');
-        logInfo('  mind untag my-project auth backend         Remove a tag');
-        logInfo('  mind promote my-project auth               Move to higher tier');
-        logInfo('  mind demote my-project auth                Move to lower tier (T3→T4 allowed)');
-        logInfo('  mind pin my-project auth                   Prevent auto-promotion/eviction');
-        logInfo('  mind link proj/mem1 proj/mem2 --label x    Link two memories');
-        logInfo('  mind links proj auth                       Show links');
+        renderCommands([CMD.TAG_SPACE, CMD.UNTAG_SPACE, CMD.LIST_TAGS, CMD.PROMOTE, CMD.DEMOTE, CMD.PIN, CMD.UNPIN, CMD.LINK, CMD.UNLINK, CMD.LINKS], logger);
         logInfo('');
         logInfo(style('Status:', ['bold']));
-        logInfo('  mind status                                Global tier breakdown');
-        logInfo('  mind status my-project                     Breakdown for a space');
+        renderCommands([CMD.STATUS, CMD.STATUS_SPACE], logger);
+        logInfo('');
+        logInfo(style('Considerations:', ['bold']));
+        logInfo('  Tags: normalized on creation (lowercase, # prefix stripped).');
+        logInfo('  Valid chars: a-z, 0-9, -, _, ., :, /, =, +, @');
         logInfo('');
         logInfo('Run mind help for the full command reference.');
     }

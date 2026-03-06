@@ -3,12 +3,12 @@ import { style } from 'bun-style';
 export class ArgParser {
     private shape: string[];
     private description: string;
-    private flags: { name: string; alias?: string; hasValue: boolean }[];
+    private flags: { name: string; alias?: string; hasValue: boolean; description?: string }[];
 
     constructor(
         shape: string[],
         description: string,
-        flags: { name: string; alias?: string; hasValue: boolean }[] = []
+        flags: { name: string; alias?: string; hasValue: boolean; description?: string }[] = []
     ) {
         this.shape = shape;
         this.description = description;
@@ -93,7 +93,11 @@ export class ArgParser {
 
     public getRendered(): string {
         const flagsStr = this.flags
-            .map((f) => (f.hasValue ? ` [--${f.name} <value>]` : ` [--${f.name}]`))
+            .map((f) => {
+                const flagPart = f.hasValue ? ` [--${f.name} <value>]` : ` [--${f.name}]`;
+                const descPart = f.description ? style(` (${f.description})`, ['dim']) : '';
+                return flagPart + descPart;
+            })
             .join('');
 
         return (

@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { createSqliteStore } from '../cli/src/store/sqlite-store';
+import { normalizeTag, normalizeTags } from '../cli/src/utils';
 import type { MindStore } from '../cli/src/store/mind-store';
 import type { Tier } from '../cli/src/types';
 
@@ -74,14 +75,16 @@ const server = Bun.serve({
         try {
             // ── GET /api/spaces ──────────────────────────────────────────────
             if (p === '/api/spaces' && m === 'GET') {
-                const tag = url.searchParams.get('tag') ?? undefined;
+                const tagParam = url.searchParams.get('tag') ?? undefined;
+                const tag = tagParam ? normalizeTag(tagParam) : undefined;
                 return json(store.listSpaces(tag ? { tag } : undefined));
             }
 
             // ── POST /api/spaces ─────────────────────────────────────────────
             if (p === '/api/spaces' && m === 'POST') {
                 const { name, description, tags } = await parseBody<{ name: string; description: string; tags?: string[] }>(req);
-                store.createSpace(name, description ?? '', tags);
+                const normalizedTags = tags ? normalizeTags(tags) : undefined;
+                store.createSpace(name, description ?? '', normalizedTags);
                 return json(store.getSpace(name), 201);
             }
 
@@ -118,7 +121,8 @@ const server = Bun.serve({
             if (memoriesMatch && m === 'GET') {
                 const spaceName = decodeURIComponent(memoriesMatch[1]!);
                 const tier = parseTier(url.searchParams.get('tier'));
-                const tag = url.searchParams.get('tag') ?? undefined;
+                const tagParam = url.searchParams.get('tag') ?? undefined;
+                const tag = tagParam ? normalizeTag(tagParam) : undefined;
 
                 if (tier !== undefined) {
                     // Explicit tier requested — return only that tier (T4 returns [])
@@ -144,7 +148,8 @@ const server = Bun.serve({
                 if (tier !== undefined && (tier < 1 || tier > 3)) {
                     return err('tier must be 1, 2, or 3. T4 is reserved for auto-eviction.', 400);
                 }
-                const memory = store.addMemory(spaceName, name, content, { tags, tier });
+                const normalizedTags = tags ? normalizeTags(tags) : undefined;
+                const memory = store.addMemory(spaceName, name, content, { tags: normalizedTags, tier });
                 return json(memory, 201);
             }
 
@@ -193,7 +198,8 @@ const server = Bun.serve({
             if (p === '/api/search' && m === 'GET') {
                 const q = url.searchParams.get('q') ?? '';
                 const space = url.searchParams.get('space') ?? undefined;
-                const tag = url.searchParams.get('tag') ?? undefined;
+                const tagParam = url.searchParams.get('tag') ?? undefined;
+                const tag = tagParam ? normalizeTag(tagParam) : undefined;
                 const tier = parseTier(url.searchParams.get('tier'));
                 if (!q) return json([]);
                 return json(await store.search(q, { space, tag, tier }));
