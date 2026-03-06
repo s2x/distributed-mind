@@ -2,6 +2,7 @@ import { ArgParser } from './arg-parser';
 import type { MindStore } from './store/mind-store';
 import type { Logger } from './logger';
 import type { Tier } from './types';
+import { TIER_LIMITS, CONFIG } from './config';
 import { style } from 'bun-style';
 
 const p = (name: string) => ArgParser.param(name);
@@ -10,6 +11,7 @@ const TIER_LABELS: Record<number, string> = {
     1: '🔴 T1 (hot)',
     2: '🟡 T2 (warm)',
     3: '🔵 T3 (cold)',
+    4: '💠 T4 (frozen)',
 };
 
 // ── Command definitions ──
@@ -30,7 +32,7 @@ const CMD = {
     ),
     LIST_MEMORIES: new ArgParser(
         ['list|ls|l', p('space')],
-        'Lists memories of a space',
+        'Lists T1+T2 memories of a space (--tier 3 for cold)',
         [
             { name: 'tier', hasValue: true },
             { name: 'tag', alias: 't', hasValue: true },
@@ -51,7 +53,7 @@ const CMD = {
             { name: 'tier', hasValue: true },
         ]
     ),
-    READ_MEMORY: new ArgParser(['read|r', p('space'), p('name')], 'Reads a memory (bumps access + auto-promote)'),
+    READ_MEMORY: new ArgParser(['read|r', p('space'), p('name')], 'Reads a memory (bumps access + auto-promotes)'),
     EDIT_MEMORY: new ArgParser(['edit|e', p('space'), p('name'), p('content')], 'Edits a memory content'),
     REMOVE_MEMORY: new ArgParser(['remove|rm', p('space'), p('name')], 'Removes a memory by name'),
 
@@ -60,9 +62,9 @@ const CMD = {
     UNTAG_MEMORY: new ArgParser(['untag', p('space'), p('name'), p('tag')], 'Removes a tag from a memory'),
 
     // Tiers
-    PROMOTE: new ArgParser(['promote|up', p('space'), p('name')], 'Promotes a memory one tier up (3→2, 2→1)'),
-    DEMOTE: new ArgParser(['demote|down', p('space'), p('name')], 'Demotes a memory one tier down (1→2, 2→3)'),
-    PIN: new ArgParser(['pin', p('space'), p('name')], 'Pins a memory (immune to auto-demotion)'),
+    PROMOTE: new ArgParser(['promote|up', p('space'), p('name')], 'Promotes a memory one tier up (T4→T3, T3→T2, T2→T1)'),
+    DEMOTE: new ArgParser(['demote|down', p('space'), p('name')], 'Demotes a memory one tier down (T1→T2, T2→T3, T3→T4)'),
+    PIN: new ArgParser(['pin', p('space'), p('name')], 'Pins a memory (immune to auto-promotion)'),
     UNPIN: new ArgParser(['unpin', p('space'), p('name')], 'Unpins a memory'),
 
     // Links
@@ -77,7 +79,7 @@ const CMD = {
     // Search
     SEARCH: new ArgParser(
         ['search|s', p('query')],
-        'Full-text search across all memories. Use term* for prefix match.',
+        'Full-text search across all memories (including T4). Use term* for prefix match.',
         [
             { name: 'space', hasValue: true },
             { name: 'tag', hasValue: true },
@@ -86,16 +88,9 @@ const CMD = {
         ]
     ),
 
-    // Maintenance
-    TIDY: new ArgParser(['tidy'], 'Auto-demotes unused memories, shows GC candidates'),
-    TIDY_SPACE: new ArgParser(['tidy', p('space')], 'Auto-demotes unused memories in a space'),
-    GC: new ArgParser(
-        ['gc'],
-        'Removes old tier-3 memories',
-        [{ name: 'days', hasValue: true }]
-    ),
-    STATS: new ArgParser(['stats'], 'Shows usage statistics'),
-    STATS_SPACE: new ArgParser(['stats', p('space')], 'Shows usage statistics for a space'),
+    // Status
+    STATUS: new ArgParser(['status'], 'Shows storage info and per-tier breakdown'),
+    STATUS_SPACE: new ArgParser(['status', p('space')], 'Shows tier breakdown for a specific space'),
 
     // Guide
     GUIDE: new ArgParser(['guide|g'], 'Shows usage guide'),
@@ -122,9 +117,15 @@ function formatTags(tags: string[]): string {
     return tags.map((t) => style(`#${t}`, ['cyan'])).join(' ');
 }
 
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 // ── Main executor ──
 
-export function executeCommand(args: string[], store: MindStore, logger: Logger): void {
+export async function executeCommand(args: string[], store: MindStore, logger: Logger): Promise<void> {
     const { logInfo } = logger;
 
     if (args.length === 0) {
@@ -158,8 +159,8 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
         logInfo(style('Search:', ['bold', 'magenta']));
         logInfo(`   ${CMD.SEARCH.getRendered()}`);
         logInfo('');
-        logInfo(style('Maintenance:', ['bold', 'magenta']));
-        for (const cmd of [CMD.TIDY, CMD.TIDY_SPACE, CMD.GC, CMD.STATS, CMD.STATS_SPACE]) {
+        logInfo(style('Status:', ['bold', 'magenta']));
+        for (const cmd of [CMD.STATUS, CMD.STATUS_SPACE]) {
             logInfo(`   ${cmd.getRendered()}`);
         }
         logInfo('');
@@ -188,12 +189,14 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
         const tag = flags.tag ? String(flags.tag) : undefined;
         const memories = store.listMemories(space, { tier, tag });
 
+        const scopeLabel = tier ? ` [${tierLabel(tier)}]` : ' [T1+T2]';
+
         if (memories.length === 0) {
-            logInfo('No memories found');
+            logInfo(`No memories found in ${style(space, ['magenta'])}${scopeLabel}`);
             return;
         }
 
-        logInfo(style(`📋 Memories in ${space}:`, ['bold', 'magenta']));
+        logInfo(style(`📋 ${space}${scopeLabel}:`, ['bold', 'magenta']));
 
         // Group by tier
         const byTier = new Map<number, typeof memories>();
@@ -266,7 +269,10 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
         const flags = CMD.ADD_MEMORY.getFlags(args);
         const tags = flags.tags ? String(flags.tags).split(',').map((t: string) => t.trim()) : undefined;
         const tier = flags.tier ? (parseInt(String(flags.tier)) as Tier) : undefined;
-        const memory = store.addMemory(space, name, content, { tags, tier });
+        if (tier !== undefined && (tier < 1 || tier > 3)) {
+            throw new Error('--tier must be 1, 2, or 3 when adding a memory. T4 is reserved for auto-eviction.');
+        }
+        const memory = await store.addMemory(space, name, content, { tags, tier });
         logInfo(
             style('✅ Memory added: ', ['bold', 'green']) +
                 `${style(memory.name, ['bold'])} in ${style(space, ['magenta'])} [${tierLabel(memory.tier)}]`
@@ -300,7 +306,7 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
         const { space, name, content } = CMD.EDIT_MEMORY.getParams(args);
         const memory = store.getMemory(space, name);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
-        store.updateMemory(memory.id, { content });
+        await store.updateMemory(memory.id, { content });
         logInfo(style(`✅ Memory "${name}" updated`, ['bold', 'green']));
         return;
     }
@@ -461,7 +467,7 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
         };
         const showDetail = !!flags.detail;
 
-        const results = store.search(query, filter);
+        const results = await store.search(query, filter);
         if (results.length === 0) {
             logInfo('No results found');
             return;
@@ -470,7 +476,8 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
         logInfo(style(`🔍 ${results.length} result(s) for "${query}":`, ['bold', 'magenta']));
         for (const r of results) {
             const pin = r.pinned ? ' 📌' : '';
-            logInfo(`   ${style(`${r.space_name}/${r.name}`, ['bold'])} [${tierLabel(r.tier)}]${pin}`);
+            const sim = r.similarity !== undefined ? ` (${(r.similarity * 100).toFixed(1)}%)` : '';
+            logInfo(`   ${style(`${r.space_name}/${r.name}`, ['bold'])} [${tierLabel(r.tier)}]${pin}${sim}`);
             if (showDetail) {
                 const preview = r.content.length > 120 ? r.content.slice(0, 120) + '...' : r.content;
                 if (preview) logInfo(style(`      ${preview}`, ['dim']));
@@ -479,47 +486,16 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
         return;
     }
 
-    // ── Tidy (with space) ──
-    if (CMD.TIDY_SPACE.matches(args)) {
-        const { space } = CMD.TIDY_SPACE.getParams(args);
-        runTidy(store, logger, space);
+    // ── Status (with space) ──
+    if (CMD.STATUS_SPACE.matches(args)) {
+        const { space } = CMD.STATUS_SPACE.getParams(args);
+        runStatus(store, logger, space);
         return;
     }
 
-    // ── Tidy (global) ──
-    if (CMD.TIDY.matches(args)) {
-        runTidy(store, logger);
-        return;
-    }
-
-    // ── GC ──
-    if (CMD.GC.matches(args)) {
-        const flags = CMD.GC.getFlags(args);
-        const days = flags.days ? parseInt(String(flags.days)) : undefined;
-        const result = store.gc(days);
-
-        if (result.removed.length === 0) {
-            logInfo(style('✅ Nothing to clean up', ['bold', 'green']));
-            return;
-        }
-
-        logInfo(style(`🗑️  Removed ${result.removed.length} memory(ies):`, ['bold', 'yellow']));
-        for (const r of result.removed) {
-            logInfo(`   ${style(`${r.space}/${r.name}`, ['dim'])}`);
-        }
-        return;
-    }
-
-    // ── Stats (with space) ──
-    if (CMD.STATS_SPACE.matches(args)) {
-        const { space } = CMD.STATS_SPACE.getParams(args);
-        runStats(store, logger, space);
-        return;
-    }
-
-    // ── Stats (global) ──
-    if (CMD.STATS.matches(args)) {
-        runStats(store, logger);
+    // ── Status (global) ──
+    if (CMD.STATUS.matches(args)) {
+        runStatus(store, logger);
         return;
     }
 
@@ -547,57 +523,46 @@ export function executeCommand(args: string[], store: MindStore, logger: Logger)
 
 // ── Sub-routines ──
 
-function runTidy(store: MindStore, logger: Logger, space?: string): void {
-    const result = store.tidy(space);
-    const scope = space ? ` in "${space}"` : '';
+function runStatus(store: MindStore, logger: Logger, space?: string): void {
+    const { logInfo } = logger;
+    const status = store.getStatus(space);
 
-    if (result.demoted.length === 0 && result.candidates_for_gc.length === 0) {
-        logger.logInfo(style(`✅ Everything is tidy${scope}`, ['bold', 'green']));
-        return;
+    if (space) {
+        logInfo(style(`🧠 Status: ${space}`, ['bold', 'magenta']));
+    } else {
+        logInfo(style('🧠 Mind Status', ['bold', 'magenta']));
+        logInfo('');
+        logInfo(`   Storage:   ${style(status.db_path, ['dim'])} (${formatBytes(status.db_size_bytes)})`);
+        logInfo(`   Spaces:    ${status.total_spaces}`);
+        logInfo(`   Memories:  ${status.total_memories} total`);
     }
 
-    if (result.demoted.length > 0) {
-        logger.logInfo(style(`⬇️  Demoted ${result.demoted.length} memory(ies)${scope}:`, ['bold', 'yellow']));
-        for (const d of result.demoted) {
-            logger.logInfo(
-                `   ${style(`${d.space}/${d.name}`, ['bold'])}: ${tierLabel(d.from_tier)} → ${tierLabel(d.to_tier)}`
-            );
-        }
+    logInfo('');
+    logInfo('   Tier           Count  Pinned  Limit');
+    logInfo('   ─────────────────────────────────────');
+
+    // Emojis have inconsistent terminal width; keep them outside the padded label.
+    const tierRows: { icon: string; label: string; limit: string; tier: 1 | 2 | 3 | 4 }[] = [
+        { tier: 1, icon: '🔴', label: 'T1 hot    ', limit: `${TIER_LIMITS[1]}/space` },
+        { tier: 2, icon: '🟡', label: 'T2 warm   ', limit: `${TIER_LIMITS[2]}/space` },
+        { tier: 3, icon: '🔵', label: 'T3 cold   ', limit: `${TIER_LIMITS[3]}/space` },
+        { tier: 4, icon: '💠', label: 'T4 frozen ', limit: '—' },
+    ];
+
+    for (const row of tierRows) {
+        const data = status.by_tier.find((b) => b.tier === row.tier)!;
+        const count = String(data.count).padStart(5);
+        const pinned = String(data.pinned).padStart(6);
+        logInfo(`   ${row.icon} ${row.label}  ${count}  ${pinned}  ${row.limit}`);
     }
 
-    if (result.candidates_for_gc.length > 0) {
-        logger.logInfo(
-            style(`\n🗑️  ${result.candidates_for_gc.length} GC candidate(s)${scope} (run mind gc to remove):`, [
-                'bold',
-                'yellow',
-            ])
-        );
-        for (const c of result.candidates_for_gc) {
-            logger.logInfo(`   ${style(`${c.space}/${c.name}`, ['dim'])}`);
-        }
-    }
-}
-
-function runStats(store: MindStore, logger: Logger, space?: string): void {
-    const stats = store.stats(space);
-    const scope = space ? ` (${space})` : '';
-
-    logger.logInfo(style(`📊 Stats${scope}:`, ['bold', 'magenta']));
-    logger.logInfo(`   Spaces: ${stats.total_spaces}`);
-    logger.logInfo(`   Memories: ${stats.total_memories}`);
-
-    if (stats.by_tier.length > 0) {
-        logger.logInfo('   By tier:');
-        for (const t of stats.by_tier) {
-            logger.logInfo(`      ${tierLabel(t.tier)}: ${t.count}`);
-        }
-    }
-
-    if (stats.most_accessed.length > 0) {
-        logger.logInfo('   Most accessed:');
-        for (const m of stats.most_accessed.slice(0, 5)) {
-            logger.logInfo(`      ${style(`${m.space}/${m.name}`, ['bold'])}: ${m.access_count} accesses`);
-        }
+    // RAG info
+    logInfo('');
+    if (status.rag_enabled) {
+        logInfo(`   ${style('RAG:', ['bold'])} enabled (${CONFIG.rag.model})`);
+        logInfo(`   ${style('Embeddings:', ['bold'])} ${status.embeddings_indexed}/${status.total_memories} indexed`);
+    } else {
+        logInfo(`   ${style('RAG:', ['bold'])} disabled (set MIND_RAG=true + OPENAI_API_KEY)`);
     }
 }
 
@@ -630,9 +595,13 @@ function printGuide(logger: Logger, mode: string): void {
         logInfo('');
         logInfo(style('Data model:', ['bold']));
         logInfo('  Space    Namespace with a name, description, and tags.');
-        logInfo('  Memory   Key-value entry with name, content, tier (1/2/3), and tags.');
-        logInfo('  Tier     🔴 T1 (hot) → 🟡 T2 (warm, default) → 🔵 T3 (cold).');
-        logInfo('           Reading a memory auto-promotes it. mind tidy auto-demotes stale ones.');
+        logInfo('  Memory   Key-value entry: name, content, tier (1–4), tags.');
+        logInfo('  Tier     🔴 T1 hot (25/space) → 🟡 T2 warm (50/space, default)');
+        logInfo('           → 🔵 T3 cold (100/space) → 💠 T4 frozen (unlimited).');
+        logInfo('           Reading a non-pinned memory auto-promotes it one tier up.');
+        logInfo('           Promotion uses LRU eviction if the destination tier is full.');
+        logInfo('           T4 entries are only reachable via search, not list.');
+        logInfo('  Pin      Pinned memories are never auto-promoted or LRU-evicted.');
         logInfo('  Link     Directional edge between two memories with a label.');
         logInfo('');
         logInfo(style('Spaces:', ['bold']));
@@ -647,10 +616,10 @@ function printGuide(logger: Logger, mode: string): void {
         logInfo('  mind read <space> <name>              Read content (bumps access, auto-promotes)');
         logInfo('  mind edit <space> <name> <content>    Update content');
         logInfo('  mind remove <space> <name>            Delete a memory');
-        logInfo('  mind list <space>                     List memories (--tier, --tag to filter)');
+        logInfo('  mind list <space>                     List T1+T2 memories (--tier 3 for cold)');
         logInfo('');
         logInfo(style('Search:', ['bold']));
-        logInfo('  mind search <query>                   Exact token match, names only');
+        logInfo('  mind search <query>                   Full-text search (includes T4), names only');
         logInfo('  mind search <query> --detail          Include content preview');
         logInfo('  mind search "auth*"                   Prefix wildcard');
         logInfo('  mind search <query> --space X --tag Y --tier 1   Combined filters');
@@ -659,25 +628,24 @@ function printGuide(logger: Logger, mode: string): void {
         logInfo('  mind tag <space> <tag>                Tag a space (2 args)');
         logInfo('  mind tag <space> <name> <tag>         Tag a memory (3 args)');
         logInfo('  mind untag <space> [<name>] <tag>     Remove a tag');
-        logInfo('  mind promote <space> <name>           T3→T2, T2→T1');
-        logInfo('  mind demote <space> <name>            T1→T2, T2→T3');
-        logInfo('  mind pin <space> <name>               Immune to auto-demotion');
+        logInfo('  mind promote <space> <name>           T4→T3, T3→T2, T2→T1 (with LRU eviction)');
+        logInfo('  mind demote <space> <name>            T1→T2, T2→T3, T3→T4');
+        logInfo('  mind pin <space> <name>               Immune to auto-promotion and LRU eviction');
         logInfo('  mind unpin <space> <name>             Remove pin');
         logInfo('  mind link <space/name> <space/name> [--label reason]');
         logInfo('  mind unlink <space/name> <space/name>');
         logInfo('  mind links <space> <name>             Show links for a memory');
         logInfo('');
-        logInfo(style('Maintenance:', ['bold']));
-        logInfo('  mind tidy [<space>]                   Auto-demote stale memories');
-        logInfo('  mind gc [--days N]                    Remove old T3 memories (default: 90 days)');
-        logInfo('  mind stats [<space>]                  Usage statistics');
+        logInfo(style('Status:', ['bold']));
+        logInfo('  mind status                           Global tier breakdown + storage info');
+        logInfo('  mind status <space>                   Tier breakdown for a space');
         logInfo('');
         logInfo(style('Best practices:', ['bold']));
-        logInfo('  - Search before adding to avoid duplicates');
+        logInfo('  - Search before adding to avoid duplicates (search covers T4 too)');
         logInfo('  - Use tags for cross-cutting concerns (project, topic, type)');
-        logInfo('  - Pin critical memories to prevent auto-demotion');
-        logInfo('  - Prefer search over listing — it is faster for large spaces');
-        logInfo('  - Run mind tidy periodically to keep tiers accurate');
+        logInfo('  - Pin critical memories to prevent auto-promotion and LRU eviction');
+        logInfo('  - Prefer search over listing for large spaces');
+        logInfo('  - T4 memories are frozen but still searchable');
         logInfo('  - Run mind help for the full command reference');
     } else {
         logInfo(style('🧠 mind — User Guide', ['bold', 'magenta']));
@@ -690,37 +658,40 @@ function printGuide(logger: Logger, mode: string): void {
         logInfo('  mind create my-project "Project notes"     Create a space');
         logInfo('  mind add my-project "auth" "JWT flow..."   Add a memory');
         logInfo('  mind list                                  List all spaces');
-        logInfo('  mind list my-project                       List memories in a space');
+        logInfo('  mind list my-project                       List active memories (T1+T2)');
+        logInfo('  mind list my-project --tier 3              List cold memories (T3)');
         logInfo('  mind read my-project auth                  Read a memory');
         logInfo('  mind edit my-project auth "new content"    Update content');
         logInfo('  mind remove my-project auth                Delete a memory');
         logInfo('  mind delete my-project                     Delete a space');
         logInfo('');
         logInfo(style('Search:', ['bold']));
-        logInfo('  mind search "authentication"               Exact match, names only');
+        logInfo('  mind search "authentication"               Exact match, names only (includes T4)');
         logInfo('  mind search "auth*"                        Prefix wildcard');
         logInfo('  mind search "auth" --detail                Include content preview');
         logInfo('  mind search "auth" --space X --tier 1      Combined filters');
+        logInfo('');
+        logInfo(style('Tiers (CPU-cache style):', ['bold']));
+        logInfo('  🔴 T1 hot    (25/space)  — Frequently accessed');
+        logInfo('  🟡 T2 warm   (50/space)  — Default for new memories');
+        logInfo('  🔵 T3 cold   (100/space) — Rarely used');
+        logInfo('  💠 T4 frozen (unlimited) — Archive; only reachable via search');
+        logInfo('  Reading a memory auto-promotes it one tier up (LRU eviction if tier is full).');
+        logInfo('  Pinned memories are immune to auto-promotion and LRU eviction.');
         logInfo('');
         logInfo(style('Organization:', ['bold']));
         logInfo('  mind tag my-project project                Tag a space');
         logInfo('  mind tag my-project auth backend           Tag a memory');
         logInfo('  mind untag my-project auth backend         Remove a tag');
         logInfo('  mind promote my-project auth               Move to higher tier');
-        logInfo('  mind pin my-project auth                   Prevent auto-demotion');
+        logInfo('  mind demote my-project auth                Move to lower tier (T3→T4 allowed)');
+        logInfo('  mind pin my-project auth                   Prevent auto-promotion/eviction');
         logInfo('  mind link proj/mem1 proj/mem2 --label x    Link two memories');
         logInfo('  mind links proj auth                       Show links');
         logInfo('');
-        logInfo(style('Tiers:', ['bold']));
-        logInfo('  🔴 T1 (hot)  — Frequently accessed');
-        logInfo('  🟡 T2 (warm) — Default for new memories');
-        logInfo('  🔵 T3 (cold) — Rarely used, candidates for cleanup');
-        logInfo('  Reading a memory auto-promotes it. mind tidy auto-demotes stale ones.');
-        logInfo('');
-        logInfo(style('Maintenance:', ['bold']));
-        logInfo('  mind tidy                                  Auto-demote stale memories');
-        logInfo('  mind gc                                    Remove old T3 memories (90 days)');
-        logInfo('  mind stats                                 Usage statistics');
+        logInfo(style('Status:', ['bold']));
+        logInfo('  mind status                                Global tier breakdown');
+        logInfo('  mind status my-project                     Breakdown for a space');
         logInfo('');
         logInfo('Run mind help for the full command reference.');
     }

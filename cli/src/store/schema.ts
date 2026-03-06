@@ -1,6 +1,6 @@
-// ── SQLite schema and migrations for Mind v2 ──
+// ── SQLite schema and migrations for Mind v3 ──
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 3;
 
 export const SCHEMA_SQL = `
 -- Version tracking
@@ -23,16 +23,17 @@ CREATE TABLE IF NOT EXISTS space_tags (
     PRIMARY KEY (space_name, tag)
 );
 
--- Memories
+-- Memories (tier 1=hot, 2=warm, 3=cold, 4=frozen)
 CREATE TABLE IF NOT EXISTS memories (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     space_name       TEXT NOT NULL REFERENCES spaces(name) ON DELETE CASCADE ON UPDATE CASCADE,
     name             TEXT NOT NULL,
     content          TEXT NOT NULL DEFAULT '',
-    tier             INTEGER NOT NULL DEFAULT 2 CHECK (tier BETWEEN 1 AND 3),
+    tier             INTEGER NOT NULL DEFAULT 2 CHECK (tier BETWEEN 1 AND 4),
     pinned           INTEGER NOT NULL DEFAULT 0,
     access_count     INTEGER NOT NULL DEFAULT 0,
     last_accessed_at TEXT,
+    embedding        BLOB,
     created_at       TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(space_name, name)
@@ -70,6 +71,56 @@ CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_id);
 CREATE INDEX IF NOT EXISTS idx_links_target ON links(target_id);
 `;
 
+// ── Migration: v1 → v2 ──
+// Changes: memories.tier CHECK constraint BETWEEN 1 AND 3 → BETWEEN 1 AND 4
+// SQLite doesn't support ALTER COLUMN, so we use the 12-step table recreation.
+const MIGRATE_V1_TO_V2 = `
+-- Step 1: disable FK enforcement during migration
+PRAGMA foreign_keys = OFF;
+
+-- Step 2: recreate memories with the new CHECK constraint
+CREATE TABLE memories_v2 (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    space_name       TEXT NOT NULL REFERENCES spaces(name) ON DELETE CASCADE ON UPDATE CASCADE,
+    name             TEXT NOT NULL,
+    content          TEXT NOT NULL DEFAULT '',
+    tier             INTEGER NOT NULL DEFAULT 2 CHECK (tier BETWEEN 1 AND 4),
+    pinned           INTEGER NOT NULL DEFAULT 0,
+    access_count     INTEGER NOT NULL DEFAULT 0,
+    last_accessed_at TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(space_name, name)
+);
+
+-- Step 3: copy all existing data
+INSERT INTO memories_v2 SELECT * FROM memories;
+
+-- Step 4: drop the old table (cascades its indexes)
+DROP TABLE memories;
+
+-- Step 5: rename
+ALTER TABLE memories_v2 RENAME TO memories;
+
+-- Step 6: recreate indexes
+CREATE INDEX IF NOT EXISTS idx_memories_space ON memories(space_name);
+CREATE INDEX IF NOT EXISTS idx_memories_tier ON memories(tier);
+CREATE INDEX IF NOT EXISTS idx_memories_space_tier ON memories(space_name, tier);
+
+-- Step 7: re-enable FK enforcement
+PRAGMA foreign_keys = ON;
+
+-- Step 8: bump schema version
+UPDATE meta SET value = '2' WHERE key = 'schema_version';
+`;
+
+// ── Migration: v2 → v3 ──
+// Changes: add memories.embedding BLOB column for RAG/embeddings
+const MIGRATE_V2_TO_V3 = `
+ALTER TABLE memories ADD COLUMN embedding BLOB;
+UPDATE meta SET value = '3' WHERE key = 'schema_version';
+`;
+
 export function initializeDatabase(db: import('bun:sqlite').Database): void {
     db.exec('PRAGMA journal_mode = WAL;');
     db.exec('PRAGMA foreign_keys = ON;');
@@ -80,6 +131,22 @@ export function initializeDatabase(db: import('bun:sqlite').Database): void {
         | null;
 
     if (!meta) {
+        // Brand-new database — tables were just created with the current schema
         db.run('INSERT INTO meta (key, value) VALUES (?, ?)', ['schema_version', String(SCHEMA_VERSION)]);
+        return;
     }
+
+    const currentVersion = parseInt(meta.value, 10);
+
+    if (currentVersion < 2) {
+        // Migrate v1 → v2
+        db.exec(MIGRATE_V1_TO_V2);
+    }
+
+    if (currentVersion < 3) {
+        // Migrate v2 → v3
+        db.exec(MIGRATE_V2_TO_V3);
+    }
+
+    // Future migrations: add else-if blocks here for v3→v4, etc.
 }

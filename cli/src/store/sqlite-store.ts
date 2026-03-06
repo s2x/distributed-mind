@@ -1,7 +1,10 @@
 // ── SQLite implementation of MindStore ──
 
 import { Database } from 'bun:sqlite';
+import { statSync } from 'fs';
 import { initializeDatabase } from './schema';
+import { TIER_LIMITS } from '../config';
+import { isRagEnabled, getEmbedding, semanticSearch, blobToVector, vectorToBlob } from '../rag';
 import type { MindStore } from './mind-store';
 import type {
     Space,
@@ -12,21 +15,9 @@ import type {
     Tier,
     SearchFilter,
     SearchResult,
-    TidyResult,
-    GcResult,
-    Stats,
+    StatusResult,
     LegacyBrain,
 } from '../types';
-
-// ── Tier auto-promotion thresholds ──
-const PROMOTE_3_TO_2_ON_READ = true;
-const PROMOTE_2_TO_1_ACCESS_THRESHOLD = 5;
-const PROMOTE_2_TO_1_DAYS_WINDOW = 7;
-
-// ── Tidy thresholds (days without access) ──
-const TIDY_TIER1_DAYS = 14;
-const TIDY_TIER2_DAYS = 30;
-const GC_DEFAULT_DAYS = 90;
 
 export function createSqliteStore(dbPath: string): MindStore {
     const db = new Database(dbPath, { create: true });
@@ -45,7 +36,6 @@ export function createSqliteStore(dbPath: string): MindStore {
     }
 
     function ftsDelete(id: number): void {
-        // For standalone FTS tables, just delete by rowid
         db.run('DELETE FROM memories_fts WHERE rowid = ?', [id]);
     }
 
@@ -74,6 +64,7 @@ export function createSqliteStore(dbPath: string): MindStore {
             pinned: row.pinned === 1,
             access_count: row.access_count,
             last_accessed_at: row.last_accessed_at,
+            embedding: row.embedding ? blobToVector(row.embedding) : null,
             tags: getTagsForMemory(row.id),
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -89,6 +80,58 @@ export function createSqliteStore(dbPath: string): MindStore {
         const row = db.query('SELECT * FROM memories WHERE id = ?').get(id);
         if (!row) throw new Error(`Memory with id ${id} does not exist`);
         return row;
+    }
+
+    // ── LRU / Capacity helpers ──
+
+    /**
+     * Count all memories (pinned + non-pinned) at a given tier in a space.
+     * Limits are applied to ALL memories in a tier; pinned memories cannot be evicted.
+     */
+    function countTierTotal(space: string, tier: number): number {
+        const row = db
+            .query('SELECT COUNT(*) as c FROM memories WHERE space_name = ? AND tier = ?')
+            .get(space, tier) as { c: number };
+        return row.c;
+    }
+
+    /**
+     * Ensure a tier has capacity for one more memory.
+     * If the tier is full, evicts the LRU non-pinned memory to the next tier (no cascading).
+     * T4 is unlimited — always returns true.
+     * @param throwOnFull - if true, throws when tier is full and all are pinned; if false, returns false
+     * @returns true if there is (or was made) capacity, false if no evictable memory
+     */
+    function ensureCapacity(space: string, tier: number, throwOnFull: boolean): boolean {
+        const limit = TIER_LIMITS[tier as 1 | 2 | 3];
+        if (limit === undefined) return true; // T4: unlimited
+
+        const total = countTierTotal(space, tier);
+        if (total < limit) return true; // room available
+
+        // Tier is full — find LRU non-pinned to evict
+        const lru = db
+            .query(
+                `SELECT id FROM memories
+                 WHERE space_name = ? AND tier = ? AND pinned = 0
+                 ORDER BY COALESCE(last_accessed_at, created_at) ASC
+                 LIMIT 1`
+            )
+            .get(space, tier) as { id: number } | null;
+
+        if (!lru) {
+            if (throwOnFull) {
+                throw new Error(
+                    `T${tier} is full (${limit}/space) and all memories are pinned. Unpin one to make room.`
+                );
+            }
+            return false;
+        }
+
+        // Evict LRU one tier down (no cascading — T3 LRU goes to T4 which is unlimited)
+        const nextTier = tier + 1;
+        db.run('UPDATE memories SET tier = ?, updated_at = ? WHERE id = ?', [nextTier, now(), lru.id]);
+        return true;
     }
 
     // ── Spaces ──
@@ -198,20 +241,23 @@ export function createSqliteStore(dbPath: string): MindStore {
 
     // ── Memories ──
 
-    function addMemory(
+    async function addMemory(
         space: string,
         name: string,
         content: string,
         opts?: { tags?: string[]; tier?: Tier }
-    ): Memory {
+    ): Promise<Memory> {
         requireSpace(space);
 
         const existing = db.query('SELECT 1 FROM memories WHERE space_name = ? AND name = ?').get(space, name);
         if (existing) throw new Error(`Memory "${name}" already exists in space "${space}"`);
 
         const tier = opts?.tier ?? 2;
-        const ts = now();
 
+        // Ensure capacity at target tier (evict LRU if needed); T4 is unlimited
+        ensureCapacity(space, tier, true);
+
+        const ts = now();
         const result = db.run(
             `INSERT INTO memories (space_name, name, content, tier, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?)`,
@@ -228,7 +274,15 @@ export function createSqliteStore(dbPath: string): MindStore {
             }
         }
 
-        return rowToMemory(db.query('SELECT * FROM memories WHERE id = ?').get(id));
+        // Generate embedding if RAG is enabled (await so embedding is ready before process exits)
+        if (isRagEnabled()) {
+            const embedding = await getEmbedding(`${name} ${content}`);
+            if (embedding) {
+                db.run('UPDATE memories SET embedding = ? WHERE id = ?', [vectorToBlob(embedding), id]);
+            }
+        }
+
+        return rowToMemory(db.query('SELECT * FROM memories WHERE id = ?').get(id) as any);
     }
 
     function getMemory(space: string, name: string): Memory | null {
@@ -255,9 +309,17 @@ export function createSqliteStore(dbPath: string): MindStore {
             sql += ' JOIN memory_tags mt ON mt.memory_id = m.id AND mt.tag = ?';
             joinParams.push(filter.tag.toLowerCase().trim());
         }
-        if (filter?.tier) {
+
+        if (filter?.tier !== undefined) {
+            // Explicit tier filter: return only that tier (T4 returns empty since it's never listed)
+            if (filter.tier === 4) {
+                return []; // T4 is never listed — use search instead
+            }
             conditions.push('m.tier = ?');
             whereParams.push(filter.tier);
+        } else {
+            // Default: show T1 + T2 only (active memories)
+            conditions.push('m.tier IN (1, 2)');
         }
 
         sql += ' WHERE ' + conditions.join(' AND ');
@@ -275,7 +337,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         }));
     }
 
-    function updateMemory(id: number, updates: { name?: string; content?: string }): void {
+    async function updateMemory(id: number, updates: { name?: string; content?: string }): Promise<void> {
         const row = requireMemory(id) as any;
         const sets: string[] = ['updated_at = ?'];
         const params: any[] = [now()];
@@ -296,6 +358,15 @@ export function createSqliteStore(dbPath: string): MindStore {
         if (updates.name !== undefined || updates.content !== undefined) {
             ftsUpdate(id, updates.name ?? row.name, updates.content ?? row.content);
         }
+
+        // Regenerate embedding if RAG is enabled (await so embedding is ready before process exits)
+        if (isRagEnabled() && (updates.name !== undefined || updates.content !== undefined)) {
+            const memory = rowToMemory(db.query('SELECT * FROM memories WHERE id = ?').get(id) as any);
+            const embedding = await getEmbedding(`${memory.name} ${memory.content}`);
+            if (embedding) {
+                db.run('UPDATE memories SET embedding = ? WHERE id = ?', [vectorToBlob(embedding), id]);
+            }
+        }
     }
 
     function deleteMemory(id: number): void {
@@ -315,30 +386,20 @@ export function createSqliteStore(dbPath: string): MindStore {
         const row = requireMemory(id) as any;
         const ts = now();
 
+        // Always bump access count and timestamp
         db.run(
             'UPDATE memories SET access_count = access_count + 1, last_accessed_at = ?, updated_at = ? WHERE id = ?',
             [ts, ts, id]
         );
 
-        // Auto-promotion
-        if (row.pinned) return;
+        // Auto-promote one tier up — skip if pinned or already at T1
+        if (row.pinned || row.tier <= 1) return;
 
-        const currentTier = row.tier as Tier;
-
-        if (currentTier === 3 && PROMOTE_3_TO_2_ON_READ) {
-            db.run('UPDATE memories SET tier = 2 WHERE id = ?', [id]);
-        } else if (currentTier === 2) {
-            // Promote to 1 if accessed enough times recently
-            const cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - PROMOTE_2_TO_1_DAYS_WINDOW);
-            const cutoffStr = cutoff.toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
-
-            // We use access_count as a rough proxy.
-            // A more precise approach would track individual accesses, but this is good enough.
-            const newCount = row.access_count + 1;
-            if (newCount >= PROMOTE_2_TO_1_ACCESS_THRESHOLD && row.last_accessed_at && row.last_accessed_at >= cutoffStr) {
-                db.run('UPDATE memories SET tier = 1 WHERE id = ?', [id]);
-            }
+        const toTier = row.tier - 1;
+        // Silently skip if destination is full and all are pinned (throwOnFull = false)
+        const ok = ensureCapacity(row.space_name, toTier, false);
+        if (ok) {
+            db.run('UPDATE memories SET tier = ?, updated_at = ? WHERE id = ?', [toTier, ts, id]);
         }
     }
 
@@ -362,12 +423,16 @@ export function createSqliteStore(dbPath: string): MindStore {
     function promote(id: number): void {
         const row = requireMemory(id) as any;
         if (row.tier <= 1) throw new Error('Memory is already at the highest tier');
-        db.run('UPDATE memories SET tier = tier - 1, updated_at = ? WHERE id = ?', [now(), id]);
+
+        const toTier = row.tier - 1;
+        // Throws if full and all are pinned
+        ensureCapacity(row.space_name, toTier, true);
+        db.run('UPDATE memories SET tier = ?, updated_at = ? WHERE id = ?', [toTier, now(), id]);
     }
 
     function demote(id: number): void {
         const row = requireMemory(id) as any;
-        if (row.tier >= 3) throw new Error('Memory is already at the lowest tier');
+        if (row.tier >= 4) throw new Error('Memory is already at the lowest tier');
         db.run('UPDATE memories SET tier = tier + 1, updated_at = ? WHERE id = ?', [now(), id]);
     }
 
@@ -403,7 +468,7 @@ export function createSqliteStore(dbPath: string): MindStore {
     function getLinks(memoryId: number): Link[] {
         const rows = db
             .query(
-                `SELECT l.*, 
+                `SELECT l.*,
                         sm.name as source_name, sm.space_name as source_space,
                         tm.name as target_name, tm.space_name as target_space
                  FROM links l
@@ -428,7 +493,7 @@ export function createSqliteStore(dbPath: string): MindStore {
 
     // ── Search ──
 
-    function searchMemories(query: string, filter?: SearchFilter): SearchResult[] {
+    async function searchMemories(query: string, filter?: SearchFilter): Promise<SearchResult[]> {
         // Sanitize FTS5 query: support trailing * for prefix match, wrap each term in quotes
         const sanitized = query
             .replace(/'/g, '')
@@ -476,6 +541,70 @@ export function createSqliteStore(dbPath: string): MindStore {
             });
         }
 
+        // If RAG is enabled, enrich and re-rank results with semantic similarity.
+        // If FTS returned nothing, fall back to pure semantic search across all candidates.
+        if (isRagEnabled()) {
+            const getEmbeddingForId = (id: number): Float32Array | null => {
+                const row = db.query('SELECT embedding FROM memories WHERE id = ?').get(id) as any;
+                return row?.embedding ? blobToVector(row.embedding) : null;
+            };
+
+            // FTS returned results — re-rank by semantic similarity
+            if (rows.length > 0) {
+                const allIds = rows.map((r) => r.id);
+                const semanticResults = await semanticSearch(query, getEmbeddingForId, allIds);
+                const semanticMap = new Map(semanticResults.map((sr) => [sr.id, sr.score]));
+
+                // Re-rank by semantic similarity (highest first)
+                rows.sort((a, b) => (semanticMap.get(b.id) ?? 0) - (semanticMap.get(a.id) ?? 0));
+
+                return rows.map((r) => ({
+                    id: r.id,
+                    space_name: r.space_name,
+                    name: r.name,
+                    content: r.content,
+                    tier: r.tier as Tier,
+                    pinned: r.pinned === 1,
+                    tags: getTagsForMemory(r.id),
+                    rank: r.rank,
+                    similarity: semanticMap.get(r.id) ?? undefined,
+                }));
+            }
+
+            // FTS returned nothing — fall back to pure semantic search across all candidates
+            const SEMANTIC_FALLBACK_THRESHOLD = 0.3;
+            let candSql = 'SELECT id, space_name, name, content, tier, pinned FROM memories WHERE 1=1';
+            const candParams: any[] = [];
+            if (filter?.space) { candSql += ' AND space_name = ?'; candParams.push(filter.space); }
+            if (filter?.tier)  { candSql += ' AND tier = ?';       candParams.push(filter.tier); }
+            let candidates = db.query(candSql).all(...candParams) as any[];
+            if (filter?.tag) {
+                const tagLower = filter.tag.toLowerCase().trim();
+                candidates = candidates.filter((r) => getTagsForMemory(r.id).includes(tagLower));
+            }
+
+            const allIds = candidates.map((r: any) => r.id);
+            const semanticResults = await semanticSearch(query, getEmbeddingForId, allIds);
+            const goodResults = semanticResults.filter((sr) => sr.score >= SEMANTIC_FALLBACK_THRESHOLD);
+            if (goodResults.length === 0) return [];
+
+            const idToMem = new Map(candidates.map((r: any) => [r.id, r]));
+            return goodResults.map((sr) => {
+                const r = idToMem.get(sr.id)!;
+                return {
+                    id: r.id,
+                    space_name: r.space_name,
+                    name: r.name,
+                    content: r.content,
+                    tier: r.tier as Tier,
+                    pinned: r.pinned === 1,
+                    tags: getTagsForMemory(r.id),
+                    rank: 0,
+                    similarity: sr.score,
+                };
+            });
+        }
+
         return rows.map((r) => ({
             id: r.id,
             space_name: r.space_name,
@@ -485,149 +614,66 @@ export function createSqliteStore(dbPath: string): MindStore {
             pinned: r.pinned === 1,
             tags: getTagsForMemory(r.id),
             rank: r.rank,
+            similarity: undefined, // Only populated when RAG is enabled
         }));
     }
 
-    // ── Maintenance ──
+    // ── Status ──
 
-    function tidy(space?: string): TidyResult {
-        const ts = now();
-        const demoted: TidyResult['demoted'] = [];
-        const candidates_for_gc: TidyResult['candidates_for_gc'] = [];
+    function getStatus(space?: string): StatusResult {
+        const spaceFilter = space ? 'WHERE space_name = ?' : '';
+        const spaceParams: any[] = space ? [space] : [];
 
-        // Demote tier 1 → 2 (not accessed in TIDY_TIER1_DAYS days, not pinned)
-        const cutoff1 = new Date();
-        cutoff1.setDate(cutoff1.getDate() - TIDY_TIER1_DAYS);
-        const cutoff1Str = cutoff1.toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
+        const total_spaces = space
+            ? 1
+            : (db.query('SELECT COUNT(*) as c FROM spaces').get() as { c: number }).c;
 
-        let sql1 = `SELECT * FROM memories WHERE tier = 1 AND pinned = 0
-                     AND (last_accessed_at IS NULL OR last_accessed_at < ?)`;
-        const params1: any[] = [cutoff1Str];
-        if (space) {
-            sql1 += ' AND space_name = ?';
-            params1.push(space);
-        }
+        const total_memories = (
+            db.query(`SELECT COUNT(*) as c FROM memories ${spaceFilter}`).get(...spaceParams) as { c: number }
+        ).c;
 
-        const tier1Rows = db.query(sql1).all(...params1) as any[];
-        for (const row of tier1Rows) {
-            db.run('UPDATE memories SET tier = 2, updated_at = ? WHERE id = ?', [ts, row.id]);
-            demoted.push({ id: row.id, name: row.name, space: row.space_name, from_tier: 1, to_tier: 2 });
-        }
-
-        // Demote tier 2 → 3 (not accessed in TIDY_TIER2_DAYS days, not pinned)
-        const cutoff2 = new Date();
-        cutoff2.setDate(cutoff2.getDate() - TIDY_TIER2_DAYS);
-        const cutoff2Str = cutoff2.toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
-
-        let sql2 = `SELECT * FROM memories WHERE tier = 2 AND pinned = 0
-                     AND (last_accessed_at IS NULL OR last_accessed_at < ?)`;
-        const params2: any[] = [cutoff2Str];
-        if (space) {
-            sql2 += ' AND space_name = ?';
-            params2.push(space);
-        }
-
-        const tier2Rows = db.query(sql2).all(...params2) as any[];
-        for (const row of tier2Rows) {
-            db.run('UPDATE memories SET tier = 3, updated_at = ? WHERE id = ?', [ts, row.id]);
-            demoted.push({ id: row.id, name: row.name, space: row.space_name, from_tier: 2, to_tier: 3 });
-        }
-
-        // Identify GC candidates (tier 3, very old)
-        const cutoff3 = new Date();
-        cutoff3.setDate(cutoff3.getDate() - GC_DEFAULT_DAYS);
-        const cutoff3Str = cutoff3.toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
-
-        let sql3 = `SELECT id, name, space_name, last_accessed_at FROM memories WHERE tier = 3 AND pinned = 0
-                     AND (last_accessed_at IS NULL OR last_accessed_at < ?)`;
-        const params3: any[] = [cutoff3Str];
-        if (space) {
-            sql3 += ' AND space_name = ?';
-            params3.push(space);
-        }
-
-        const gcRows = db.query(sql3).all(...params3) as any[];
-        for (const row of gcRows) {
-            candidates_for_gc.push({
-                id: row.id,
-                name: row.name,
-                space: row.space_name,
-                last_accessed_at: row.last_accessed_at,
-            });
-        }
-
-        return { demoted, candidates_for_gc };
-    }
-
-    function gc(maxAgeDays?: number): GcResult {
-        const days = maxAgeDays ?? GC_DEFAULT_DAYS;
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - days);
-        const cutoffStr = cutoff.toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
-
-        const rows = db
+        const tierRows = db
             .query(
-                `SELECT id, name, space_name FROM memories WHERE tier = 3 AND pinned = 0
-                 AND (last_accessed_at IS NULL OR last_accessed_at < ?)`
+                `SELECT tier, COUNT(*) as count, SUM(pinned) as pinned
+                 FROM memories ${spaceFilter}
+                 GROUP BY tier
+                 ORDER BY tier`
             )
-            .all(cutoffStr) as any[];
+            .all(...spaceParams) as { tier: number; count: number; pinned: number }[];
 
-        const removed: GcResult['removed'] = [];
-        for (const row of rows) {
-            ftsDelete(row.id);
-            db.run('DELETE FROM memories WHERE id = ?', [row.id]);
-            removed.push({ id: row.id, name: row.name, space: row.space_name });
+        // Always return all 4 tiers
+        const allTiers: Tier[] = [1, 2, 3, 4];
+        const by_tier = allTiers.map((t) => {
+            const row = tierRows.find((r) => r.tier === t);
+            return { tier: t, count: row?.count ?? 0, pinned: row?.pinned ?? 0 };
+        });
+
+        let db_size_bytes = 0;
+        try {
+            db_size_bytes = statSync(dbPath).size;
+        } catch {
+            db_size_bytes = 0;
         }
 
-        return { removed };
-    }
-
-    function getStats(space?: string): Stats {
-        const spaceFilter = space ? ' WHERE space_name = ?' : '';
-        const spaceParams = space ? [space] : [];
-
-        const totalSpaces = (
-            db.query('SELECT COUNT(*) as count FROM spaces').get() as { count: number }
-        ).count;
-
-        const totalMemories = (
-            db.query(`SELECT COUNT(*) as count FROM memories${spaceFilter}`).all(...spaceParams) as any[]
-        )[0].count;
-
-        const byTier = db
-            .query(`SELECT tier, COUNT(*) as count FROM memories${spaceFilter} GROUP BY tier ORDER BY tier`)
-            .all(...spaceParams) as { tier: number; count: number }[];
-
-        const mostAccessed = db
-            .query(
-                `SELECT id, name, space_name, access_count FROM memories${spaceFilter}
-                 ORDER BY access_count DESC LIMIT 10`
-            )
-            .all(...spaceParams) as any[];
-
-        const leastAccessed = db
-            .query(
-                `SELECT id, name, space_name, last_accessed_at FROM memories${spaceFilter}
-                 ORDER BY COALESCE(last_accessed_at, '1970-01-01') ASC LIMIT 10`
-            )
-            .all(...spaceParams) as any[];
+        // Count memories with embeddings
+        let embedSql = 'SELECT COUNT(*) as c FROM memories WHERE embedding IS NOT NULL';
+        const embedParams: any[] = [];
+        if (space) {
+            embedSql += ' AND space_name = ?';
+            embedParams.push(space);
+        }
+        const embeddings_indexed = (
+            db.query(embedSql).get(...embedParams) as { c: number }
+        ).c;
 
         return {
-            total_spaces: space ? 1 : totalSpaces,
-            total_memories: totalMemories,
-            by_tier: byTier.map((r) => ({ tier: r.tier as Tier, count: r.count })),
-            most_accessed: mostAccessed.map((r) => ({
-                id: r.id,
-                name: r.name,
-                space: r.space_name,
-                access_count: r.access_count,
-            })),
-            least_accessed: leastAccessed.map((r) => ({
-                id: r.id,
-                name: r.name,
-                space: r.space_name,
-                last_accessed_at: r.last_accessed_at,
-            })),
+            db_path: dbPath,
+            db_size_bytes,
+            total_spaces,
+            total_memories,
+            by_tier,
+            rag_enabled: isRagEnabled(),
+            embeddings_indexed,
         };
     }
 
@@ -701,9 +747,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         unlink: unlinkMemories,
         getLinks,
         search: searchMemories,
-        tidy,
-        gc,
-        stats: getStats,
+        getStatus,
         importFromJson,
         close,
     };

@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { createSqliteStore } from '../cli/src/store/sqlite-store';
 import type { MindStore } from '../cli/src/store/mind-store';
+import type { Tier } from '../cli/src/types';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const repoRoot = path.join(import.meta.dir, '..');
@@ -55,6 +56,13 @@ function staticFile(pathname: string): Response {
     });
 }
 
+function parseTier(raw: string | null): Tier | undefined {
+    if (!raw) return undefined;
+    const n = Number(raw);
+    if (n >= 1 && n <= 4) return n as Tier;
+    return undefined;
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 const server = Bun.serve({
     port: PORT,
@@ -103,18 +111,39 @@ const server = Bun.serve({
             }
 
             // ── GET /api/spaces/:name/memories ───────────────────────────────
+            // When no tier filter is given, the web UI wants T1+T2+T3 (all listable
+            // tiers). T4 is frozen and only reachable via search. We fetch T1, T2, T3
+            // individually and combine, to avoid the CLI's T1+T2 default.
             const memoriesMatch = p.match(/^\/api\/spaces\/([^/]+)\/memories$/);
             if (memoriesMatch && m === 'GET') {
                 const spaceName = decodeURIComponent(memoriesMatch[1]!);
-                const tier = url.searchParams.get('tier') ? Number(url.searchParams.get('tier')) as 1 | 2 | 3 : undefined;
+                const tier = parseTier(url.searchParams.get('tier'));
                 const tag = url.searchParams.get('tag') ?? undefined;
-                return json(store.listMemories(spaceName, { tier, tag }));
+
+                if (tier !== undefined) {
+                    // Explicit tier requested — return only that tier (T4 returns [])
+                    return json(store.listMemories(spaceName, { tier, tag }));
+                }
+
+                // No tier filter: return T1+T2+T3 combined for the web UI
+                const t1 = store.listMemories(spaceName, { tier: 1, tag });
+                const t2 = store.listMemories(spaceName, { tier: 2, tag });
+                const t3 = store.listMemories(spaceName, { tier: 3, tag });
+                return json([...t1, ...t2, ...t3]);
             }
 
             // ── POST /api/spaces/:name/memories ──────────────────────────────
             if (memoriesMatch && m === 'POST') {
                 const spaceName = decodeURIComponent(memoriesMatch[1]!);
-                const { name, content, tags, tier } = await parseBody<{ name: string; content: string; tags?: string[]; tier?: 1 | 2 | 3 }>(req);
+                const { name, content, tags, tier } = await parseBody<{
+                    name: string;
+                    content: string;
+                    tags?: string[];
+                    tier?: 1 | 2 | 3; // T4 cannot be set directly
+                }>(req);
+                if (tier !== undefined && (tier < 1 || tier > 3)) {
+                    return err('tier must be 1, 2, or 3. T4 is reserved for auto-eviction.', 400);
+                }
                 const memory = store.addMemory(spaceName, name, content, { tags, tier });
                 return json(memory, 201);
             }
@@ -136,7 +165,6 @@ const server = Bun.serve({
 
                 const body = await parseBody<{
                     content?: string;
-                    tier?: 1 | 2 | 3;
                     pinned?: boolean;
                     addTag?: string;
                     removeTag?: string;
@@ -166,15 +194,15 @@ const server = Bun.serve({
                 const q = url.searchParams.get('q') ?? '';
                 const space = url.searchParams.get('space') ?? undefined;
                 const tag = url.searchParams.get('tag') ?? undefined;
-                const tier = url.searchParams.get('tier') ? Number(url.searchParams.get('tier')) as 1 | 2 | 3 : undefined;
+                const tier = parseTier(url.searchParams.get('tier'));
                 if (!q) return json([]);
-                return json(store.search(q, { space, tag, tier }));
+                return json(await store.search(q, { space, tag, tier }));
             }
 
-            // ── GET /api/stats ────────────────────────────────────────────────
-            if (p === '/api/stats' && m === 'GET') {
+            // ── GET /api/status ───────────────────────────────────────────────
+            if (p === '/api/status' && m === 'GET') {
                 const space = url.searchParams.get('space') ?? undefined;
-                return json(store.stats(space));
+                return json(store.getStatus(space));
             }
 
             // ── Static files ─────────────────────────────────────────────────

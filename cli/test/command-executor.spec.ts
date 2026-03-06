@@ -218,11 +218,11 @@ describe('Command Executor — Tiers', () => {
         expect(store.getMemory('test', 'mem')!.pinned).toBe(true);
     });
 
-    test('should unpin a memory', () => {
+    test('should unpin a memory', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
-        const mem = store.addMemory('test', 'mem', 'content');
+        const mem = await store.addMemory('test', 'mem', 'content');
         store.pin(mem.id);
 
         executeCommand(['unpin', 'test', 'mem'], store, logger);
@@ -246,12 +246,12 @@ describe('Command Executor — Links', () => {
         expect(links[0]!.label).toBe('depends-on');
     });
 
-    test('should show links', () => {
+    test('should show links', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
-        const mem1 = store.addMemory('test', 'mem1', 'content');
-        const mem2 = store.addMemory('test', 'mem2', 'content');
+        const mem1 = await store.addMemory('test', 'mem1', 'content');
+        const mem2 = await store.addMemory('test', 'mem2', 'content');
         store.link(mem1.id, mem2.id, 'related');
 
         executeCommand(['links', 'test', 'mem1'], store, logger);
@@ -259,12 +259,12 @@ describe('Command Executor — Links', () => {
         expect(logs.some((l) => l.message.includes('mem2'))).toBe(true);
     });
 
-    test('should unlink memories', () => {
+    test('should unlink memories', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
-        const mem1 = store.addMemory('test', 'mem1', 'content');
-        const mem2 = store.addMemory('test', 'mem2', 'content');
+        const mem1 = await store.addMemory('test', 'mem1', 'content');
+        const mem2 = await store.addMemory('test', 'mem2', 'content');
         store.link(mem1.id, mem2.id);
 
         executeCommand(['unlink', 'test/mem1', 'test/mem2'], store, logger);
@@ -274,53 +274,53 @@ describe('Command Executor — Links', () => {
 });
 
 describe('Command Executor — Search', () => {
-    test('should search memories', () => {
+    test('should search memories', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
         store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
         store.addMemory('test', 'db', 'PostgreSQL database schema');
 
-        executeCommand(['search', 'authentication'], store, logger);
+        await executeCommand(['search', 'authentication'], store, logger);
         const logs = logger.getLogs();
         expect(logs.some((l) => l.message.includes('auth'))).toBe(true);
         expect(logs.some((l) => l.message.includes('db'))).toBe(false);
     });
 
-    test('should not show content by default', () => {
+    test('should not show content by default', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
         store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
 
-        executeCommand(['search', 'authentication'], store, logger);
+        await executeCommand(['search', 'authentication'], store, logger);
         const logs = logger.getLogs();
         expect(logs.some((l) => l.message.includes('JWT'))).toBe(false);
     });
 
-    test('should show content with --detail', () => {
+    test('should show content with --detail', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
         store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
 
-        executeCommand(['search', 'authentication', '--detail'], store, logger);
+        await executeCommand(['search', 'authentication', '--detail'], store, logger);
         const logs = logger.getLogs();
         expect(logs.some((l) => l.message.includes('JWT'))).toBe(true);
     });
 
-    test('should support prefix wildcard search', () => {
+    test('should support prefix wildcard search', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
         store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
 
-        executeCommand(['search', 'auth*'], store, logger);
+        await executeCommand(['search', 'auth*'], store, logger);
         const logs = logger.getLogs();
         expect(logs.some((l) => l.message.includes('auth'))).toBe(true);
     });
 
-    test('should search with space filter', () => {
+    test('should search with space filter', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('proj-a', 'A');
@@ -328,7 +328,7 @@ describe('Command Executor — Search', () => {
         store.addMemory('proj-a', 'auth', 'authentication');
         store.addMemory('proj-b', 'auth', 'authentication');
 
-        executeCommand(['search', 'authentication', '--space', 'proj-a'], store, logger);
+        await executeCommand(['search', 'authentication', '--space', 'proj-a'], store, logger);
         const logs = logger.getLogs();
         expect(logs.some((l) => l.message.includes('proj-a'))).toBe(true);
     });
@@ -352,39 +352,38 @@ describe('Command Executor — Guide', () => {
     });
 });
 
-describe('Command Executor — Maintenance', () => {
-    test('should run tidy', () => {
+describe('Command Executor — Status', () => {
+    test('should run global status', () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
         store.addMemory('test', 'mem', 'content');
 
-        executeCommand(['tidy'], store, logger);
-        // Should not crash
+        executeCommand(['status'], store, logger);
         const logs = logger.getLogs();
-        expect(logs.length).toBeGreaterThan(0);
+        expect(logs.some((l) => l.message.includes('Status'))).toBe(true);
+        // Should show tier labels
+        expect(logs.some((l) => l.message.includes('T1') || l.message.includes('hot'))).toBe(true);
     });
 
-    test('should run stats', () => {
+    test('should run space-scoped status', () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
         store.addMemory('test', 'mem', 'content');
 
-        executeCommand(['stats'], store, logger);
+        executeCommand(['status', 'test'], store, logger);
         const logs = logger.getLogs();
-        expect(logs.some((l) => l.message.includes('Stats'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('test'))).toBe(true);
     });
 
-    test('should run gc', () => {
+    test('should reject --tier 4 when adding a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
 
-        executeCommand(['gc'], store, logger);
-        const logs = logger.getLogs();
-        expect(logs.some((l) => l.message.includes('Nothing to clean up') || l.message.includes('Removed'))).toBe(
-            true
-        );
+        expect(() =>
+            executeCommand(['add', 'test', 'frozen', 'content', '--tier', '4'], store, logger)
+        ).toThrow('T4');
     });
 });

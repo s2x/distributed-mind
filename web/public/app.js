@@ -54,10 +54,40 @@ const elMemTagsRow      = $('mem-tags-row');
 const elMemContent      = $('mem-content');
 const elMemEditArea     = $('mem-edit-area');
 const elMemEditInput    = $('mem-edit-input');
+const elStatusSpaces    = $('status-spaces');
+const elStatusTiers     = $('status-tiers');
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
-const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold' };
-const TIER_CLASS = { 1: 't1', 2: 't2', 3: 't3' };
+const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold', 4: '💠 T4 — Frozen' };
+const TIER_CLASS = { 1: 't1', 2: 't2', 3: 't3', 4: 't4' };
+const TIER_LIMITS = { 1: 25, 2: 50, 3: 100, 4: null }; // null = unlimited
+
+// ── Status panel ──────────────────────────────────────────────────────────────
+
+function renderStatus(status) {
+    const spaces = status.total_spaces ?? 0;
+    const memories = status.total_memories ?? 0;
+    elStatusSpaces.textContent = `${spaces} space${spaces !== 1 ? 's' : ''}, ${memories} mem`;
+    elStatusTiers.innerHTML = '';
+    for (const t of (status.by_tier ?? [])) {
+        const cls = TIER_CLASS[t.tier] ?? '';
+        const label = t.tier === 4 ? '💠' : ['', '🔴', '🟡', '🔵'][t.tier] ?? '';
+        const limit = TIER_LIMITS[t.tier];
+        const cap = limit != null ? `/${limit}` : '';
+        const pill = document.createElement('span');
+        pill.className = `status-tier-pill ${cls}`;
+        pill.title = TIER_LABEL[t.tier] ?? `T${t.tier}`;
+        pill.textContent = `${label} ${t.count}${cap}`;
+        elStatusTiers.appendChild(pill);
+    }
+}
+
+async function loadStatus() {
+    try {
+        const status = await api.get('/api/status');
+        renderStatus(status);
+    } catch { /* non-critical, ignore */ }
+}
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
@@ -180,9 +210,12 @@ function renderSearchResults(results, query) {
     for (const r of results) {
         const li = document.createElement('li');
         li.className = 'memory-item';
+        const tierClass = TIER_CLASS[r.tier] ?? '';
+        const tierLabel = TIER_LABEL[r.tier] ?? '';
         li.innerHTML = `
             <span class="memory-item-name">${esc(r.name)}</span>
             <span class="memory-item-tags">${(r.tags ?? []).slice(0, 2).map(t => `<span class="memory-item-tag">${esc(t)}</span>`).join('')}</span>
+            <span class="tier-badge ${tierClass}" style="font-size:10px;padding:0 5px;">${tierLabel}</span>
             <div class="search-result-space">${esc(r.space_name)}</div>
         `;
         li.addEventListener('click', () => {
@@ -240,6 +273,7 @@ async function refreshSpace(name) {
         api.get(`/api/spaces/${enc(name)}`),
         api.get(`/api/spaces/${enc(name)}/memories`),
         loadSpaces(),
+        loadStatus(),
     ]);
     state.currentSpace = spaceData;
     state.memories = memories;
@@ -459,3 +493,4 @@ function enc(str) {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadSpaces();
+loadStatus();

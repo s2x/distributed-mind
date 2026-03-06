@@ -12,12 +12,16 @@ if (!fs.existsSync(CONFIG.dataDir)) {
 const logger = useLogger();
 const store = createSqliteStore(CONFIG.dbPath);
 
-try {
-    const args = process.argv.slice(2);
-    executeCommand(args, store, logger);
-} catch (e: any) {
-    logger.logError(e.message);
-    process.exit(1);
-} finally {
-    store.close();
+async function main() {
+    try {
+        const args = process.argv.slice(2);
+        await executeCommand(args, store, logger);
+    } catch (e: any) {
+        logger.logError(e.message);
+        process.exit(1);
+    } finally {
+        store.close();
+    }
 }
+
+main();

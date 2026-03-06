@@ -24,6 +24,7 @@ export interface Memory {
     pinned: boolean;
     access_count: number;
     last_accessed_at: string | null;
+    embedding: Float32Array | null;
     tags: string[];
     created_at: string;
     updated_at: string;
@@ -49,7 +50,7 @@ export interface Link {
     created_at: string;
 }
 
-export type Tier = 1 | 2 | 3;
+export type Tier = 1 | 2 | 3 | 4;
 
 export interface SearchFilter {
     space?: string;
@@ -66,23 +67,19 @@ export interface SearchResult {
     pinned: boolean;
     tags: string[];
     rank: number;
+    similarity?: number;
 }
 
-export interface TidyResult {
-    demoted: { id: number; name: string; space: string; from_tier: Tier; to_tier: Tier }[];
-    candidates_for_gc: { id: number; name: string; space: string; last_accessed_at: string | null }[];
-}
-
-export interface GcResult {
-    removed: { id: number; name: string; space: string }[];
-}
-
-export interface Stats {
+export interface StatusResult {
+    db_path: string;
+    db_size_bytes: number;
     total_spaces: number;
     total_memories: number;
-    by_tier: { tier: Tier; count: number }[];
-    most_accessed: { id: number; name: string; space: string; access_count: number }[];
-    least_accessed: { id: number; name: string; space: string; last_accessed_at: string | null }[];
+    /** Always contains entries for all 4 tiers, even if count is 0 */
+    by_tier: { tier: Tier; count: number; pinned: number }[];
+    /** RAG / embeddings info */
+    rag_enabled: boolean;
+    embeddings_indexed: number;
 }
 
 /** Legacy brain.json format for migration */
