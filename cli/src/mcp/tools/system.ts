@@ -4,15 +4,13 @@ const SystemInstructionsSchema = z.object({});
 
 const FULL_INSTRUCTIONS = `# Mind Memory Protocol
 
-## ⚠️ IMPORTANT: CALL THIS TOOL FIRST
-If you haven't called \`system_instructions\` yet, call it NOW to get the full protocol guidelines.
 This tool contains all the context you need to use mind effectively.
 After this, you can proceed with space_create, memory_add, etc.
 
 ---
 
 ## IMPORTANT: Create Space First
-Before adding memories, you MUST create a space with \`space_create\`. 
+Before adding memories, you MUST create a space with \`space_create\`.
 Memory tools will fail with "Space X does not exist" if the space hasn't been created.
 Use hierarchical naming: \`projects/name\`, \`user/preferences\`, \`sessions/project-name\`.
 
@@ -24,7 +22,7 @@ Use hierarchical naming: \`projects/name\`, \`user/preferences\`, \`sessions/pro
 
 ### Required prefixes (for spaces):
 - \`type:project\` — code project spaces
-- \`type:user\` — user preferences/settings  
+- \`type:user\` — user preferences/settings
 - \`type:config\` — cross-project configuration
 - \`type:learning\` — learned knowledge
 - \`type:session\` — session summaries
@@ -147,8 +145,8 @@ Response includes \`pagination\` object with \`nextOffset\` when more results ex
 ## Example Workflow
 
 # 1. Create a project space
-space_create { 
-  name: "projects/mind", 
+space_create {
+  name: "projects/mind",
   description: "Mind project decisions and patterns",
   tags: ["type:project"]
 }
