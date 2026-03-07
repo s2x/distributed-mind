@@ -346,7 +346,9 @@ When using mind via MCP, follow these conventions:
 - `cat:preference` — user preference
 - `cat:config` — configuration
 
-**Space hierarchy:**
+**Space hierarchy (USE REPO NAME):**
+
+> **IMPORTANT**: For software projects, use the actual repository/directory name as the space name (e.g., `projects/mind`, `projects/arcana-web`). This makes your memories discoverable by future agents.
 
 - `projects/<name>` — one space per project
 - `user/preferences` — global user preferences

@@ -12,7 +12,26 @@ After this, you can proceed with space_create, memory_add, etc.
 ## IMPORTANT: Create Space First
 Before adding memories, you MUST create a space with \`space_create\`.
 Memory tools will fail with "Space X does not exist" if the space hasn't been created.
-Use hierarchical naming: \`projects/name\`, \`user/preferences\`, \`sessions/project-name\`.
+
+---
+
+## ⚠️ CRITICAL: Space Naming Convention
+
+**For software projects, use the directory/repo name as the space name.**
+
+This is VITAL for future agents to find your knowledge. If you use arbitrary names like "my-project" or "test123", future agents won't know where to search.
+
+### ✅ DO:
+- \`projects/mind\` — if the repo/directory is named "mind"
+- \`projects/arcana-web\` — if the repo is "arcana-web"
+- \`projects/api-gateway\` — if the directory is "api-gateway"
+
+### ❌ DON'T:
+- \`projects/my-awesome-app\` — too vague
+- \`projects/work-stuff\` — unclear
+- \`projects/test123\` — meaningless
+
+**Why**: Future agents will search by repo/directory name. Using the actual name makes your memories discoverable.
 
 ---
 
@@ -43,11 +62,11 @@ Before creating a new tag, ALWAYS list existing tags first (\`memory_tags_list\`
 ## Space Structure
 
 Organize memories into hierarchical spaces:
-- \`projects/<name>\` — one space per project (e.g., \`projects/mind\`, \`projects/webapp\`)
+- \`projects/<REPO_NAME>\` — one space per project (use the actual repo/directory name!)
 - \`user/preferences\` — global user preferences
 - \`user/patterns\` — work patterns and conventions
 - \`global/config\` — cross-project configuration
-- \`sessions/<project>\` — session summaries and checkpoints
+- \`sessions/<REPO_NAME>\` — session summaries and checkpoints (use repo name too!)
 
 ---
 
@@ -134,19 +153,19 @@ Response includes \`pagination\` object with \`nextOffset\` when more results ex
 
 ## Session Workflow
 
-1. **Start**: Create/check space: \`space_create\` or \`space_list\`
+1. **Start**: Create/check space: \`space_create\` (use repo name!) or \`space_list\`
 2. **Work**: Add memories as you go: \`memory_add\` (important decisions, bugs, patterns)
 3. **Query**: Find context later: \`memory_query\`, \`search\`, \`memory_list\`
 4. **Checkpoint** (optional): Save work progress: \`checkpoint_set\`
-5. **Close**: Summarize session: \`memory_add\` to \`sessions/<project>\` with \`type:session, cat:summary\`
+5. **Close**: Summarize session: \`memory_add\` to \`sessions/<REPO_NAME>\` with \`type:session, cat:summary\`
 
 ---
 
 ## Example Workflow
 
-# 1. Create a project space
+# 1. Create a project space (USE THE REPO NAME!)
 space_create {
-  name: "projects/mind",
+  name: "projects/mind",  # <-- actual repo name
   description: "Mind project decisions and patterns",
   tags: ["type:project"]
 }
@@ -165,9 +184,9 @@ memory_query { space: "projects/mind", tag: "cat:decision" }
 # 4. Search across all spaces
 search { query: "authentication" }
 
-# 5. End of session: summarize
+# 5. End of session: summarize (use repo name!)
 memory_add {
-  space: "sessions/mind",
+  space: "sessions/mind",  # <-- repo name
   name: "session-2026-03-07",
   content: "## Goal: Implement MCP improvements\\n## Discoveries: - Protocol instructions can be centralized\\n## Accomplished: - Improved error messages\\n## Relevant Files: - cli/src/mcp/server.ts",
   tags: ["type:session", "cat:summary"]
@@ -181,7 +200,7 @@ export function createSystemTools() {
             handler: async () => {
                 return {
                     content: [{ type: 'text', text: FULL_INSTRUCTIONS }],
-                    instructions_version: '1.0.0',
+                    instructions_version: '1.1.0',
                 };
             },
         },
