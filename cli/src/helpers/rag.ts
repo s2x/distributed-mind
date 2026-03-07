@@ -1,8 +1,6 @@
-import { CONFIG } from './config';
+import { CONFIG } from '../config';
 
 export type EmbeddingVector = number[];
-
-const EMBEDDING_DIMENSION = 1536; // text-embedding-3-small
 
 export function isRagEnabled(): boolean {
     return CONFIG.rag.enabled && !!CONFIG.rag.apiKey;
@@ -14,8 +12,6 @@ export async function getEmbedding(text: string): Promise<EmbeddingVector | null
     }
 
     const maxAttempts = 3;
-    let lastError: Error | null = null;
-
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             const response = await fetch('https://api.openai.com/v1/embeddings', {
@@ -32,7 +28,6 @@ export async function getEmbedding(text: string): Promise<EmbeddingVector | null
 
             if (!response.ok) {
                 const errMsg = `OpenAI API error: ${response.status} ${response.statusText}`;
-                lastError = new Error(errMsg);
                 const isLast = attempt === maxAttempts;
                 if (isLast) {
                     console.error(`[RAG] ${errMsg} (attempt ${attempt}/${maxAttempts}) — giving up`);
@@ -50,7 +45,6 @@ export async function getEmbedding(text: string): Promise<EmbeddingVector | null
 
             return data.data[0]?.embedding ?? null;
         } catch (e: any) {
-            lastError = e;
             const isLast = attempt === maxAttempts;
             if (isLast) {
                 console.error(`[RAG] Failed to get embedding: ${e.message} (attempt ${attempt}/${maxAttempts}) — giving up`);
@@ -75,9 +69,9 @@ export function cosineSimilarity(a: EmbeddingVector, b: EmbeddingVector): number
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-        dotProduct += a[i] * b[i];
-        normA += a[i] * a[i];
-        normB += b[i] * b[i];
+        dotProduct += a[i]! * b[i]!;
+        normA += a[i]! * a[i]!;
+        normB += b[i]! * b[i]!;
     }
 
     const denominator = Math.sqrt(normA) * Math.sqrt(normB);

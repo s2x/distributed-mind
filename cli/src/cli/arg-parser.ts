@@ -19,6 +19,7 @@ export class ArgParser {
      * Matches positional args (ignoring flags like --tag, --tier, --label).
      */
     matches(args: string[]): boolean {
+        if (!this.flagsAreValid(args)) return false;
         const positional = this.getPositionalArgs(args);
         if (this.shape.length !== positional.length) return false;
 
@@ -60,6 +61,24 @@ export class ArgParser {
             result.push(arg);
         }
         return result;
+    }
+
+    private flagsAreValid(args: string[]): boolean {
+        for (let i = 0; i < args.length; i++) {
+            const arg = args[i]!;
+            if (!arg.startsWith('--')) continue;
+
+            const flagName = arg.replace(/^--/, '');
+            const flag = this.flags.find((f) => f.name === flagName || f.alias === flagName);
+            if (!flag) return false;
+
+            if (flag.hasValue) {
+                const value = args[i + 1];
+                if (!value || value.startsWith('--')) return false;
+                i++;
+            }
+        }
+        return true;
     }
 
     getParams(args: string[]): any {

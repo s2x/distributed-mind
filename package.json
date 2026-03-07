@@ -1,5 +1,6 @@
 {
   "name": "mind",
+  "version": "0.1.0",
   "module": "cli/src/mind.ts",
   "type": "module",
   "private": true,
@@ -13,6 +14,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "bun-style": "^0.3.2"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "bun-style": "^0.3.2",
+    "zod": "^4.3.6"
   }
 }

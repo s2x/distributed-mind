@@ -1,6 +1,6 @@
-// ── SQLite schema and migrations for Mind v3 ──
+// ── SQLite schema and migrations for Mind v4 ──
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const SCHEMA_SQL = `
 -- Version tracking
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS memories (
     embedding        BLOB,
     created_at       TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    changed_at       TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(space_name, name)
 );
 
@@ -121,6 +122,14 @@ ALTER TABLE memories ADD COLUMN embedding BLOB;
 UPDATE meta SET value = '3' WHERE key = 'schema_version';
 `;
 
+// ── Migration: v3 → v4 ──
+// Changes: add memories.changed_at column for semantic memory changes
+const MIGRATE_V3_TO_V4 = `
+ALTER TABLE memories ADD COLUMN changed_at TEXT;
+UPDATE memories SET changed_at = updated_at WHERE changed_at IS NULL;
+UPDATE meta SET value = '4' WHERE key = 'schema_version';
+`;
+
 export function initializeDatabase(db: import('bun:sqlite').Database): void {
     db.exec('PRAGMA journal_mode = WAL;');
     db.exec('PRAGMA foreign_keys = ON;');
@@ -146,6 +155,11 @@ export function initializeDatabase(db: import('bun:sqlite').Database): void {
     if (currentVersion < 3) {
         // Migrate v2 → v3
         db.exec(MIGRATE_V2_TO_V3);
+    }
+
+    if (currentVersion < 4) {
+        // Migrate v3 → v4
+        db.exec(MIGRATE_V3_TO_V4);
     }
 
     // Future migrations: add else-if blocks here for v3→v4, etc.

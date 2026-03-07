@@ -8,6 +8,7 @@ import type {
     Link,
     Tier,
     SearchFilter,
+    MemoryQueryFilter,
     SearchResult,
     StatusResult,
     LegacyBrain,
@@ -77,6 +78,9 @@ export interface MindStore {
     // Search (T4 memories ARE included in search results)
     // When RAG is enabled, returns FTS results merged with semantic similarity scores
     search(query: string, filter?: SearchFilter): Promise<SearchResult[]>;
+
+    // Query memories by metadata/date with pagination
+    queryMemories(filter?: MemoryQueryFilter): MemorySummary[];
 
     // Status
     getStatus(space?: string): StatusResult;

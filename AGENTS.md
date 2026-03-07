@@ -10,7 +10,7 @@ This document describes the **mind** project: its architecture, behavior, techni
 
 - **Runtime:** [Bun](https://bun.sh/)
 - **Language:** TypeScript (strict mode, ESNext)
-- **Entry point:** the **`mind`** Bash script at project root; invokes `cli/src/mind.ts`. Supports `--complete` flag to delegate to `cli/src/complete.ts` (not yet implemented).
+- **Entry point:** the **`mind`** Bash script at project root; invokes `cli/src/mind.ts`. Supports subcommands: `serve` (HTTP server), `mcp` (MCP server), `setup` (agent configuration), and `update` (self-update from GitHub releases). Also supports `--complete` flag to delegate to `cli/src/complete.ts` (not yet implemented).
 - **Persistence:** SQLite database at `data/mind.db` (path configurable via `MIND_DATA_DIR` env var or `MIND_DB_PATH` for full path override). The legacy `brain.json` is supported as a migration source via `mind import`.
 - **RAG/Embeddings:** Optional semantic search via OpenAI `text-embedding-3-small`. Enable with `MIND_RAG=true` + `OPENAI_API_KEY`. Embeddings stored as BLOBs in SQLite; generated fire-and-forget on add/update.
 - **Layout:** **`cli/`** contains all CLI code and tests. **`web/`** contains the web server and frontend (Dockerized, `restart: unless-stopped` in docker-compose). **`scripts/`** contains E2E test scripts.
@@ -30,42 +30,46 @@ User → ./mind <command> [args] [--flag value]
          ↓
     executeCommand(args, store, logger)
          ↓
-    ArgParser (match command shape + flags) → command-executor (dispatch + business logic)
+    CLI command registry (atomic command modules) → command-executor (dispatch)
          ↓
     MindStore (SQLite) + Logger (stdout/stderr)
 ```
 
-- **Entry:** `cli/src/mind.ts` ensures `data/` exists, creates a `MindStore` via `createSqliteStore(CONFIG.dbPath)`, wires a `Logger`, calls `executeCommand`. Errors are caught, logged to stderr, and the process exits with code 1. The store is closed in a `finally` block.
-- **Commands:** Defined and dispatched in `cli/src/command-executor.ts` using `ArgParser` instances. Each command has a **shape** (positional params + optional flags) and a help description.
+- **Entry:** `cli/src/mind.ts` creates store/logger and delegates all command handling to `executeCommand` from `cli/src/cli/command-executor.ts`.
+- **Commands:** Declared as atomic modules in `cli/src/cli/commands/*.ts` and registered by `cli/src/cli/commands/index.ts`. `cli/src/cli/command-executor.ts` acts as dispatcher/registry.
 - **Storage:** All persistent data goes through the `MindStore` interface (defined in `cli/src/store/mind-store.ts`), implemented by `createSqliteStore` (`cli/src/store/sqlite-store.ts`). Uses bun's native `bun:sqlite`.
 - **FTS:** Full-text search uses SQLite's FTS5 with a porter tokenizer. FTS is synced **manually** (bun:sqlite has a bug with content-sync triggers — see [§ 3](#3-technical-considerations)).
-- **Output:** All user-facing messages go through the `Logger` interface (`cli/src/logger.ts`), so tests can swap in a mock logger.
-- **Web:** The **`web/`** app serves a frontend that reads/writes the brain via a REST API. Run via `web/server.ts` (Bun). Dockerized.
+- **Output:** All user-facing messages go through the `Logger` interface (`cli/src/helpers/logger.ts`), so tests can swap in a mock logger.
+- **Web/API:** The HTTP API server is in `cli/src/api/` and serves static frontend assets from `web/public/`.
 
 ### 2.2 Main modules and responsibilities
 
 | Module | Path | Responsibility |
 |--------|------|----------------|
-| Entry script | `mind` (Bash) | Resolve repo root, dispatch to `cli/src/mind.ts` (or `cli/src/complete.ts` if `--complete`). |
-| Entry module | `cli/src/mind.ts` | Ensure data dir, create store, wire logger, call executor, handle top-level errors. |
-| Command executor | `cli/src/command-executor.ts` | Define command shapes + flags (via `ArgParser`), match args, run command logic. |
-| Arg parser | `cli/src/arg-parser.ts` | Match CLI args to a shape (positional `<param>`, aliases `a\|b`, `--flag value`), extract params + flags, render help. |
+| Entry script | `mind` (Bash) | Resolve repo root, dispatch to `cli/src/mind.ts`. |
+| Entry module | `cli/src/mind.ts` | Bootstrap store/logger and run CLI command executor. |
+| CLI command modules | `cli/src/cli/commands/*.ts` | Atomic command definitions/handlers grouped by domain (`spaces`, `memories`, `tiers`, `links`, `search`, `status`, `tags`, `guide`, `migration`, `runtime`). |
+| CLI executor | `cli/src/cli/command-executor.ts` | Load command groups from `cli/commands/index.ts`, dispatch matched command, and render help sections. |
+| Arg parser | `cli/src/cli/arg-parser.ts` | Match CLI args to a shape (positional `<param>`, aliases `a\|b`, `--flag value`), extract params + flags, render help. |
+| Setup/runtime helpers | `cli/src/cli/setup.ts` | Agent setup + detached process management helpers for MCP/web servers. |
 | MindStore interface | `cli/src/store/mind-store.ts` | Abstract interface for all data operations. |
 | SQLite store | `cli/src/store/sqlite-store.ts` | Full `MindStore` implementation using `bun:sqlite`. Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled. |
-| Schema | `cli/src/store/schema.ts` | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 3 (migrates v1→v2→v3). |
+| Schema | `cli/src/store/schema.ts` | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 4 (migrates v1→v2→v3→v4). |
+| MCP server | `cli/src/mcp/server.ts` | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes 25 tools. |
+| MCP tools | `cli/src/mcp/tools/` | Tool implementations: `spaces.ts`, `memories.ts`, `tiers.ts`, `links.ts`, `search.ts`. |
+| API server | `cli/src/api/server.ts` | Bun HTTP server that serves `/api/*` routes and static assets from `web/public/`. |
+| API router | `cli/src/api/router.ts` | Route matcher/dispatcher for API endpoints. |
+| API routes | `cli/src/api/routes/*.ts` | Atomic REST route declarations grouped by domain (`spaces`, `memories`, `search`, `status`). |
 | Config | `cli/src/config.ts` | `CONFIG.dataDir`, `CONFIG.dbPath`, `CONFIG.legacyJsonPath`, `CONFIG.rag`. Respects `MIND_DATA_DIR` and `MIND_DB_PATH` env vars. `TIER_LIMITS` per-tier capacity constants. |
 | Types | `cli/src/types.ts` | All domain types: `Space`, `Memory`, `Link`, `Tier`, `SearchResult`, `StatusResult`, `LegacyBrain`, etc. |
-| Utils | `cli/src/utils.ts` | Utility functions: `normalizeTag()`, `normalizeTags()` for tag normalization. |
-| RAG | `cli/src/rag.ts` | Optional RAG module: `getEmbedding()`, `cosineSimilarity()`, `semanticSearch()`, `vectorToBlob()`/`blobToVector()`, `isRagEnabled()`. |
-| Logger | `cli/src/logger.ts` | `logInfo` / `logError`; default implementation uses console. |
-| Web server | `web/server.ts` | Bun HTTP server: REST API + static files from `web/public/`. Uses `MIND_DATA_DIR` or `/data` in Docker. |
+| Helpers | `cli/src/helpers/*.ts` | Shared helpers: logger, tag normalization, formatting/memory refs, and RAG helpers. |
 | Web frontend | `web/public/*` | SPA for browsing and editing spaces and memories. |
 
 ### 2.3 Data model
 
 - **Brain:** A SQLite database (`mind.db`) at `data/` in the repo root (or `MIND_DATA_DIR`).
 - **Space:** `{ name: string, description: string, tags: string[], created_at, updated_at }`. Identified by name (primary key).
-- **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3|4, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at }`. Identified by `(space_name, name)`.
+- **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3|4, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at, changed_at }`. Identified by `(space_name, name)`.
 - **Tier system:**
   - 🔴 **T1 (hot)** — frequently accessed (limit: 25/space)
   - 🟡 **T2 (warm)** — default for new memories (limit: 50/space)
@@ -86,7 +90,7 @@ User → ./mind <command> [args] [--flag value]
 | `meta` | `key`, `value` | Tracks `schema_version`. |
 | `spaces` | `name` (PK), `description`, timestamps | |
 | `space_tags` | `space_name` (FK), `tag` | Cascades on space rename/delete. |
-| `memories` | `id` (PK), `space_name` (FK), `name`, `content`, `tier`, `pinned`, `access_count`, `last_accessed_at`, `embedding`, timestamps | UNIQUE on `(space_name, name)`. Cascades on space delete/rename. |
+| `memories` | `id` (PK), `space_name` (FK), `name`, `content`, `tier`, `pinned`, `access_count`, `last_accessed_at`, `embedding`, timestamps (`created_at`, `updated_at`, `changed_at`) | UNIQUE on `(space_name, name)`. Cascades on space delete/rename. |
 | `memory_tags` | `memory_id` (FK), `tag` | Cascades on memory delete. |
 | `links` | `source_id` (FK), `target_id` (FK), `label` | No self-links. Cascades on memory delete. |
 | `memories_fts` | FTS5 virtual table: `name`, `content` | Synced manually (no triggers). |
@@ -95,7 +99,7 @@ User → ./mind <command> [args] [--flag value]
 
 ## 3. Technical considerations
 
-- **Schema version:** Current schema is version 3. Existing v1 databases (tier `CHECK (tier BETWEEN 1 AND 3)`) are migrated automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds the `embedding BLOB` column. Migration requires `PRAGMA foreign_keys = OFF` and bumps `meta.schema_version`.
+- **Schema version:** Current schema is version 4. Existing v1 databases (tier `CHECK (tier BETWEEN 1 AND 3)`) are migrated automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds the `embedding BLOB` column. V3→V4 adds `changed_at` and backfills it from `updated_at`.
 - **Bun:** The project is run and tested with Bun. Use `bun run`, `bun test`, and Bun's built-in TypeScript + SQLite support. No separate compile step.
 - **bun:sqlite FTS5 bug:** bun:sqlite (v1.2.10) cannot handle FTS5 `content=table` sync triggers — any UPDATE or DELETE on the source table errors with "N values for M columns". **Workaround:** `memories_fts` is a standalone FTS5 table (no `content=` option, no triggers). FTS is synced manually in `sqlite-store.ts` via `ftsInsert`, `ftsUpdate`, `ftsDelete` helpers called from `addMemory`, `updateMemory`, `deleteMemory`, `deleteMemoryByName`, `deleteSpace`, and `importFromJson`.
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
@@ -131,12 +135,62 @@ Example: `./mind help`, `./mind create my-space "Description"`, `./mind search "
 
 The `data/` directory and `mind.db` are created automatically on first run.
 
-### 4.3 Web app
+### 4.3 Running the Web Server
 
-- **Local:** `cd web && bun run start` (or `make web-dev`). Open http://localhost:3000. Uses `data/` at repo root unless `MIND_DATA_DIR` is set.
-- **Docker:** From repo root: `docker compose up -d`. Web at http://localhost:3000; data in `./data/` on the host (or `BRAIN_DATA_DIR`). Service has `restart: unless-stopped`.
+```bash
+./mind serve start                  # Start HTTP server on port 3000
+./mind serve start --port 8080      # Custom port
+./mind serve start --detached       # Run in background
+./mind serve stop                   # Stop detached server
+```
 
-### 4.4 Running tests
+### 4.4 Running the MCP Server
+
+```bash
+./mind mcp                          # Start MCP server (stdio transport)
+./mind mcp start --http             # Start MCP over HTTP (foreground)
+./mind mcp start --http --detached  # Start MCP over HTTP (background)
+./mind mcp stop                     # Stop detached MCP server
+```
+
+Add to your agent's MCP config:
+
+**OpenCode** (`~/.config/opencode/opencode.json`):
+```json
+{
+  "mcp": {
+    "mind": {
+      "type": "http",
+      "url": "http://localhost:7438/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+**Claude Code** (`~/.claude/settings.json`):
+```json
+{
+  "mcpServers": {
+    "mind": {
+      "url": "http://localhost:7438/mcp"
+    }
+  }
+}
+```
+
+### 4.5 Setting up agents
+
+```bash
+./mind setup claude-code   # Auto-configure Claude Code
+./mind setup opencode      # Auto-configure OpenCode
+./mind setup cursor        # Auto-configure Cursor
+./mind setup windsurf     # Auto-configure Windsurf
+./mind setup codex        # Auto-configure Codex
+./mind setup gemini-cli   # Auto-configure Gemini CLI
+```
+
+### 4.6 Running tests
 
 ```bash
 # Unit tests
@@ -146,9 +200,15 @@ bun test cli/test
 make test-rag
 # or directly:
 OPENAI_API_KEY=sk-... ./scripts/test-rag.sh
+
+# Maintainer release flows
+make release-patch
+make release-minor
+make release-major
+make release-simulate TYPE=patch
 ```
 
-### 4.5 Migrating from legacy brain.json
+### 4.7 Migrating from legacy brain.json
 
 ```bash
 ./mind import
@@ -156,7 +216,7 @@ OPENAI_API_KEY=sk-... ./scripts/test-rag.sh
 
 Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces and memories into SQLite at tier 2.
 
-### 4.6 CLI commands
+### 4.8 CLI commands
 
 | Intent | Command | Aliases | Params | Flags | Description |
 |--------|---------|---------|--------|-------|-------------|
@@ -181,21 +241,110 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 | Unpin | `unpin` | — | `<space>` `<name>` | — | Unpin a memory. || Link | `link` | — | `<source>` `<target>` | `--label` | Link two memories (`space/name` format). |
 | Unlink | `unlink` | — | `<source>` `<target>` | — | Remove a link between memories. |
 | Show links | `links` | — | `<space>` `<name>` | — | Show all links for a memory. |
-| Search | `search` | `s` | `<query>` | `--space`, `--tag`, `--tier`, `--detail` | Full-text search across memories (includes T4). Default output: names only. `--detail` adds content preview. Use `term*` for prefix match. |
+| Search | `search` | `s` | `<query>` | `--space`, `--tag`, `--tier`, `--detail` | Full-text search across memories (includes T4). Default output includes memory ref, tier, and changed timestamp. `--detail` adds content preview. Use `term*` for prefix match. |
+| Query | `query` | `q` | — | `--space`, `--tag`, `--tier`, `--from`, `--to`, `--limit`, `--offset` | Query memories by metadata/date with pagination (ordered by latest semantic memory changes). |
 | Status (global) | `status` | — | — | — | Show storage info and per-tier breakdown. |
 | Status (space) | `status` | — | `<space>` | — | Show tier breakdown for a specific space. |
 | List tags | `tags` | `tgs` | — | `--spaces`, `--memories` | List all tags in the system (defaults to both). |
 | Guide | `guide` | `g` | — | — | Show usage guide (human mode). |
 | Guide (mode) | `guide` | `g` | `<mode>` | — | Show guide (`agent` or `human`). |
 | Import | `import` | — | — | — | Import legacy `brain.json` into SQLite. |
+| Update | `update` | — | — | `--check`, `--version`, `--repo` | Update mind from GitHub releases. |
 
 > **Note:** `tag` and `untag` are disambiguated by argument count: 2 positional args = space tag, 3 positional args = memory tag.
+
+### 4.9 MCP Tools
+
+The MCP server exposes 25 tools for agent integration:
+
+#### Spaces (8 tools)
+| Tool | Description |
+|------|-------------|
+| `space_create` | Create a new space |
+| `space_list` | List spaces (optionally filtered by tag) |
+| `space_get` | Get a space by name |
+| `space_update` | Update space description |
+| `space_rename` | Rename a space |
+| `space_delete` | Delete a space |
+| `space_tag_add` | Add a tag to a space |
+| `space_tag_remove` | Remove a tag from a space |
+
+#### Memories (11 tools)
+| Tool | Description |
+|------|-------------|
+| `memory_add` | Add a memory to a space |
+| `memory_get` | Get a memory by space/name |
+| `memory_get_by_id` | Get a memory by ID |
+| `memory_list` | List memories in a space |
+| `memory_query` | Query memories by metadata/date with pagination |
+| `memory_update` | Update memory name/content |
+| `memory_delete` | Delete a memory |
+| `memory_read` | Read + record access (auto-promote) |
+| `memory_tag_add` | Add a tag to a memory |
+| `memory_tag_remove` | Remove a tag from a memory |
+| `memory_tags_list` | List all tags |
+
+#### Tiers (4 tools)
+| Tool | Description |
+|------|-------------|
+| `memory_promote` | Promote memory one tier up |
+| `memory_demote` | Demote memory one tier down |
+| `memory_pin` | Pin a memory |
+| `memory_unpin` | Unpin a memory |
+
+#### Links (3 tools)
+| Tool | Description |
+|------|-------------|
+| `link_create` | Create a link between memories |
+| `link_delete` | Delete a link |
+| `links_list` | List links for a memory |
+
+#### Search & Status (2 tools)
+| Tool | Description |
+|------|-------------|
+| `search` | Full-text search across memories |
+| `status` | Get storage status |
+
+### 4.10 Mind Memory Protocol
+
+When using mind via MCP, follow these conventions:
+
+**Tags with prefixes:**
+- `type:project` — project space
+- `type:user` — user preferences
+- `type:config` — global configuration
+- `type:learning` — learned knowledge
+- `type:session` — session summaries
+- `cat:decision` — architectural decision
+- `cat:bugfix` — bug fix
+- `cat:pattern` — established pattern
+- `cat:discovery` — technical discovery
+- `cat:preference` — user preference
+- `cat:config` — configuration
+
+**Space hierarchy:**
+- `projects/<name>` — one space per project
+- `user/preferences` — global user preferences
+- `user/patterns` — user patterns
+- `global/config` — cross-project config
+- `sessions/<project>` — session summaries
+
+**Tier usage:**
+- T1 (hot) — critical active info
+- T2 (warm) — default for new memories
+- T3 (cold) — reference info
+- T4 (frozen) — archive (only via search)
 
 ---
 
 ## 5. Keeping this document updated
 
 **If you are an AI agent or a maintainer modifying this repo, you must keep AGENTS.md in sync with the code.**
+
+**Changelog policy (mandatory):**
+- Every non-trivial change (features, behavior changes, architecture changes, bug fixes) must be added to `CHANGELOG.md` under `## [Unreleased]`.
+- Release commands (`make release-patch`, `make release-minor`, `make release-major`) require unreleased changelog entries and promote `Unreleased` to a versioned section.
+- `make release-simulate TYPE=patch|minor|major` must show what would happen without modifying files/tags/releases.
 
 - **Changes to the `mind` script or completion:** Update [§ 1](#1-project-overview), [§ 2.1](#21-high-level-flow), [§ 2.2](#22-main-modules-and-responsibilities), and [§ 4.2](#42-running-the-cli).
 - **Changes to the web app or Docker:** Update [§ 1](#1-project-overview), [§ 2.2](#22-main-modules-and-responsibilities), [§ 3](#3-technical-considerations), and [§ 4.3](#43-web-app).
@@ -207,3 +356,8 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 - **Schema changes:** Update [§ 2.4 SQLite schema tables](#24-sqlite-schema-tables).
 
 After editing AGENTS.md, re-read the sections you changed to ensure they stay accurate and consistent with the rest of the document.
+
+Before marking work done, use this checklist:
+- [ ] Updated `AGENTS.md` if architecture/commands/config changed
+- [ ] Updated `CHANGELOG.md` under `## [Unreleased]` for significant changes
+- [ ] Updated `README.md` if user-facing behavior/install/update/release flow changed

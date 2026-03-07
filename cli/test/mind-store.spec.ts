@@ -106,10 +106,38 @@ describe('MindStore — Memories', () => {
         expect(mem.tier).toBe(1);
         expect(mem.tags).toContain('backend');
         expect(mem.tags).toContain('security');
+        expect(mem.changed_at).toBeTruthy();
 
         const retrieved = store.getMemory('test', 'auth-flow');
         expect(retrieved).not.toBeNull();
         expect(retrieved!.id).toBe(mem.id);
+    });
+
+    test('should not update changed_at on read access', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        const before = store.getMemoryById(mem.id)!;
+
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+        store.recordAccess(mem.id);
+
+        const after = store.getMemoryById(mem.id)!;
+        expect(after.changed_at).toBe(before.changed_at);
+        expect(after.tier).toBe(2); // still auto-promotes
+    });
+
+    test('should update changed_at on semantic memory changes', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        const mem = await store.addMemory('test', 'mem1', 'content');
+        const before = store.getMemoryById(mem.id)!;
+
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+        await store.updateMemory(mem.id, { content: 'new content' });
+
+        const after = store.getMemoryById(mem.id)!;
+        expect(after.changed_at).not.toBe(before.changed_at);
     });
 
     test('should default to tier 2', async () => {
@@ -591,6 +619,60 @@ describe('MindStore — Search', () => {
     });
 });
 
+describe('MindStore — Query', () => {
+    test('should default queryMemories page size to 25', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+
+        for (let i = 0; i < 30; i++) {
+            await store.addMemory('test', `mem-${i}`, `content-${i}`);
+        }
+
+        const results = store.queryMemories();
+        expect(results.length).toBe(25);
+    });
+
+    test('should query memories with metadata filters', async () => {
+        store = createTestStore();
+        store.createSpace('proj-a', 'Project A');
+        store.createSpace('proj-b', 'Project B');
+        await store.addMemory('proj-a', 'auth', 'authentication', { tier: 1, tags: ['backend'] });
+        await store.addMemory('proj-a', 'ui', 'frontend', { tier: 2, tags: ['frontend'] });
+        await store.addMemory('proj-b', 'api', 'rest', { tier: 1, tags: ['backend'] });
+
+        const results = store.queryMemories({ space: 'proj-a', tier: 1, tag: 'backend' });
+        expect(results.length).toBe(1);
+        expect(results[0]!.name).toBe('auth');
+        expect(results[0]!.space_name).toBe('proj-a');
+    });
+
+    test('should support pagination in queryMemories', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        await store.addMemory('test', 'mem-a', 'a');
+        await store.addMemory('test', 'mem-b', 'b');
+        await store.addMemory('test', 'mem-c', 'c');
+
+        const page1 = store.queryMemories({ limit: 2, offset: 0 });
+        const page2 = store.queryMemories({ limit: 2, offset: 2 });
+
+        expect(page1.length).toBe(2);
+        expect(page2.length).toBe(1);
+        expect(page1[0]!.name).not.toBe(page2[0]!.name);
+    });
+
+    test('should filter queryMemories by updated_at date bounds', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        await store.addMemory('test', 'mem-a', 'content');
+
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const results = store.queryMemories({ from: tomorrow });
+
+        expect(results.length).toBe(0);
+    });
+});
+
 describe('MindStore — Import', () => {
     test('should import legacy brain.json format', () => {
         store = createTestStore();
@@ -620,7 +702,7 @@ describe('MindStore — Import', () => {
 
 describe('MindStore — RAG Integration', () => {
     test('should calculate cosine similarity correctly', () => {
-        const { cosineSimilarity } = require('../src/rag');
+        const { cosineSimilarity } = require('../src/helpers/rag');
         
         // Identical vectors should have similarity 1
         const v1 = [1, 0, 0];
@@ -644,7 +726,7 @@ describe('MindStore — RAG Integration', () => {
     });
 
     test('should convert between blob and vector', () => {
-        const { vectorToBlob, blobToVector } = require('../src/rag');
+        const { vectorToBlob, blobToVector } = require('../src/helpers/rag');
         
         const original = new Float32Array([1.5, -2.3, 4.7, 0.0]);
         const blob = vectorToBlob(Array.from(original));
@@ -652,12 +734,12 @@ describe('MindStore — RAG Integration', () => {
         
         expect(restored.length).toBe(original.length);
         for (let i = 0; i < original.length; i++) {
-            expect(restored[i]).toBeCloseTo(original[i], 5);
+            expect(restored[i]!).toBeCloseTo(original[i]!, 5);
         }
     });
 
     test('should check RAG enabled/disabled from config', () => {
-        const { isRagEnabled } = require('../src/rag');
+        const { isRagEnabled } = require('../src/helpers/rag');
         
         // RAG is disabled by default in tests (no env vars)
         expect(isRagEnabled()).toBe(false);

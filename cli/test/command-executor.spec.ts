@@ -1,5 +1,5 @@
 import { describe, expect, test, afterEach } from 'bun:test';
-import { executeCommand } from '../src/command-executor';
+import { executeCommand } from '../src/cli/command-executor';
 import { createTestStore } from './mocks/test-store';
 import { mockedLogger } from './mocks/mocked-logger';
 import type { MindStore } from '../src/store/mind-store';
@@ -29,6 +29,13 @@ describe('Command Executor — Basics', () => {
         store = createTestStore();
         const logger = mockedLogger();
         expect(() => executeCommand(['banana'], store, logger)).toThrow('Unknown command');
+    });
+
+    test('should reject unknown runtime subcommands', () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        expect(() => executeCommand(['mcp', 'help'], store, logger)).toThrow('Unknown command');
+        expect(() => executeCommand(['serve', 'help'], store, logger)).toThrow('Unknown command');
     });
 });
 
@@ -331,6 +338,43 @@ describe('Command Executor — Search', () => {
         await executeCommand(['search', 'authentication', '--space', 'proj-a'], store, logger);
         const logs = logger.getLogs();
         expect(logs.some((l) => l.message.includes('proj-a'))).toBe(true);
+    });
+
+    test('should query memories with metadata filters', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('proj-a', 'A');
+        store.createSpace('proj-b', 'B');
+        await store.addMemory('proj-a', 'auth', 'authentication', { tags: ['backend'], tier: 1 });
+        await store.addMemory('proj-b', 'auth', 'authentication', { tags: ['backend'], tier: 1 });
+
+        await executeCommand(['query', '--space', 'proj-a', '--tag', 'backend', '--tier', '1'], store, logger);
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('proj-a') && l.message.includes('auth'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('proj-b') && l.message.includes('auth'))).toBe(false);
+    });
+
+    test('should show pagination with next offset in query output', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('test', 'Test');
+        await store.addMemory('test', 'a', 'content');
+        await store.addMemory('test', 'b', 'content');
+
+        await executeCommand(['query', '--space', 'test', '--limit', '1', '--offset', '0'], store, logger);
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('Pagination | limit: 1 | offset: 0 | next offset: 1'))).toBe(true);
+    });
+
+    test('should show N/A next offset when query page is exhausted', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('test', 'Test');
+        await store.addMemory('test', 'a', 'content');
+
+        await executeCommand(['query', '--space', 'test'], store, logger);
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('Pagination | limit: 25 | offset: 0 | next offset: N/A'))).toBe(true);
     });
 });
 

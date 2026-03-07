@@ -28,15 +28,20 @@ export interface Memory {
     tags: string[];
     created_at: string;
     updated_at: string;
+    changed_at: string;
 }
 
 export interface MemorySummary {
     id: number;
+    space_name: string;
     name: string;
     tier: Tier;
     pinned: boolean;
     tags: string[];
     access_count: number;
+    created_at: string;
+    updated_at: string;
+    changed_at: string;
 }
 
 export interface Link {
@@ -68,6 +73,19 @@ export interface SearchResult {
     tags: string[];
     rank: number;
     similarity?: number;
+    created_at: string;
+    updated_at: string;
+    changed_at: string;
+}
+
+export interface MemoryQueryFilter {
+    space?: string;
+    tag?: string;
+    tier?: Tier;
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
 }
 
 export interface StatusResult {

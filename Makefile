@@ -1,15 +1,33 @@
-.PHONY: web web-dev test test-rag
+.PHONY: help web web-dev test test-rag install-local release-patch release-minor release-major release-simulate
 
-# Run the web app locally for development (with watch). No Docker.
-web: web-dev
+help: ## Show available commands
+	@echo "mind project tasks"
+	@echo
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/; s/^/  /'
 
-web-dev:
+web: ## Run the web app in dev mode (alias for web-dev)
+	$(MAKE) web-dev
+
+web-dev: ## Run the web app locally with Bun
 	cd web && bun run dev
 
-# Run unit tests
-test:
+test: ## Run unit tests
 	bun test cli/test
 
-# Run RAG E2E integration test (requires OPENAI_API_KEY, makes real API calls)
-test-rag:
+test-rag: ## Run RAG E2E integration test (requires OPENAI_API_KEY)
 	./scripts/test-rag.sh
+
+install-local: ## Install mind locally using scripts/install.sh (no curl)
+	./scripts/install.sh
+
+release-patch: ## Create a patch release from main (real release)
+	./scripts/release.sh patch
+
+release-minor: ## Create a minor release from main (real release)
+	./scripts/release.sh minor
+
+release-major: ## Create a major release from main (real release)
+	./scripts/release.sh major
+
+release-simulate: ## Simulate release flow without changing anything (TYPE=patch|minor|major)
+	@type=$${TYPE:-patch}; ./scripts/release.sh $$type --simulate
