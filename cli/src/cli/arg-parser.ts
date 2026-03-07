@@ -21,13 +21,13 @@ export class ArgParser {
     matches(args: string[]): boolean {
         if (!this.flagsAreValid(args)) return false;
         const positional = this.getPositionalArgs(args);
-        
+
         // Match shape parts to positional args, handling command synonyms with spaces
         let posIdx = 0;
-        
+
         for (let shapeIdx = 0; shapeIdx < this.shape.length; shapeIdx++) {
             const part = this.shape[shapeIdx]!;
-            
+
             if (this.isParam(part)) {
                 // It's a parameter - should match current positional
                 if (posIdx >= positional.length) return false;
@@ -36,11 +36,14 @@ export class ArgParser {
                 // It's a command part - check all alternatives (split by |)
                 const aliases = part.split('|');
                 let foundMatch = false;
-                
+
                 for (const alias of aliases) {
-                    const words = alias.trim().split(/\s+/).filter(w => w.length > 0);
+                    const words = alias
+                        .trim()
+                        .split(/\s+/)
+                        .filter((w) => w.length > 0);
                     const wordCount = words.length;
-                    
+
                     // Check if positional matches this alias starting at posIdx
                     if (posIdx + wordCount <= positional.length) {
                         let match = true;
@@ -57,11 +60,11 @@ export class ArgParser {
                         }
                     }
                 }
-                
+
                 if (!foundMatch) return false;
             }
         }
-        
+
         // Must have consumed all positional args
         return posIdx === positional.length;
     }
@@ -81,7 +84,7 @@ export class ArgParser {
     /**
      * Extract positional args, stripping out --flag and --flag=value pairs.
      */
-    private getPositionalArgs(args: string[]): string[] {
+    public getPositionalArgs(args: string[]): string[] {
         const result: string[] = [];
         for (let i = 0; i < args.length; i++) {
             const arg = args[i]!;
@@ -120,12 +123,12 @@ export class ArgParser {
     getParams(args: string[]): any {
         const positional = this.getPositionalArgs(args);
         const params: any = {};
-        
+
         let posIdx = 0;
 
         for (let shapeIdx = 0; shapeIdx < this.shape.length; shapeIdx++) {
             const part = this.shape[shapeIdx]!;
-            
+
             if (this.isParam(part)) {
                 // It's a parameter - assign current positional arg
                 params[this.getParamName(part)] = positional[posIdx] ?? undefined;
@@ -136,10 +139,12 @@ export class ArgParser {
                 // Find matching alias to know how many words to skip
                 let wordCount = 0;
                 for (const alias of aliases) {
-                    const words = alias.trim().split(/\s+/).filter(w => w.length > 0);
+                    const words = alias
+                        .trim()
+                        .split(/\s+/)
+                        .filter((w) => w.length > 0);
                     const testWords = positional.slice(posIdx, posIdx + words.length);
-                    if (testWords.length === words.length && 
-                        testWords.every((w, i) => w === words[i])) {
+                    if (testWords.length === words.length && testWords.every((w, i) => w === words[i])) {
                         wordCount = words.length;
                         break;
                     }

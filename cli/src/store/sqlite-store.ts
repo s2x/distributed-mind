@@ -34,9 +34,7 @@ export function createSqliteStore(dbPath: string): MindStore {
     function normalizeDateBound(raw: string, endOfDay = false): string {
         const text = raw.trim();
         const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(text);
-        const parsed = dateOnly
-            ? new Date(`${text}T${endOfDay ? '23:59:59' : '00:00:00'}`)
-            : new Date(text);
+        const parsed = dateOnly ? new Date(`${text}T${endOfDay ? '23:59:59' : '00:00:00'}`) : new Date(text);
 
         if (Number.isNaN(parsed.getTime())) {
             throw new Error(`Invalid date value: ${raw}`);
@@ -90,12 +88,12 @@ export function createSqliteStore(dbPath: string): MindStore {
 
     function requireSpace(name: string): void {
         const row = db.query('SELECT 1 FROM spaces WHERE name = ?').get(name);
-        if (!row) throw new Error(`Space "${name}" does not exist`);
+        if (!row) throw new Error(`Space "${name}" does not exist. Create it first with space_create tool.`);
     }
 
     function requireMemory(id: number): any {
         const row = db.query('SELECT * FROM memories WHERE id = ?').get(id);
-        if (!row) throw new Error(`Memory with id ${id} does not exist`);
+        if (!row) throw new Error(`Memory with id ${id} does not exist. Use memory_list to find valid IDs.`);
         return row;
     }
 
@@ -149,7 +147,12 @@ export function createSqliteStore(dbPath: string): MindStore {
         const nextTier = tier + 1;
         const ts = now();
         if (touchChangedAt) {
-            db.run('UPDATE memories SET tier = ?, updated_at = ?, changed_at = ? WHERE id = ?', [nextTier, ts, ts, lru.id]);
+            db.run('UPDATE memories SET tier = ?, updated_at = ?, changed_at = ? WHERE id = ?', [
+                nextTier,
+                ts,
+                ts,
+                lru.id,
+            ]);
         } else {
             db.run('UPDATE memories SET tier = ?, updated_at = ? WHERE id = ?', [nextTier, ts, lru.id]);
         }
@@ -266,10 +269,7 @@ export function createSqliteStore(dbPath: string): MindStore {
     function addSpaceTag(space: string, tag: string): void {
         requireSpace(space);
         const normalized = normalizeTag(tag);
-        db.run('INSERT OR IGNORE INTO space_tags (space_name, tag) VALUES (?, ?)', [
-            space,
-            normalized,
-        ]);
+        db.run('INSERT OR IGNORE INTO space_tags (space_name, tag) VALUES (?, ?)', [space, normalized]);
     }
 
     function removeSpaceTag(space: string, tag: string): void {
@@ -455,10 +455,7 @@ export function createSqliteStore(dbPath: string): MindStore {
     function addMemoryTag(memoryId: number, tag: string): void {
         requireMemory(memoryId);
         const normalized = normalizeTag(tag);
-        db.run('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)', [
-            memoryId,
-            normalized,
-        ]);
+        db.run('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)', [memoryId, normalized]);
         const ts = now();
         db.run('UPDATE memories SET updated_at = ?, changed_at = ? WHERE id = ?', [ts, ts, memoryId]);
     }
@@ -472,8 +469,13 @@ export function createSqliteStore(dbPath: string): MindStore {
     }
 
     function listAllTags(): { spaces: { tag: string; count: number }[]; memories: { tag: string; count: number }[] } {
-        const spaceTags = db.query('SELECT tag, COUNT(*) as count FROM space_tags GROUP BY tag ORDER BY tag').all() as { tag: string; count: number }[];
-        const memoryTags = db.query('SELECT tag, COUNT(*) as count FROM memory_tags GROUP BY tag ORDER BY tag').all() as { tag: string; count: number }[];
+        const spaceTags = db.query('SELECT tag, COUNT(*) as count FROM space_tags GROUP BY tag ORDER BY tag').all() as {
+            tag: string;
+            count: number;
+        }[];
+        const memoryTags = db
+            .query('SELECT tag, COUNT(*) as count FROM memory_tags GROUP BY tag ORDER BY tag')
+            .all() as { tag: string; count: number }[];
         return { spaces: spaceTags, memories: memoryTags };
     }
 
@@ -642,8 +644,14 @@ export function createSqliteStore(dbPath: string): MindStore {
             let candSql =
                 'SELECT id, space_name, name, content, tier, pinned, created_at, updated_at, changed_at FROM memories WHERE 1=1';
             const candParams: any[] = [];
-            if (filter?.space) { candSql += ' AND space_name = ?'; candParams.push(filter.space); }
-            if (filter?.tier)  { candSql += ' AND tier = ?';       candParams.push(filter.tier); }
+            if (filter?.space) {
+                candSql += ' AND space_name = ?';
+                candParams.push(filter.space);
+            }
+            if (filter?.tier) {
+                candSql += ' AND tier = ?';
+                candParams.push(filter.tier);
+            }
             let candidates = db.query(candSql).all(...candParams) as any[];
             if (filter?.tag) {
                 const normalizedTag = normalizeTag(filter.tag);
@@ -753,9 +761,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         const spaceFilter = space ? 'WHERE space_name = ?' : '';
         const spaceParams: any[] = space ? [space] : [];
 
-        const total_spaces = space
-            ? 1
-            : (db.query('SELECT COUNT(*) as c FROM spaces').get() as { c: number }).c;
+        const total_spaces = space ? 1 : (db.query('SELECT COUNT(*) as c FROM spaces').get() as { c: number }).c;
 
         const total_memories = (
             db.query(`SELECT COUNT(*) as c FROM memories ${spaceFilter}`).get(...spaceParams) as { c: number }
@@ -791,9 +797,7 @@ export function createSqliteStore(dbPath: string): MindStore {
             embedSql += ' AND space_name = ?';
             embedParams.push(space);
         }
-        const embeddings_indexed = (
-            db.query(embedSql).get(...embedParams) as { c: number }
-        ).c;
+        const embeddings_indexed = (db.query(embedSql).get(...embedParams) as { c: number }).c;
 
         return {
             db_path: dbPath,
