@@ -45,7 +45,9 @@ function renderStatus(store: MindStore, logger: Logger, space?: string): void {
     logger.logInfo('');
     if (status.rag_enabled) {
         logger.logInfo(`   ${style('RAG:', ['bold'])} enabled (${CONFIG.rag.model})`);
-        logger.logInfo(`   ${style('Embeddings:', ['bold'])} ${status.embeddings_indexed}/${status.total_memories} indexed`);
+        logger.logInfo(
+            `   ${style('Embeddings:', ['bold'])} ${status.embeddings_indexed}/${status.total_memories} indexed`
+        );
     } else {
         logger.logInfo(`   ${style('RAG:', ['bold'])} disabled (set MIND_RAG=true + OPENAI_API_KEY)`);
     }

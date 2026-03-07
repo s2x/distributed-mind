@@ -6,28 +6,18 @@ import type { CommandGroup } from './types';
 
 const p = ArgParser.param.bind(ArgParser);
 
-const CREATE = new ArgParser(
-    ['create|c', p('space'), p('description')],
-    'Creates a new space',
-    [{ name: 'tags', alias: 't', hasValue: true }]
-);
-const LIST = new ArgParser(
-    ['list|ls|l'],
-    'Lists all spaces',
-    [
-        { name: 'tag', alias: 't', hasValue: true },
-        { name: 'hidden', alias: 'H', hasValue: false },
-    ]
-);
-const UPDATE = new ArgParser(
-    ['update', p('space')],
-    'Updates a space (description or visibility)',
-    [
-        { name: 'description', alias: 'd', hasValue: true },
-        { name: 'hidden', alias: 'H', hasValue: false },
-        { name: 'no-hidden', hasValue: false },
-    ]
-);
+const CREATE = new ArgParser(['create|c', p('space'), p('description')], 'Creates a new space', [
+    { name: 'tags', alias: 't', hasValue: true },
+]);
+const LIST = new ArgParser(['list|ls|l'], 'Lists all spaces', [
+    { name: 'tag', alias: 't', hasValue: true },
+    { name: 'hidden', alias: 'H', hasValue: false },
+]);
+const UPDATE = new ArgParser(['update', p('space')], 'Updates a space (description or visibility)', [
+    { name: 'description', alias: 'd', hasValue: true },
+    { name: 'hidden', alias: 'H', hasValue: false },
+    { name: 'no-hidden', hasValue: false },
+]);
 const DELETE = new ArgParser(['delete|d', p('space')], 'Deletes a space and all its memories');
 const RENAME = new ArgParser(['rename|rn', p('old'), p('new')], 'Renames a space');
 const DESCRIBE = new ArgParser(['describe|ds', p('space'), p('description')], 'Changes a space description');
@@ -43,7 +33,11 @@ export const spacesGroup: CommandGroup = {
             execute: async (args, store, logger) => {
                 const { space, description } = CREATE.getParams(args);
                 const flags = CREATE.getFlags(args);
-                const tags = flags.tags ? String(flags.tags).split(',').map((t) => t.trim()) : undefined;
+                const tags = flags.tags
+                    ? String(flags.tags)
+                          .split(',')
+                          .map((t) => t.trim())
+                    : undefined;
                 store.createSpace(space, description, tags);
                 logger.logInfo(style(`✅ Space "${space}" created`, ['bold', 'green']));
             },
@@ -65,7 +59,9 @@ export const spacesGroup: CommandGroup = {
                 for (const s of spaces) {
                     const tags = formatTags(s.tags);
                     const hiddenBadge = s.hidden ? style(' [hidden]', ['gray', 'dim']) : '';
-                    logger.logInfo(`   ${style(s.name, ['bold'])}: ${style(s.description, ['gray'])} (${s.memory_count} memories) ${tags}${hiddenBadge}`);
+                    logger.logInfo(
+                        `   ${style(s.name, ['bold'])}: ${style(s.description, ['gray'])} (${s.memory_count} memories) ${tags}${hiddenBadge}`
+                    );
                 }
             },
         },
@@ -99,7 +95,7 @@ export const spacesGroup: CommandGroup = {
                 const { space } = UPDATE.getParams(args);
                 const flags = UPDATE.getFlags(args);
                 const updates: { description?: string; hidden?: boolean } = {};
-                
+
                 if (flags.description !== undefined) {
                     updates.description = String(flags.description);
                 }
@@ -108,18 +104,20 @@ export const spacesGroup: CommandGroup = {
                 } else if (flags['no-hidden'] === true) {
                     updates.hidden = false;
                 }
-                
+
                 if (Object.keys(updates).length === 0) {
-                    logger.logInfo(style('⚠️  No updates provided. Use --description or --hidden/--no-hidden', ['yellow']));
+                    logger.logInfo(
+                        style('⚠️  No updates provided. Use --description or --hidden/--no-hidden', ['yellow'])
+                    );
                     return;
                 }
-                
+
                 store.updateSpace(space, updates);
-                
+
                 const parts: string[] = [];
                 if (updates.description !== undefined) parts.push('description');
                 if (updates.hidden !== undefined) parts.push(updates.hidden ? 'hidden' : 'visible');
-                
+
                 logger.logInfo(style(`✅ Space "${space}" updated: ${parts.join(', ')}`, ['bold', 'green']));
             },
         },

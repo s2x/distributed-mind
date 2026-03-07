@@ -17,19 +17,15 @@ const SEARCH = new ArgParser(
     ]
 );
 
-const QUERY = new ArgParser(
-    ['query|q'],
-    'Query memories by metadata/date with pagination.',
-    [
-        { name: 'space', hasValue: true, description: 'space name (e.g. Credentials)' },
-        { name: 'tag', hasValue: true, description: 'tag without # (e.g. backend)' },
-        { name: 'tier', hasValue: true, description: '1|2|3|4' },
-        { name: 'from', hasValue: true, description: 'YYYY-MM-DD or ISO datetime' },
-        { name: 'to', hasValue: true, description: 'YYYY-MM-DD or ISO datetime' },
-        { name: 'limit', hasValue: true, description: 'page size (default: 25)' },
-        { name: 'offset', hasValue: true, description: 'start index (0, 25, 50, ...)' },
-    ]
-);
+const QUERY = new ArgParser(['query|q'], 'Query memories by metadata/date with pagination.', [
+    { name: 'space', hasValue: true, description: 'space name (e.g. Credentials)' },
+    { name: 'tag', hasValue: true, description: 'tag without # (e.g. backend)' },
+    { name: 'tier', hasValue: true, description: '1|2|3|4' },
+    { name: 'from', hasValue: true, description: 'YYYY-MM-DD or ISO datetime' },
+    { name: 'to', hasValue: true, description: 'YYYY-MM-DD or ISO datetime' },
+    { name: 'limit', hasValue: true, description: 'page size (default: 25)' },
+    { name: 'offset', hasValue: true, description: 'start index (0, 25, 50, ...)' },
+]);
 
 export const searchGroup: CommandGroup = {
     name: 'Search',

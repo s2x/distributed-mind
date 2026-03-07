@@ -82,7 +82,11 @@ const server = Bun.serve({
 
             // ── POST /api/spaces ─────────────────────────────────────────────
             if (p === '/api/spaces' && m === 'POST') {
-                const { name, description, tags } = await parseBody<{ name: string; description: string; tags?: string[] }>(req);
+                const { name, description, tags } = await parseBody<{
+                    name: string;
+                    description: string;
+                    tags?: string[];
+                }>(req);
                 const normalizedTags = tags ? normalizeTags(tags) : undefined;
                 store.createSpace(name, description ?? '', normalizedTags);
                 return json(store.getSpace(name), 201);
@@ -99,7 +103,12 @@ const server = Bun.serve({
             // ── PATCH /api/spaces/:name ──────────────────────────────────────
             if (spaceMatch && m === 'PATCH') {
                 const name = decodeURIComponent(spaceMatch[1]!);
-                const body = await parseBody<{ description?: string; newName?: string; addTag?: string; removeTag?: string }>(req);
+                const body = await parseBody<{
+                    description?: string;
+                    newName?: string;
+                    addTag?: string;
+                    removeTag?: string;
+                }>(req);
                 if (body.description !== undefined) store.updateSpace(name, { description: body.description });
                 if (body.newName) store.renameSpace(name, body.newName);
                 if (body.addTag) store.addSpaceTag(body.newName ?? name, body.addTag);
@@ -213,7 +222,6 @@ const server = Bun.serve({
 
             // ── Static files ─────────────────────────────────────────────────
             return staticFile(p);
-
         } catch (e: any) {
             console.error('API error:', e.message);
             return err(e.message, 500);

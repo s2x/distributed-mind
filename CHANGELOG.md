@@ -28,19 +28,21 @@ Example:
 ## [Unreleased]
 
 ### Added
+
 - Added checkpoint system for session persistence and recovery:
-  - `checkpoint set` / `cp set` - Create/update a checkpoint
-  - `checkpoint complete` / `cp complete` - Mark checkpoint as completed
-  - `checkpoint recover` / `cp recover` - Recover latest active checkpoint
-  - `checkpoint list` / `cp list` - List all checkpoints for a space
+    - `checkpoint set` / `cp set` - Create/update a checkpoint
+    - `checkpoint complete` / `cp complete` - Mark checkpoint as completed
+    - `checkpoint recover` / `cp recover` - Recover latest active checkpoint
+    - `checkpoint list` / `cp list` - List all checkpoints for a space
 - Added hidden spaces feature:
-  - `mind update <space> --hidden` - Mark space as hidden
-  - `mind update <space> --no-hidden` - Unmark space as hidden
-  - `mind list --hidden` - Show hidden spaces
+    - `mind update <space> --hidden` - Mark space as hidden
+    - `mind update <space> --no-hidden` - Unmark space as hidden
+    - `mind list --hidden` - Show hidden spaces
 - Added MCP checkpoint tools: `checkpoint_set`, `checkpoint_complete`, `checkpoint_recover`, `checkpoint_list`
 - Added checkpoint space organization: `<space>:sessions` for storing checkpoints
 
 ### Changed
+
 - Added `mind update <space> --description|--hidden|--no-hidden` for explicit space updates.
 - Spaces now have a `hidden` field (default: false)
 - Added MCP setup, process management, and detached runtime commands.
@@ -52,6 +54,7 @@ Example:
 - Added MCP `memory_query` tool with metadata/date filters and offset pagination (`nextOffset`).
 
 ### Changed
+
 - Reorganized source layout into explicit domains: `cli/`, `mcp/`, `api/`, `helpers/`.
 - Refactored CLI command handling into atomic modules loaded by a registry-based command executor.
 - Split HTTP API into route modules plus centralized router matcher.
@@ -65,6 +68,7 @@ Example:
 - Increased Bun HTTP idle timeout defaults to reduce premature request timeouts (`MIND_MCP_IDLE_TIMEOUT` default 120s, `MIND_API_IDLE_TIMEOUT` default 30s).
 
 ### Fixed
+
 - Fixed command wiring inconsistencies between runtime entrypoint and subcommand modules.
 - Improved detached startup behavior with process liveness checks and clearer failure messages.
 - Replaced ad-hoc MCP HTTP handling with the official Streamable HTTP transport implementation (session-aware initialize/tools flow), fixing Cursor connection errors (`Unknown method`, SSE fallback 404).

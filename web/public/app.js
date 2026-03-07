@@ -8,12 +8,20 @@ const api = {
         return r.json();
     },
     async post(path, body) {
-        const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const r = await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
         if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
         return r.json();
     },
     async patch(path, body) {
-        const r = await fetch(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const r = await fetch(path, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
         if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
         return r.json();
     },
@@ -28,7 +36,7 @@ const api = {
 let state = {
     spaces: [],
     currentSpace: null,
-    memories: [],      // MemorySummary[]
+    memories: [], // MemorySummary[]
     currentMemory: null, // Memory (full)
     searchActive: false,
     searchResults: [],
@@ -37,25 +45,25 @@ let state = {
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
 
-const elSpaceList       = $('space-list');
-const elEmptyState      = $('empty-state');
-const elSpaceDetail     = $('space-detail');
-const elSearchResults   = $('search-results');
-const elMemoryPanel     = $('memory-panel');
-const elGlobalSearch    = $('global-search');
-const elSpaceTitle      = $('space-title');
-const elSpaceDesc       = $('space-desc');
-const elSpaceTagsRow    = $('space-tags-row');
-const elSearchList      = $('search-list');
-const elSearchHeading   = $('search-heading');
-const elMemTitle        = $('mem-title');
-const elMemTierBadge    = $('mem-tier-badge');
-const elMemTagsRow      = $('mem-tags-row');
-const elMemContent      = $('mem-content');
-const elMemEditArea     = $('mem-edit-area');
-const elMemEditInput    = $('mem-edit-input');
-const elStatusSpaces    = $('status-spaces');
-const elStatusTiers     = $('status-tiers');
+const elSpaceList = $('space-list');
+const elEmptyState = $('empty-state');
+const elSpaceDetail = $('space-detail');
+const elSearchResults = $('search-results');
+const elMemoryPanel = $('memory-panel');
+const elGlobalSearch = $('global-search');
+const elSpaceTitle = $('space-title');
+const elSpaceDesc = $('space-desc');
+const elSpaceTagsRow = $('space-tags-row');
+const elSearchList = $('search-list');
+const elSearchHeading = $('search-heading');
+const elMemTitle = $('mem-title');
+const elMemTierBadge = $('mem-tier-badge');
+const elMemTagsRow = $('mem-tags-row');
+const elMemContent = $('mem-content');
+const elMemEditArea = $('mem-edit-area');
+const elMemEditInput = $('mem-edit-input');
+const elStatusSpaces = $('status-spaces');
+const elStatusTiers = $('status-tiers');
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
 const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold', 4: '💠 T4 — Frozen' };
@@ -69,9 +77,9 @@ function renderStatus(status) {
     const memories = status.total_memories ?? 0;
     elStatusSpaces.textContent = `${spaces} space${spaces !== 1 ? 's' : ''}, ${memories} mem`;
     elStatusTiers.innerHTML = '';
-    for (const t of (status.by_tier ?? [])) {
+    for (const t of status.by_tier ?? []) {
         const cls = TIER_CLASS[t.tier] ?? '';
-        const label = t.tier === 4 ? '💠' : ['', '🔴', '🟡', '🔵'][t.tier] ?? '';
+        const label = t.tier === 4 ? '💠' : (['', '🔴', '🟡', '🔵'][t.tier] ?? '');
         const limit = TIER_LIMITS[t.tier];
         const cap = limit != null ? `/${limit}` : '';
         const pill = document.createElement('span');
@@ -86,7 +94,9 @@ async function loadStatus() {
     try {
         const status = await api.get('/api/status');
         renderStatus(status);
-    } catch { /* non-critical, ignore */ }
+    } catch {
+        /* non-critical, ignore */
+    }
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
@@ -114,21 +124,26 @@ function renderSpaceDetail() {
     elSpaceDesc.textContent = sp.description || 'No description';
 
     // Tags
-    renderTagRow(elSpaceTagsRow, sp.tags ?? [], async (tag) => {
-        await api.patch(`/api/spaces/${enc(sp.name)}`, { removeTag: tag });
-        await refreshSpace(sp.name);
-    }, async () => {
-        const tag = prompt('Tag name:');
-        if (tag) {
-            await api.patch(`/api/spaces/${enc(sp.name)}`, { addTag: tag.trim().toLowerCase() });
+    renderTagRow(
+        elSpaceTagsRow,
+        sp.tags ?? [],
+        async (tag) => {
+            await api.patch(`/api/spaces/${enc(sp.name)}`, { removeTag: tag });
             await refreshSpace(sp.name);
+        },
+        async () => {
+            const tag = prompt('Tag name:');
+            if (tag) {
+                await api.patch(`/api/spaces/${enc(sp.name)}`, { addTag: tag.trim().toLowerCase() });
+                await refreshSpace(sp.name);
+            }
         }
-    });
+    );
 
     // Tier containers
     for (const tier of [1, 2, 3]) {
         const ul = document.querySelector(`#tiers .memory-list[data-tier="${tier}"]`);
-        const mems = state.memories.filter(m => m.tier === tier);
+        const mems = state.memories.filter((m) => m.tier === tier);
         ul.innerHTML = '';
         if (mems.length === 0) {
             ul.innerHTML = '<li class="tier-empty">Empty</li>';
@@ -146,7 +161,10 @@ function renderMemoryItem(mem, spaceName) {
     li.dataset.id = mem.id;
     li.dataset.name = mem.name;
 
-    const tags = (mem.tags ?? []).slice(0, 3).map(t => `<span class="memory-item-tag">${esc(t)}</span>`).join('');
+    const tags = (mem.tags ?? [])
+        .slice(0, 3)
+        .map((t) => `<span class="memory-item-tag">${esc(t)}</span>`)
+        .join('');
 
     li.innerHTML = `
         <span class="memory-item-pin">${mem.pinned ? '📌' : ''}</span>
@@ -181,16 +199,23 @@ function renderMemoryPanel(memory) {
     elMemTierBadge.textContent = TIER_LABEL[memory.tier];
     elMemTierBadge.className = 'tier-badge ' + TIER_CLASS[memory.tier];
 
-    renderTagRow(elMemTagsRow, memory.tags ?? [], async (tag) => {
-        await api.patch(`/api/spaces/${enc(memory.space_name)}/memories/${enc(memory.name)}`, { removeTag: tag });
-        await refreshMemory(memory.space_name, memory.name);
-    }, async () => {
-        const tag = prompt('Tag name:');
-        if (tag) {
-            await api.patch(`/api/spaces/${enc(memory.space_name)}/memories/${enc(memory.name)}`, { addTag: tag.trim().toLowerCase() });
+    renderTagRow(
+        elMemTagsRow,
+        memory.tags ?? [],
+        async (tag) => {
+            await api.patch(`/api/spaces/${enc(memory.space_name)}/memories/${enc(memory.name)}`, { removeTag: tag });
             await refreshMemory(memory.space_name, memory.name);
+        },
+        async () => {
+            const tag = prompt('Tag name:');
+            if (tag) {
+                await api.patch(`/api/spaces/${enc(memory.space_name)}/memories/${enc(memory.name)}`, {
+                    addTag: tag.trim().toLowerCase(),
+                });
+                await refreshMemory(memory.space_name, memory.name);
+            }
         }
-    });
+    );
 
     elMemContent.innerHTML = marked.parse(memory.content || '');
     $('btn-mem-pin').textContent = memory.pinned ? '📌 Unpin' : '📌 Pin';
@@ -214,7 +239,10 @@ function renderSearchResults(results, query) {
         const tierLabel = TIER_LABEL[r.tier] ?? '';
         li.innerHTML = `
             <span class="memory-item-name">${esc(r.name)}</span>
-            <span class="memory-item-tags">${(r.tags ?? []).slice(0, 2).map(t => `<span class="memory-item-tag">${esc(t)}</span>`).join('')}</span>
+            <span class="memory-item-tags">${(r.tags ?? [])
+                .slice(0, 2)
+                .map((t) => `<span class="memory-item-tag">${esc(t)}</span>`)
+                .join('')}</span>
             <span class="tier-badge ${tierClass}" style="font-size:10px;padding:0 5px;">${tierLabel}</span>
             <div class="search-result-space">${esc(r.space_name)}</div>
         `;
@@ -252,7 +280,7 @@ async function loadSpaces() {
 }
 
 async function selectSpace(name) {
-    state.currentSpace = state.spaces.find(s => s.name === name) ?? { name };
+    state.currentSpace = state.spaces.find((s) => s.name === name) ?? { name };
     state.currentMemory = null;
     showMemoryPanel(false);
 
@@ -319,8 +347,11 @@ function makeEditable(el, onSave) {
             if (save) el.textContent = input.value;
         };
         input.addEventListener('blur', () => done(true));
-        input.addEventListener('keydown', e => {
-            if (e.key === 'Enter') { e.preventDefault(); done(true); }
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                done(true);
+            }
             if (e.key === 'Escape') done(false);
         });
     });
@@ -348,7 +379,10 @@ $('modal-space-cancel').addEventListener('click', () => $('modal-new-space').cla
 $('modal-space-create').addEventListener('click', async () => {
     const name = $('new-space-name').value.trim();
     const desc = $('new-space-desc').value.trim();
-    const tags = $('new-space-tags').value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    const tags = $('new-space-tags')
+        .value.split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
     if (!name) return;
     await api.post('/api/spaces', { name, description: desc, tags });
     $('modal-new-space').classList.add('hidden');
@@ -378,7 +412,10 @@ $('modal-mem-cancel').addEventListener('click', () => $('modal-new-memory').clas
 $('modal-mem-create').addEventListener('click', async () => {
     const name = $('new-mem-name').value.trim();
     const content = $('new-mem-content').value;
-    const tags = $('new-mem-tags').value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    const tags = $('new-mem-tags')
+        .value.split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
     const tier = Number($('new-mem-tier').value);
     if (!name || !state.currentSpace) return;
     await api.post(`/api/spaces/${enc(state.currentSpace.name)}/memories`, { name, content, tags, tier });
@@ -475,7 +512,7 @@ elGlobalSearch.addEventListener('input', () => {
 });
 
 // Modal keyboard close
-document.addEventListener('keydown', e => {
+document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         $('modal-new-space').classList.add('hidden');
         $('modal-new-memory').classList.add('hidden');
@@ -484,7 +521,11 @@ document.addEventListener('keydown', e => {
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function esc(str) {
-    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 function enc(str) {

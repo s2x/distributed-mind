@@ -8,9 +8,7 @@ const p = ArgParser.param.bind(ArgParser);
 const SET = new ArgParser(
     ['checkpoint set|cp set', p('space'), p('goal'), p('pending')],
     'Creates or updates a checkpoint for the current work session',
-    [
-        { name: 'notes', alias: 'n', hasValue: true },
-    ]
+    [{ name: 'notes', alias: 'n', hasValue: true }]
 );
 
 const COMPLETE = new ArgParser(
@@ -22,18 +20,12 @@ const COMPLETE = new ArgParser(
 const RECOVER = new ArgParser(
     ['checkpoint recover|cp recover', p('space')],
     'Recovers the most recent active checkpoint',
-    [
-        { name: 'history', alias: 'H', hasValue: false },
-    ]
+    [{ name: 'history', alias: 'H', hasValue: false }]
 );
 
-const LIST = new ArgParser(
-    ['checkpoint list|cp list', p('space')],
-    'Lists all checkpoints for a space',
-    [
-        { name: 'status', alias: 'S', hasValue: true },
-    ]
-);
+const LIST = new ArgParser(['checkpoint list|cp list', p('space')], 'Lists all checkpoints for a space', [
+    { name: 'status', alias: 'S', hasValue: true },
+]);
 
 function getCheckpointSpaceName(space: string): string {
     return `${space}:sessions`;
@@ -63,16 +55,20 @@ export const checkpointGroup: CommandGroup = {
                 }
 
                 // Build checkpoint content as JSON
-                const content = JSON.stringify({
-                    goal,
-                    pending,
-                    notes: notes || '',
-                    createdAt: new Date().toISOString(),
-                }, null, 2);
+                const content = JSON.stringify(
+                    {
+                        goal,
+                        pending,
+                        notes: notes || '',
+                        createdAt: new Date().toISOString(),
+                    },
+                    null,
+                    2
+                );
 
                 // Check if there's already an active checkpoint
                 const existingCheckpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
-                const activeCheckpoint = existingCheckpoints.find(m => m.tags.includes('active'));
+                const activeCheckpoint = existingCheckpoints.find((m) => m.tags.includes('active'));
 
                 let checkpoint;
                 if (activeCheckpoint) {
@@ -93,12 +89,10 @@ export const checkpointGroup: CommandGroup = {
                 } else {
                     // Create new checkpoint
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    checkpoint = await store.addMemory(
-                        checkpointSpace,
-                        `checkpoint-${timestamp}`,
-                        content,
-                        { tags: ['checkpoint', 'active'], tier: 1 }
-                    );
+                    checkpoint = await store.addMemory(checkpointSpace, `checkpoint-${timestamp}`, content, {
+                        tags: ['checkpoint', 'active'],
+                        tier: 1,
+                    });
                 }
 
                 const status = activeCheckpoint ? 'updated' : 'created';
@@ -125,7 +119,9 @@ export const checkpointGroup: CommandGroup = {
                 }
 
                 if (memory.space_name !== checkpointSpace) {
-                    logger.logInfo(style(`❌ Checkpoint ${checkpointId} does not belong to "${checkpointSpace}"`, ['red']));
+                    logger.logInfo(
+                        style(`❌ Checkpoint ${checkpointId} does not belong to "${checkpointSpace}"`, ['red'])
+                    );
                     return;
                 }
 
@@ -171,17 +167,15 @@ export const checkpointGroup: CommandGroup = {
 
                 // Get active checkpoints
                 const allCheckpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
-                let activeCheckpoints = allCheckpoints.filter(m => m.tags.includes('active'));
+                let activeCheckpoints = allCheckpoints.filter((m) => m.tags.includes('active'));
 
                 if (includeHistory) {
-                    const completedCheckpoints = allCheckpoints.filter(m => m.tags.includes('completed'));
+                    const completedCheckpoints = allCheckpoints.filter((m) => m.tags.includes('completed'));
                     activeCheckpoints = [...activeCheckpoints, ...completedCheckpoints];
                 }
 
                 // Sort by updated_at descending
-                activeCheckpoints.sort((a, b) =>
-                    new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-                );
+                activeCheckpoints.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
                 if (activeCheckpoints.length === 0) {
                     logger.logInfo(style(`ℹ️  No active checkpoints found`, ['yellow']));
@@ -248,13 +242,11 @@ export const checkpointGroup: CommandGroup = {
 
                 // Filter by status if specified
                 if (status && status !== 'all') {
-                    checkpoints = checkpoints.filter(m => m.tags.includes(status));
+                    checkpoints = checkpoints.filter((m) => m.tags.includes(status));
                 }
 
                 // Sort by updated_at descending
-                checkpoints.sort((a, b) =>
-                    new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-                );
+                checkpoints.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
                 if (checkpoints.length === 0) {
                     logger.logInfo(style(`ℹ️  No checkpoints found`, ['yellow']));

@@ -423,7 +423,9 @@ describe('Command Executor — Search', () => {
 
         await executeCommand(['query', '--space', 'test'], store, logger);
         const logs = logger.getLogs();
-        expect(logs.some((l) => l.message.includes('Pagination | limit: 25 | offset: 0 | next offset: N/A'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('Pagination | limit: 25 | offset: 0 | next offset: N/A'))).toBe(
+            true
+        );
     });
 });
 
@@ -475,9 +477,7 @@ describe('Command Executor — Status', () => {
         const logger = mockedLogger();
         store.createSpace('test', 'Test');
 
-        expect(() =>
-            executeCommand(['add', 'test', 'frozen', 'content', '--tier', '4'], store, logger)
-        ).toThrow('T4');
+        expect(() => executeCommand(['add', 'test', 'frozen', 'content', '--tier', '4'], store, logger)).toThrow('T4');
     });
 });
 
@@ -572,7 +572,11 @@ describe('Command Executor — Checkpoint', () => {
         const checkpointId = memories[0]!.id;
 
         // Complete it
-        await executeCommand(['checkpoint', 'complete', 'myproject', String(checkpointId), 'Fixed the bug'], store, logger);
+        await executeCommand(
+            ['checkpoint', 'complete', 'myproject', String(checkpointId), 'Fixed the bug'],
+            store,
+            logger
+        );
 
         // Check it was completed
         const updated = store.getMemoryById(checkpointId);
@@ -625,7 +629,11 @@ describe('Command Executor — Checkpoint', () => {
         const logger = mockedLogger();
         store.createSpace('myproject', 'A project');
 
-        await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending', '--notes', 'Important context'], store, logger);
+        await executeCommand(
+            ['checkpoint', 'set', 'myproject', 'Goal', 'Pending', '--notes', 'Important context'],
+            store,
+            logger
+        );
 
         const memories = store.listMemories('myproject:sessions');
         const mem = store.getMemoryById(memories[0]!.id);

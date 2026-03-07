@@ -7,22 +7,14 @@ import type { Tier } from '../../types';
 
 const p = ArgParser.param.bind(ArgParser);
 
-const LIST = new ArgParser(
-    ['list|ls|l', p('space')],
-    'Lists T1+T2 memories of a space (--tier 3 for cold)',
-    [
-        { name: 'tier', hasValue: true },
-        { name: 'tag', alias: 't', hasValue: true },
-    ]
-);
-const ADD = new ArgParser(
-    ['add|a', p('space'), p('name'), p('content')],
-    'Adds a memory to a space',
-    [
-        { name: 'tags', alias: 't', hasValue: true },
-        { name: 'tier', hasValue: true },
-    ]
-);
+const LIST = new ArgParser(['list|ls|l', p('space')], 'Lists T1+T2 memories of a space (--tier 3 for cold)', [
+    { name: 'tier', hasValue: true },
+    { name: 'tag', alias: 't', hasValue: true },
+]);
+const ADD = new ArgParser(['add|a', p('space'), p('name'), p('content')], 'Adds a memory to a space', [
+    { name: 'tags', alias: 't', hasValue: true },
+    { name: 'tier', hasValue: true },
+]);
 const READ = new ArgParser(['read|r', p('space'), p('name')], 'Reads a memory (bumps access + auto-promotes)');
 const EDIT = new ArgParser(['edit|e', p('space'), p('name'), p('content')], 'Edits a memory content');
 const REMOVE = new ArgParser(['remove|rm', p('space'), p('name')], 'Removes a memory by name');
@@ -61,10 +53,16 @@ export const memoriesGroup: CommandGroup = {
             execute: async (args, store, logger) => {
                 const { space, name, content } = ADD.getParams(args);
                 const flags = ADD.getFlags(args);
-                const tags = flags.tags ? String(flags.tags).split(',').map((t) => t.trim()) : undefined;
+                const tags = flags.tags
+                    ? String(flags.tags)
+                          .split(',')
+                          .map((t) => t.trim())
+                    : undefined;
                 const tier = flags.tier ? (parseInt(String(flags.tier)) as Tier) : undefined;
                 if (tier !== undefined && (tier < 1 || tier > 3)) {
-                    throw new Error('--tier must be 1, 2, or 3 when adding a memory. T4 is reserved for auto-eviction.');
+                    throw new Error(
+                        '--tier must be 1, 2, or 3 when adding a memory. T4 is reserved for auto-eviction.'
+                    );
                 }
                 const memory = await store.addMemory(space, name, content, { tags, tier });
                 logger.logInfo(
@@ -86,7 +84,9 @@ export const memoriesGroup: CommandGroup = {
 
                 const pin = memory.pinned ? ' 📌' : '';
                 const tags = formatTags(memory.tags);
-                logger.logInfo(style(`🛸 ${space} › ${memory.name}`, ['bold', 'blue']) + ` [${tierLabel(memory.tier)}]${pin}`);
+                logger.logInfo(
+                    style(`🛸 ${space} › ${memory.name}`, ['bold', 'blue']) + ` [${tierLabel(memory.tier)}]${pin}`
+                );
                 if (tags) logger.logInfo(`   ${tags}`);
                 logger.logInfo(style(`   ${formatChangedLine(memory.changed_at)}`, ['dim']));
                 logger.logInfo(style(memory.content || '(no content)', ['dim']));

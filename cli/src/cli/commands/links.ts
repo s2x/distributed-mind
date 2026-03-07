@@ -5,11 +5,9 @@ import type { CommandGroup } from './types';
 
 const p = ArgParser.param.bind(ArgParser);
 
-const LINK = new ArgParser(
-    ['link', p('source'), p('target')],
-    'Links two memories (format: space/name)',
-    [{ name: 'label', alias: 'l', hasValue: true }]
-);
+const LINK = new ArgParser(['link', p('source'), p('target')], 'Links two memories (format: space/name)', [
+    { name: 'label', alias: 'l', hasValue: true },
+]);
 const UNLINK = new ArgParser(['unlink', p('source'), p('target')], 'Removes a link between two memories');
 const LINKS = new ArgParser(['links', p('space'), p('name')], 'Shows all links for a memory');
 
@@ -33,7 +31,9 @@ export const linksGroup: CommandGroup = {
                 if (!tgtMem) throw new Error(`Memory "${tgt.name}" not found in space "${tgt.space}"`);
 
                 store.link(srcMem.id, tgtMem.id, label);
-                logger.logInfo(style(`🔗 Linked: ${source} → ${target}` + (label ? ` [${label}]` : ''), ['bold', 'green']));
+                logger.logInfo(
+                    style(`🔗 Linked: ${source} → ${target}` + (label ? ` [${label}]` : ''), ['bold', 'green'])
+                );
             },
         },
         {

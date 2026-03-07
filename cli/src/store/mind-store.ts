@@ -26,12 +26,7 @@ export interface MindStore {
     removeSpaceTag(space: string, tag: string): void;
 
     // Memories
-    addMemory(
-        space: string,
-        name: string,
-        content: string,
-        opts?: { tags?: string[]; tier?: Tier }
-    ): Promise<Memory>;
+    addMemory(space: string, name: string, content: string, opts?: { tags?: string[]; tier?: Tier }): Promise<Memory>;
     getMemory(space: string, name: string): Memory | null;
     getMemoryById(id: number): Memory | null;
     /**

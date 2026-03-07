@@ -143,9 +143,7 @@ export function initializeDatabase(db: import('bun:sqlite').Database): void {
     db.exec('PRAGMA foreign_keys = ON;');
     db.exec(SCHEMA_SQL);
 
-    const meta = db.query('SELECT value FROM meta WHERE key = ?').get('schema_version') as
-        | { value: string }
-        | null;
+    const meta = db.query('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string } | null;
 
     if (!meta) {
         // Brand-new database — tables were just created with the current schema

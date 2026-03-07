@@ -44,26 +44,26 @@ User → ./mind <command> [args] [--flag value]
 
 ### 2.2 Main modules and responsibilities
 
-| Module | Path | Responsibility |
-|--------|------|----------------|
-| Entry script | `mind` (Bash) | Resolve repo root, dispatch to `cli/src/mind.ts`. |
-| Entry module | `cli/src/mind.ts` | Bootstrap store/logger and run CLI command executor. |
-| CLI command modules | `cli/src/cli/commands/*.ts` | Atomic command definitions/handlers grouped by domain (`spaces`, `memories`, `tiers`, `links`, `search`, `status`, `tags`, `checkpoint`, `guide`, `migration`, `runtime`). |
-| CLI executor | `cli/src/cli/command-executor.ts` | Load command groups from `cli/commands/index.ts`, dispatch matched command, and render help sections. |
-| Arg parser | `cli/src/cli/arg-parser.ts` | Match CLI args to a shape (positional `<param>`, aliases `a\|b`, `--flag value`), extract params + flags, render help. |
-| Setup/runtime helpers | `cli/src/cli/setup.ts` | Agent setup + detached process management helpers for MCP/web servers. |
-| MindStore interface | `cli/src/store/mind-store.ts` | Abstract interface for all data operations. |
-| SQLite store | `cli/src/store/sqlite-store.ts` | Full `MindStore` implementation using `bun:sqlite`. Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled. |
-| Schema | `cli/src/store/schema.ts` | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 5 (migrates v1→v2→v3→v4→v5). |
-| MCP server | `cli/src/mcp/server.ts` | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes 29 tools. |
-| MCP tools | `cli/src/mcp/tools/` | Tool implementations: `spaces.ts`, `memories.ts`, `tiers.ts`, `links.ts`, `search.ts`, `checkpoint.ts`. |
-| API server | `cli/src/api/server.ts` | Bun HTTP server that serves `/api/*` routes and static assets from `web/public/`. |
-| API router | `cli/src/api/router.ts` | Route matcher/dispatcher for API endpoints. |
-| API routes | `cli/src/api/routes/*.ts` | Atomic REST route declarations grouped by domain (`spaces`, `memories`, `search`, `status`). |
-| Config | `cli/src/config.ts` | `CONFIG.dataDir`, `CONFIG.dbPath`, `CONFIG.legacyJsonPath`, `CONFIG.rag`. Respects `MIND_DATA_DIR` and `MIND_DB_PATH` env vars. `TIER_LIMITS` per-tier capacity constants. |
-| Types | `cli/src/types.ts` | All domain types: `Space`, `Memory`, `Link`, `Tier`, `SearchResult`, `StatusResult`, `LegacyBrain`, etc. |
-| Helpers | `cli/src/helpers/*.ts` | Shared helpers: logger, tag normalization, formatting/memory refs, and RAG helpers. |
-| Web frontend | `web/public/*` | SPA for browsing and editing spaces and memories. |
+| Module                | Path                              | Responsibility                                                                                                                                                             |
+| --------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry script          | `mind` (Bash)                     | Resolve repo root, dispatch to `cli/src/mind.ts`.                                                                                                                          |
+| Entry module          | `cli/src/mind.ts`                 | Bootstrap store/logger and run CLI command executor.                                                                                                                       |
+| CLI command modules   | `cli/src/cli/commands/*.ts`       | Atomic command definitions/handlers grouped by domain (`spaces`, `memories`, `tiers`, `links`, `search`, `status`, `tags`, `checkpoint`, `guide`, `migration`, `runtime`). |
+| CLI executor          | `cli/src/cli/command-executor.ts` | Load command groups from `cli/commands/index.ts`, dispatch matched command, and render help sections.                                                                      |
+| Arg parser            | `cli/src/cli/arg-parser.ts`       | Match CLI args to a shape (positional `<param>`, aliases `a\|b`, `--flag value`), extract params + flags, render help.                                                     |
+| Setup/runtime helpers | `cli/src/cli/setup.ts`            | Agent setup + detached process management helpers for MCP/web servers.                                                                                                     |
+| MindStore interface   | `cli/src/store/mind-store.ts`     | Abstract interface for all data operations.                                                                                                                                |
+| SQLite store          | `cli/src/store/sqlite-store.ts`   | Full `MindStore` implementation using `bun:sqlite`. Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled.    |
+| Schema                | `cli/src/store/schema.ts`         | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 5 (migrates v1→v2→v3→v4→v5).                            |
+| MCP server            | `cli/src/mcp/server.ts`           | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes 29 tools.                                                                                                      |
+| MCP tools             | `cli/src/mcp/tools/`              | Tool implementations: `spaces.ts`, `memories.ts`, `tiers.ts`, `links.ts`, `search.ts`, `checkpoint.ts`.                                                                    |
+| API server            | `cli/src/api/server.ts`           | Bun HTTP server that serves `/api/*` routes and static assets from `web/public/`.                                                                                          |
+| API router            | `cli/src/api/router.ts`           | Route matcher/dispatcher for API endpoints.                                                                                                                                |
+| API routes            | `cli/src/api/routes/*.ts`         | Atomic REST route declarations grouped by domain (`spaces`, `memories`, `search`, `status`).                                                                               |
+| Config                | `cli/src/config.ts`               | `CONFIG.dataDir`, `CONFIG.dbPath`, `CONFIG.legacyJsonPath`, `CONFIG.rag`. Respects `MIND_DATA_DIR` and `MIND_DB_PATH` env vars. `TIER_LIMITS` per-tier capacity constants. |
+| Types                 | `cli/src/types.ts`                | All domain types: `Space`, `Memory`, `Link`, `Tier`, `SearchResult`, `StatusResult`, `LegacyBrain`, etc.                                                                   |
+| Helpers               | `cli/src/helpers/*.ts`            | Shared helpers: logger, tag normalization, formatting/memory refs, and RAG helpers.                                                                                        |
+| Web frontend          | `web/public/*`                    | SPA for browsing and editing spaces and memories.                                                                                                                          |
 
 ### 2.3 Data model
 
@@ -73,29 +73,29 @@ User → ./mind <command> [args] [--flag value]
 - **Checkpoint spaces:** Session checkpoints are stored in hidden derived spaces named `<space>:sessions`.
 - **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3|4, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at, changed_at }`. Identified by `(space_name, name)`.
 - **Tier system:**
-  - 🔴 **T1 (hot)** — frequently accessed (limit: 25/space)
-  - 🟡 **T2 (warm)** — default for new memories (limit: 50/space)
-  - 🔵 **T3 (cold)** — rarely used (limit: 100/space)
-  - 💠 **T4 (frozen)** — archive tier; unlimited capacity; only reachable via `search`, never via `list`
-  - Auto-promotion on CLI `read`: each read promotes one tier up (T4→T3, T3→T2, T2→T1). Skipped silently if pinned or if destination is full and all are pinned.
-  - **LRU eviction:** when a tier is full, the least-recently-used non-pinned memory is demoted one tier down (no cascading). T3 LRU evicts to T4 (unlimited). If all memories in a tier are pinned, `addMemory` and `promote` throw an error; `recordAccess` promotion silently skips.
-  - New memories can be added to T1, T2, or T3 only; `--tier 4` is rejected at the command level.
-  - **Pinned memories are immune to auto-promotion and LRU eviction.**
+    - 🔴 **T1 (hot)** — frequently accessed (limit: 25/space)
+    - 🟡 **T2 (warm)** — default for new memories (limit: 50/space)
+    - 🔵 **T3 (cold)** — rarely used (limit: 100/space)
+    - 💠 **T4 (frozen)** — archive tier; unlimited capacity; only reachable via `search`, never via `list`
+    - Auto-promotion on CLI `read`: each read promotes one tier up (T4→T3, T3→T2, T2→T1). Skipped silently if pinned or if destination is full and all are pinned.
+    - **LRU eviction:** when a tier is full, the least-recently-used non-pinned memory is demoted one tier down (no cascading). T3 LRU evicts to T4 (unlimited). If all memories in a tier are pinned, `addMemory` and `promote` throw an error; `recordAccess` promotion silently skips.
+    - New memories can be added to T1, T2, or T3 only; `--tier 4` is rejected at the command level.
+    - **Pinned memories are immune to auto-promotion and LRU eviction.**
 - **Link:** Directional edge between two memories with a label (default: `"related"`). Stored as `(source_id, target_id, label)`.
 - **Tags:** Both spaces and memories can have multiple string tags. Tags are normalized on input: converted to lowercase, leading `#` stripped, validated against allowed characters (`a-z`, `0-9`, `-`, `_`, `.`, `:`, `/`, `=`, `+`, `@`). Tags cannot be empty or contain spaces. Displayed with `#` prefix in CLI output.
 - **FTS:** `memories_fts` virtual FTS5 table, synced manually on add/update/delete. Supports fuzzy matching via porter tokenizer.
 
 ### 2.4 SQLite schema tables
 
-| Table | Key columns | Notes |
-|-------|------------|-------|
-| `meta` | `key`, `value` | Tracks `schema_version`. |
-| `spaces` | `name` (PK), `description`, `hidden`, timestamps | |
-| `space_tags` | `space_name` (FK), `tag` | Cascades on space rename/delete. |
-| `memories` | `id` (PK), `space_name` (FK), `name`, `content`, `tier`, `pinned`, `access_count`, `last_accessed_at`, `embedding`, timestamps (`created_at`, `updated_at`, `changed_at`) | UNIQUE on `(space_name, name)`. Cascades on space delete/rename. |
-| `memory_tags` | `memory_id` (FK), `tag` | Cascades on memory delete. |
-| `links` | `source_id` (FK), `target_id` (FK), `label` | No self-links. Cascades on memory delete. |
-| `memories_fts` | FTS5 virtual table: `name`, `content` | Synced manually (no triggers). |
+| Table          | Key columns                                                                                                                                                               | Notes                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `meta`         | `key`, `value`                                                                                                                                                            | Tracks `schema_version`.                                         |
+| `spaces`       | `name` (PK), `description`, `hidden`, timestamps                                                                                                                          |                                                                  |
+| `space_tags`   | `space_name` (FK), `tag`                                                                                                                                                  | Cascades on space rename/delete.                                 |
+| `memories`     | `id` (PK), `space_name` (FK), `name`, `content`, `tier`, `pinned`, `access_count`, `last_accessed_at`, `embedding`, timestamps (`created_at`, `updated_at`, `changed_at`) | UNIQUE on `(space_name, name)`. Cascades on space delete/rename. |
+| `memory_tags`  | `memory_id` (FK), `tag`                                                                                                                                                   | Cascades on memory delete.                                       |
+| `links`        | `source_id` (FK), `target_id` (FK), `label`                                                                                                                               | No self-links. Cascades on memory delete.                        |
+| `memories_fts` | FTS5 virtual table: `name`, `content`                                                                                                                                     | Synced manually (no triggers).                                   |
 
 ---
 
@@ -107,10 +107,10 @@ User → ./mind <command> [args] [--flag value]
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
 - **Config / storage path:** `cli/src/config.ts` resolves `CONFIG.dbPath` from `MIND_DB_PATH` env var (full path override) or `MIND_DATA_DIR` env var + `mind.db` (defaults to `data/` at repo root). The web server uses `MIND_DATA_DIR` (or `/data` in Docker). `data/` is in `.gitignore`. HTTP idle timeouts are configurable via `MIND_MCP_IDLE_TIMEOUT` (default 120s) and `MIND_API_IDLE_TIMEOUT` (default 30s).
 - **Testing:** CLI tests live in `cli/test/`, use `bun:test`, and rely on:
-  - **`test-store.ts`** (`cli/test/mocks/test-store.ts`): creates a temporary SQLite DB in `/tmp/` per test instance; returns `{ store, cleanup }`.
-  - **`mocked-logger.ts`** (`cli/test/mocks/mocked-logger.ts`): captures `logInfo`/`logError` for assertions.
-  - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), and `cli/test/arg-parser.spec.ts` (arg parser).
-  - **`scripts/test-rag.sh`**: E2E integration test for RAG. Requires `OPENAI_API_KEY`, makes real OpenAI API calls. Uses `MIND_DB_PATH` to create a temp DB. Run via `make test-rag` or directly.
+    - **`test-store.ts`** (`cli/test/mocks/test-store.ts`): creates a temporary SQLite DB in `/tmp/` per test instance; returns `{ store, cleanup }`.
+    - **`mocked-logger.ts`** (`cli/test/mocks/mocked-logger.ts`): captures `logInfo`/`logError` for assertions.
+    - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), and `cli/test/arg-parser.spec.ts` (arg parser).
+    - **`scripts/test-rag.sh`**: E2E integration test for RAG. Requires `OPENAI_API_KEY`, makes real OpenAI API calls. Uses `MIND_DB_PATH` to create a temp DB. Run via `make test-rag` or directly.
 - **Docker:** `web/Dockerfile` builds the web app; `docker-compose.yml` runs it with volume `./data` (or `BRAIN_DATA_DIR`) mounted at `/data`, port 3000, and `restart: unless-stopped`.
 - **Dependencies:** Production: `bun-style`. Dev: `@types/bun`. Peer: `typescript ^5`.
 - **Shell completion:** The `mind` bash script supports `--complete` flag, delegating to `cli/src/complete.ts`. This file is **not yet implemented**.
@@ -158,26 +158,28 @@ The `data/` directory and `mind.db` are created automatically on first run.
 Add to your agent's MCP config:
 
 **OpenCode** (`~/.config/opencode/opencode.json`):
+
 ```json
 {
-  "mcp": {
-    "mind": {
-      "type": "http",
-      "url": "http://localhost:7438/mcp",
-      "enabled": true
+    "mcp": {
+        "mind": {
+            "type": "http",
+            "url": "http://localhost:7438/mcp",
+            "enabled": true
+        }
     }
-  }
 }
 ```
 
 **Claude Code** (`~/.claude/settings.json`):
+
 ```json
 {
-  "mcpServers": {
-    "mind": {
-      "url": "http://localhost:7438/mcp"
+    "mcpServers": {
+        "mind": {
+            "url": "http://localhost:7438/mcp"
+        }
     }
-  }
 }
 ```
 
@@ -220,43 +222,43 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 
 ### 4.8 CLI commands
 
-| Intent | Command | Aliases | Params | Flags | Description |
-|--------|---------|---------|--------|-------|-------------|
-| Help | `help` | `h` | — | — | List all commands. |
-| Create space | `create` | `c` | `<space>` `<description>` | `--tags` | Create a new space (comma-sep tags). |
-| List spaces | `list` | `ls`, `l` | — | `--tag`, `--hidden` | List all visible spaces by default (optionally include hidden). |
-| List memories | `list` | `ls`, `l` | `<space>` | `--tier`, `--tag` | List T1+T2 memories in a space (use `--tier 3` for cold; `--tier 4` returns empty). |
-| Delete space | `delete` | `d` | `<space>` | — | Delete a space and all its memories. |
-| Rename space | `rename` | `rn` | `<old>` `<new>` | — | Rename a space. |
-| Describe space | `describe` | `ds` | `<space>` `<description>` | — | Change a space's description. |
-| Update space | `update` | — | `<space>` | `--description`, `--hidden`, `--no-hidden` | Update space description and/or visibility. |
-| Tag space | `tag` | `t` | `<space>` `<tag>` | — | Add a tag to a space. |
-| Untag space | `untag` | — | `<space>` `<tag>` | — | Remove a tag from a space. |
-| Add memory | `add` | `a` | `<space>` `<name>` `<content>` | `--tags`, `--tier` | Add a memory. |
-| Read memory | `read` | `r` | `<space>` `<name>` | — | Print a memory (bumps access + auto-promote). |
-| Edit memory | `edit` | `e` | `<space>` `<name>` `<content>` | — | Update a memory's content. |
-| Remove memory | `remove` | `rm` | `<space>` `<name>` | — | Remove a memory by name. |
-| Tag memory | `tag` | `t` | `<space>` `<name>` `<tag>` | — | Add a tag to a memory. |
-| Untag memory | `untag` | — | `<space>` `<name>` `<tag>` | — | Remove a tag from a memory. |
-| Promote | `promote` | `up` | `<space>` `<name>` | — | Move memory one tier up (T4→T3, T3→T2, T2→T1). |
-| Demote | `demote` | `down` | `<space>` `<name>` | — | Move memory one tier down (T1→T2, T2→T3, T3→T4). |
-| Pin | `pin` | — | `<space>` `<name>` | — | Pin a memory (immune to auto-promotion). |
-| Unpin | `unpin` | — | `<space>` `<name>` | — | Unpin a memory. || Link | `link` | — | `<source>` `<target>` | `--label` | Link two memories (`space/name` format). |
-| Unlink | `unlink` | — | `<source>` `<target>` | — | Remove a link between memories. |
-| Show links | `links` | — | `<space>` `<name>` | — | Show all links for a memory. |
-| Search | `search` | `s` | `<query>` | `--space`, `--tag`, `--tier`, `--detail` | Full-text search across memories (includes T4). Default output includes memory ref, tier, and changed timestamp. `--detail` adds content preview. Use `term*` for prefix match. |
-| Query | `query` | `q` | — | `--space`, `--tag`, `--tier`, `--from`, `--to`, `--limit`, `--offset` | Query memories by metadata/date with pagination (ordered by latest semantic memory changes). |
-| Status (global) | `status` | — | — | — | Show storage info and per-tier breakdown. |
-| Status (space) | `status` | — | `<space>` | — | Show tier breakdown for a specific space. |
-| List tags | `tags` | `tgs` | — | `--spaces`, `--memories` | List all tags in the system (defaults to both). |
-| Checkpoint set | `checkpoint set` | `cp set` | `<space>` `<goal>` `<pending>` | `--notes` | Create or update an active checkpoint in `<space>:sessions`. |
-| Checkpoint complete | `checkpoint complete` | `cp complete`, `checkpoint done`, `cp done` | `<space>` `<id>` `<what>` | — | Complete a checkpoint, mark tags, and demote tier. |
-| Checkpoint recover | `checkpoint recover` | `cp recover` | `<space>` | `--history` | Recover the most recent active checkpoint (optionally include completed history). |
-| Checkpoint list | `checkpoint list` | `cp list` | `<space>` | `--status` | List checkpoints from `<space>:sessions`. |
-| Guide | `guide` | `g` | — | — | Show usage guide (human mode). |
-| Guide (mode) | `guide` | `g` | `<mode>` | — | Show guide (`agent` or `human`). |
-| Import | `import` | — | — | — | Import legacy `brain.json` into SQLite. |
-| Update | `update` | — | — | `--check`, `--version`, `--repo` | Update mind from GitHub releases. |
+| Intent              | Command               | Aliases                                     | Params                         | Flags                                                                 | Description                                                                                                                                                                     |
+| ------------------- | --------------------- | ------------------------------------------- | ------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ---- | ------ | --- | --------------------- | --------- | ---------------------------------------- |
+| Help                | `help`                | `h`                                         | —                              | —                                                                     | List all commands.                                                                                                                                                              |
+| Create space        | `create`              | `c`                                         | `<space>` `<description>`      | `--tags`                                                              | Create a new space (comma-sep tags).                                                                                                                                            |
+| List spaces         | `list`                | `ls`, `l`                                   | —                              | `--tag`, `--hidden`                                                   | List all visible spaces by default (optionally include hidden).                                                                                                                 |
+| List memories       | `list`                | `ls`, `l`                                   | `<space>`                      | `--tier`, `--tag`                                                     | List T1+T2 memories in a space (use `--tier 3` for cold; `--tier 4` returns empty).                                                                                             |
+| Delete space        | `delete`              | `d`                                         | `<space>`                      | —                                                                     | Delete a space and all its memories.                                                                                                                                            |
+| Rename space        | `rename`              | `rn`                                        | `<old>` `<new>`                | —                                                                     | Rename a space.                                                                                                                                                                 |
+| Describe space      | `describe`            | `ds`                                        | `<space>` `<description>`      | —                                                                     | Change a space's description.                                                                                                                                                   |
+| Update space        | `update`              | —                                           | `<space>`                      | `--description`, `--hidden`, `--no-hidden`                            | Update space description and/or visibility.                                                                                                                                     |
+| Tag space           | `tag`                 | `t`                                         | `<space>` `<tag>`              | —                                                                     | Add a tag to a space.                                                                                                                                                           |
+| Untag space         | `untag`               | —                                           | `<space>` `<tag>`              | —                                                                     | Remove a tag from a space.                                                                                                                                                      |
+| Add memory          | `add`                 | `a`                                         | `<space>` `<name>` `<content>` | `--tags`, `--tier`                                                    | Add a memory.                                                                                                                                                                   |
+| Read memory         | `read`                | `r`                                         | `<space>` `<name>`             | —                                                                     | Print a memory (bumps access + auto-promote).                                                                                                                                   |
+| Edit memory         | `edit`                | `e`                                         | `<space>` `<name>` `<content>` | —                                                                     | Update a memory's content.                                                                                                                                                      |
+| Remove memory       | `remove`              | `rm`                                        | `<space>` `<name>`             | —                                                                     | Remove a memory by name.                                                                                                                                                        |
+| Tag memory          | `tag`                 | `t`                                         | `<space>` `<name>` `<tag>`     | —                                                                     | Add a tag to a memory.                                                                                                                                                          |
+| Untag memory        | `untag`               | —                                           | `<space>` `<name>` `<tag>`     | —                                                                     | Remove a tag from a memory.                                                                                                                                                     |
+| Promote             | `promote`             | `up`                                        | `<space>` `<name>`             | —                                                                     | Move memory one tier up (T4→T3, T3→T2, T2→T1).                                                                                                                                  |
+| Demote              | `demote`              | `down`                                      | `<space>` `<name>`             | —                                                                     | Move memory one tier down (T1→T2, T2→T3, T3→T4).                                                                                                                                |
+| Pin                 | `pin`                 | —                                           | `<space>` `<name>`             | —                                                                     | Pin a memory (immune to auto-promotion).                                                                                                                                        |
+| Unpin               | `unpin`               | —                                           | `<space>` `<name>`             | —                                                                     | Unpin a memory.                                                                                                                                                                 |     | Link | `link` | —   | `<source>` `<target>` | `--label` | Link two memories (`space/name` format). |
+| Unlink              | `unlink`              | —                                           | `<source>` `<target>`          | —                                                                     | Remove a link between memories.                                                                                                                                                 |
+| Show links          | `links`               | —                                           | `<space>` `<name>`             | —                                                                     | Show all links for a memory.                                                                                                                                                    |
+| Search              | `search`              | `s`                                         | `<query>`                      | `--space`, `--tag`, `--tier`, `--detail`                              | Full-text search across memories (includes T4). Default output includes memory ref, tier, and changed timestamp. `--detail` adds content preview. Use `term*` for prefix match. |
+| Query               | `query`               | `q`                                         | —                              | `--space`, `--tag`, `--tier`, `--from`, `--to`, `--limit`, `--offset` | Query memories by metadata/date with pagination (ordered by latest semantic memory changes).                                                                                    |
+| Status (global)     | `status`              | —                                           | —                              | —                                                                     | Show storage info and per-tier breakdown.                                                                                                                                       |
+| Status (space)      | `status`              | —                                           | `<space>`                      | —                                                                     | Show tier breakdown for a specific space.                                                                                                                                       |
+| List tags           | `tags`                | `tgs`                                       | —                              | `--spaces`, `--memories`                                              | List all tags in the system (defaults to both).                                                                                                                                 |
+| Checkpoint set      | `checkpoint set`      | `cp set`                                    | `<space>` `<goal>` `<pending>` | `--notes`                                                             | Create or update an active checkpoint in `<space>:sessions`.                                                                                                                    |
+| Checkpoint complete | `checkpoint complete` | `cp complete`, `checkpoint done`, `cp done` | `<space>` `<id>` `<what>`      | —                                                                     | Complete a checkpoint, mark tags, and demote tier.                                                                                                                              |
+| Checkpoint recover  | `checkpoint recover`  | `cp recover`                                | `<space>`                      | `--history`                                                           | Recover the most recent active checkpoint (optionally include completed history).                                                                                               |
+| Checkpoint list     | `checkpoint list`     | `cp list`                                   | `<space>`                      | `--status`                                                            | List checkpoints from `<space>:sessions`.                                                                                                                                       |
+| Guide               | `guide`               | `g`                                         | —                              | —                                                                     | Show usage guide (human mode).                                                                                                                                                  |
+| Guide (mode)        | `guide`               | `g`                                         | `<mode>`                       | —                                                                     | Show guide (`agent` or `human`).                                                                                                                                                |
+| Import              | `import`              | —                                           | —                              | —                                                                     | Import legacy `brain.json` into SQLite.                                                                                                                                         |
+| Update              | `update`              | —                                           | —                              | `--check`, `--version`, `--repo`                                      | Update mind from GitHub releases.                                                                                                                                               |
 
 > **Note:** `tag` and `untag` are disambiguated by argument count: 2 positional args = space tag, 3 positional args = memory tag.
 
@@ -265,66 +267,73 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 The MCP server exposes 29 tools for agent integration:
 
 #### Spaces (8 tools)
-| Tool | Description |
-|------|-------------|
-| `space_create` | Create a new space |
-| `space_list` | List spaces (optionally filtered by tag) |
-| `space_get` | Get a space by name |
-| `space_update` | Update space description |
-| `space_rename` | Rename a space |
-| `space_delete` | Delete a space |
-| `space_tag_add` | Add a tag to a space |
-| `space_tag_remove` | Remove a tag from a space |
+
+| Tool               | Description                              |
+| ------------------ | ---------------------------------------- |
+| `space_create`     | Create a new space                       |
+| `space_list`       | List spaces (optionally filtered by tag) |
+| `space_get`        | Get a space by name                      |
+| `space_update`     | Update space description                 |
+| `space_rename`     | Rename a space                           |
+| `space_delete`     | Delete a space                           |
+| `space_tag_add`    | Add a tag to a space                     |
+| `space_tag_remove` | Remove a tag from a space                |
 
 #### Memories (11 tools)
-| Tool | Description |
-|------|-------------|
-| `memory_add` | Add a memory to a space |
-| `memory_get` | Get a memory by space/name |
-| `memory_get_by_id` | Get a memory by ID |
-| `memory_list` | List memories in a space |
-| `memory_query` | Query memories by metadata/date with pagination |
-| `memory_update` | Update memory name/content |
-| `memory_delete` | Delete a memory |
-| `memory_read` | Read + record access (auto-promote) |
-| `memory_tag_add` | Add a tag to a memory |
-| `memory_tag_remove` | Remove a tag from a memory |
-| `memory_tags_list` | List all tags |
+
+| Tool                | Description                                     |
+| ------------------- | ----------------------------------------------- |
+| `memory_add`        | Add a memory to a space                         |
+| `memory_get`        | Get a memory by space/name                      |
+| `memory_get_by_id`  | Get a memory by ID                              |
+| `memory_list`       | List memories in a space                        |
+| `memory_query`      | Query memories by metadata/date with pagination |
+| `memory_update`     | Update memory name/content                      |
+| `memory_delete`     | Delete a memory                                 |
+| `memory_read`       | Read + record access (auto-promote)             |
+| `memory_tag_add`    | Add a tag to a memory                           |
+| `memory_tag_remove` | Remove a tag from a memory                      |
+| `memory_tags_list`  | List all tags                                   |
 
 #### Tiers (4 tools)
-| Tool | Description |
-|------|-------------|
-| `memory_promote` | Promote memory one tier up |
-| `memory_demote` | Demote memory one tier down |
-| `memory_pin` | Pin a memory |
-| `memory_unpin` | Unpin a memory |
+
+| Tool             | Description                 |
+| ---------------- | --------------------------- |
+| `memory_promote` | Promote memory one tier up  |
+| `memory_demote`  | Demote memory one tier down |
+| `memory_pin`     | Pin a memory                |
+| `memory_unpin`   | Unpin a memory              |
 
 #### Links (3 tools)
-| Tool | Description |
-|------|-------------|
+
+| Tool          | Description                    |
+| ------------- | ------------------------------ |
 | `link_create` | Create a link between memories |
-| `link_delete` | Delete a link |
-| `links_list` | List links for a memory |
+| `link_delete` | Delete a link                  |
+| `links_list`  | List links for a memory        |
 
 #### Checkpoint (4 tools)
-| Tool | Description |
-|------|-------------|
-| `checkpoint_set` | Create or update a checkpoint in `<space>:sessions` |
-| `checkpoint_complete` | Mark a checkpoint completed |
-| `checkpoint_recover` | Recover latest active checkpoint |
-| `checkpoint_list` | List checkpoints for a space |
+
+| Tool                  | Description                                         |
+| --------------------- | --------------------------------------------------- |
+| `checkpoint_set`      | Create or update a checkpoint in `<space>:sessions` |
+| `checkpoint_complete` | Mark a checkpoint completed                         |
+| `checkpoint_recover`  | Recover latest active checkpoint                    |
+| `checkpoint_list`     | List checkpoints for a space                        |
 
 #### Search & Status (2 tools)
-| Tool | Description |
-|------|-------------|
+
+| Tool     | Description                      |
+| -------- | -------------------------------- |
 | `search` | Full-text search across memories |
-| `status` | Get storage status |
+| `status` | Get storage status               |
 
 ### 4.10 Mind Memory Protocol
 
 When using mind via MCP, follow these conventions:
 
 **Tags with prefixes:**
+
 - `type:project` — project space
 - `type:user` — user preferences
 - `type:config` — global configuration
@@ -338,6 +347,7 @@ When using mind via MCP, follow these conventions:
 - `cat:config` — configuration
 
 **Space hierarchy:**
+
 - `projects/<name>` — one space per project
 - `user/preferences` — global user preferences
 - `user/patterns` — user patterns
@@ -345,6 +355,7 @@ When using mind via MCP, follow these conventions:
 - `sessions/<project>` — session summaries
 
 **Tier usage:**
+
 - T1 (hot) — critical active info
 - T2 (warm) — default for new memories
 - T3 (cold) — reference info
@@ -357,6 +368,7 @@ When using mind via MCP, follow these conventions:
 **If you are an AI agent or a maintainer modifying this repo, you must keep AGENTS.md in sync with the code.**
 
 **Changelog policy (mandatory):**
+
 - Every non-trivial change (features, behavior changes, architecture changes, bug fixes) must be added to `CHANGELOG.md` under `## [Unreleased]`.
 - Release commands (`make release-patch`, `make release-minor`, `make release-major`) require unreleased changelog entries and promote `Unreleased` to a versioned section.
 - `make release-simulate TYPE=patch|minor|major` must show what would happen without modifying files/tags/releases.
@@ -373,6 +385,7 @@ When using mind via MCP, follow these conventions:
 After editing AGENTS.md, re-read the sections you changed to ensure they stay accurate and consistent with the rest of the document.
 
 Before marking work done, use this checklist:
+
 - [ ] Updated `AGENTS.md` if architecture/commands/config changed
 - [ ] Updated `CHANGELOG.md` under `## [Unreleased]` for significant changes
 - [ ] Updated `README.md` if user-facing behavior/install/update/release flow changed

@@ -129,14 +129,14 @@ Example MCP tool usage (for agents):
 
 ```json
 {
-  "name": "memory_query",
-  "arguments": {
-    "space": "Credentials",
-    "from": "2026-03-01",
-    "to": "2026-03-31",
-    "limit": 25,
-    "offset": 0
-  }
+    "name": "memory_query",
+    "arguments": {
+        "space": "Credentials",
+        "from": "2026-03-01",
+        "to": "2026-03-31",
+        "limit": 25,
+        "offset": 0
+    }
 }
 ```
 

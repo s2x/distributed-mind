@@ -13,6 +13,7 @@ import { createSystemTools } from './tools/system';
 import { createTierTools } from './tools/tiers';
 
 type ToolDefinition = {
+    description?: string;
     schema: any;
     handler: (args: any) => Promise<any>;
 };
@@ -44,7 +45,9 @@ function createMcpServer(store: MindStore): Server {
         return {
             tools: Object.entries(allTools).map(([name, tool]) => ({
                 name,
-                description: `Call system_instructions first to get full mind usage guidelines.\n\nTool: ${name}`,
+                description: tool.description 
+    ? `${tool.description}\n\nSee system_instructions for full protocol guidelines.`
+    : `Call system_instructions first to get full mind usage guidelines.\n\nTool: ${name}`,
                 inputSchema: tool.schema ? zodToJsonSchema(tool.schema) : { type: 'object', properties: {} },
             })),
         };

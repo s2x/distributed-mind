@@ -6,8 +6,14 @@ import type { Tier } from '../../types';
 
 const p = ArgParser.param.bind(ArgParser);
 
-const PROMOTE = new ArgParser(['promote|up', p('space'), p('name')], 'Promotes a memory one tier up (T4→T3, T3→T2, T2→T1)');
-const DEMOTE = new ArgParser(['demote|down', p('space'), p('name')], 'Demotes a memory one tier down (T1→T2, T2→T3, T3→T4)');
+const PROMOTE = new ArgParser(
+    ['promote|up', p('space'), p('name')],
+    'Promotes a memory one tier up (T4→T3, T3→T2, T2→T1)'
+);
+const DEMOTE = new ArgParser(
+    ['demote|down', p('space'), p('name')],
+    'Demotes a memory one tier down (T1→T2, T2→T3, T3→T4)'
+);
 const PIN = new ArgParser(['pin', p('space'), p('name')], 'Pins a memory (immune to auto-promotion)');
 const UNPIN = new ArgParser(['unpin', p('space'), p('name')], 'Unpins a memory');
 

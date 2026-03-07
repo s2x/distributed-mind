@@ -11,14 +11,15 @@ The checkpoint system allows AI agents to persist work state across sessions and
 ```typescript
 // MCP tool: checkpoint_set
 checkpoint_set({
-  space: "my-project",
-  goal: "Implement user authentication",
-  pending: "Add OAuth2 provider, fix session validation bug",
-  notes: "Started working on auth module"
-})
+    space: 'my-project',
+    goal: 'Implement user authentication',
+    pending: 'Add OAuth2 provider, fix session validation bug',
+    notes: 'Started working on auth module',
+});
 ```
 
 **When to set a checkpoint:**
+
 - Starting a new feature or bugfix
 - When the task will take multiple sessions
 - Before context compaction (the agent should auto-checkpoint)
@@ -28,12 +29,13 @@ checkpoint_set({
 ```typescript
 // MCP tool: checkpoint_recover
 checkpoint_recover({
-  space: "my-project",
-  includeHistory: false  // true to also get completed checkpoints
-})
+    space: 'my-project',
+    includeHistory: false, // true to also get completed checkpoints
+});
 ```
 
 **When to recover:**
+
 - At the start of EVERY new session
 - After context compaction
 - When the user asks to "continue" or "resume" previous work
@@ -43,13 +45,14 @@ checkpoint_recover({
 ```typescript
 // MCP tool: checkpoint_complete
 checkpoint_complete({
-  space: "my-project",
-  checkpointId: 1,
-  whatWasDone: "Added JWT validation, fixed session expiry check"
-})
+    space: 'my-project',
+    checkpointId: 1,
+    whatWasDone: 'Added JWT validation, fixed session expiry check',
+});
 ```
 
 **When to complete:**
+
 - When a feature is done
 - When moving to a different task
 - At the end of a productive session
@@ -59,9 +62,9 @@ checkpoint_complete({
 ```typescript
 // MCP tool: checkpoint_list
 checkpoint_list({
-  space: "my-project",
-  status: "active"  // or "completed" or "all"
-})
+    space: 'my-project',
+    status: 'active', // or "completed" or "all"
+});
 ```
 
 ## Recovery After Compaction
@@ -69,8 +72,9 @@ checkpoint_list({
 **This is critical!** When context is compacted:
 
 1. **Immediately after compaction**, call:
+
 ```typescript
-checkpoint_recover({ space: "<current-project>", includeHistory: true })
+checkpoint_recover({ space: '<current-project>', includeHistory: true });
 ```
 
 2. If there's an active checkpoint, continue that work
@@ -80,6 +84,7 @@ checkpoint_recover({ space: "<current-project>", includeHistory: true })
 ## Checkpoint Storage
 
 Checkpoints are stored in hidden spaces:
+
 - Space name: `<project>:sessions`
 - Tags: `checkpoint`, `active` or `completed`
 - Content: JSON with goal, pending, notes, timestamps

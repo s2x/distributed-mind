@@ -1,148 +1,155 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mind</title>
-    <link rel="icon" type="image/svg+xml" href="logo.svg" />
-    <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-    <div id="app">
-        <!-- Sidebar -->
-        <aside id="sidebar">
-            <header class="sidebar-header">
-                <span class="logo"><img src="logo.svg" class="logo-img" alt="Mind" /> Mind</span>
-                <button id="btn-new-space" class="btn btn-sm btn-primary" title="New space">+</button>
-            </header>
-            <div class="search-bar">
-                <input id="global-search" type="search" placeholder="Search memories…" autocomplete="off" />
-            </div>
-            <ul id="space-list"></ul>
-            <div id="status-panel">
-                <div class="status-row">
-                    <span class="status-label">Storage</span>
-                    <span id="status-spaces">—</span>
-                </div>
-                <div class="status-tiers" id="status-tiers"></div>
-            </div>
-        </aside>
-
-        <!-- Main panel -->
-        <main id="main">
-            <div id="empty-state" class="empty-state">
-                <p>Select a space or create one.</p>
-            </div>
-
-            <!-- Search results -->
-            <div id="search-results" class="hidden">
-                <header class="panel-header">
-                    <h2 id="search-heading">Search results</h2>
-                    <button class="btn btn-sm btn-ghost" id="btn-close-search">✕ Close</button>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Mind</title>
+        <link rel="icon" type="image/svg+xml" href="logo.svg" />
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div id="app">
+            <!-- Sidebar -->
+            <aside id="sidebar">
+                <header class="sidebar-header">
+                    <span class="logo"><img src="logo.svg" class="logo-img" alt="Mind" /> Mind</span>
+                    <button id="btn-new-space" class="btn btn-sm btn-primary" title="New space">+</button>
                 </header>
-                <ul id="search-list" class="memory-list"></ul>
-            </div>
-
-            <!-- Space detail -->
-            <div id="space-detail" class="hidden">
-                <header class="panel-header">
-                    <div class="space-meta">
-                        <h2 id="space-title" class="editable" title="Click to rename"></h2>
-                        <p id="space-desc" class="editable muted" title="Click to edit description"></p>
-                        <div id="space-tags-row" class="tag-row"></div>
-                    </div>
-                    <div class="panel-actions">
-                        <button id="btn-add-memory" class="btn btn-sm btn-primary">+ Memory</button>
-                        <button id="btn-delete-space" class="btn btn-sm btn-danger">Delete space</button>
-                    </div>
-                </header>
-
-                <!-- Tier containers -->
-                <div id="tiers">
-                    <section class="tier-section" data-tier="1">
-                        <h3 class="tier-heading tier-1">🔴 T1 — Hot</h3>
-                        <ul class="memory-list" data-tier="1"></ul>
-                    </section>
-                    <section class="tier-section" data-tier="2">
-                        <h3 class="tier-heading tier-2">🟡 T2 — Warm</h3>
-                        <ul class="memory-list" data-tier="2"></ul>
-                    </section>
-                    <section class="tier-section" data-tier="3">
-                        <h3 class="tier-heading tier-3">🔵 T3 — Cold</h3>
-                        <ul class="memory-list" data-tier="3"></ul>
-                    </section>
+                <div class="search-bar">
+                    <input id="global-search" type="search" placeholder="Search memories…" autocomplete="off" />
                 </div>
-            </div>
-
-            <!-- Memory detail panel -->
-            <div id="memory-panel" class="hidden">
-                <header class="panel-header">
-                    <div class="panel-title-row">
-                        <h3 id="mem-title"></h3>
-                        <button id="btn-mem-close" class="btn btn-sm btn-ghost">✕</button>
+                <ul id="space-list"></ul>
+                <div id="status-panel">
+                    <div class="status-row">
+                        <span class="status-label">Storage</span>
+                        <span id="status-spaces">—</span>
                     </div>
-                    <div class="panel-subheader">
-                        <div class="memory-meta">
-                            <span id="mem-tier-badge" class="tier-badge"></span>
-                            <div id="mem-tags-row" class="tag-row"></div>
+                    <div class="status-tiers" id="status-tiers"></div>
+                </div>
+            </aside>
+
+            <!-- Main panel -->
+            <main id="main">
+                <div id="empty-state" class="empty-state">
+                    <p>Select a space or create one.</p>
+                </div>
+
+                <!-- Search results -->
+                <div id="search-results" class="hidden">
+                    <header class="panel-header">
+                        <h2 id="search-heading">Search results</h2>
+                        <button class="btn btn-sm btn-ghost" id="btn-close-search">✕ Close</button>
+                    </header>
+                    <ul id="search-list" class="memory-list"></ul>
+                </div>
+
+                <!-- Space detail -->
+                <div id="space-detail" class="hidden">
+                    <header class="panel-header">
+                        <div class="space-meta">
+                            <h2 id="space-title" class="editable" title="Click to rename"></h2>
+                            <p id="space-desc" class="editable muted" title="Click to edit description"></p>
+                            <div id="space-tags-row" class="tag-row"></div>
                         </div>
                         <div class="panel-actions">
-                            <button id="btn-mem-promote" class="btn btn-sm btn-ghost" title="Promote tier">↑ Promote</button>
-                            <button id="btn-mem-demote" class="btn btn-sm btn-ghost" title="Demote tier">↓ Demote</button>
-                            <button id="btn-mem-pin" class="btn btn-sm btn-ghost" title="Pin/Unpin">📌</button>
-                            <button id="btn-mem-edit" class="btn btn-sm btn-secondary">Edit</button>
-                            <button id="btn-mem-delete" class="btn btn-sm btn-danger">Delete</button>
+                            <button id="btn-add-memory" class="btn btn-sm btn-primary">+ Memory</button>
+                            <button id="btn-delete-space" class="btn btn-sm btn-danger">Delete space</button>
                         </div>
-                    </div>
-                </header>
-                <div id="mem-content" class="mem-content"></div>
-                <div id="mem-edit-area" class="hidden">
-                    <textarea id="mem-edit-input" rows="12"></textarea>
-                    <div class="edit-actions">
-                        <button id="btn-mem-save" class="btn btn-primary">Save</button>
-                        <button id="btn-mem-cancel-edit" class="btn btn-ghost">Cancel</button>
+                    </header>
+
+                    <!-- Tier containers -->
+                    <div id="tiers">
+                        <section class="tier-section" data-tier="1">
+                            <h3 class="tier-heading tier-1">🔴 T1 — Hot</h3>
+                            <ul class="memory-list" data-tier="1"></ul>
+                        </section>
+                        <section class="tier-section" data-tier="2">
+                            <h3 class="tier-heading tier-2">🟡 T2 — Warm</h3>
+                            <ul class="memory-list" data-tier="2"></ul>
+                        </section>
+                        <section class="tier-section" data-tier="3">
+                            <h3 class="tier-heading tier-3">🔵 T3 — Cold</h3>
+                            <ul class="memory-list" data-tier="3"></ul>
+                        </section>
                     </div>
                 </div>
-            </div>
-        </main>
-    </div>
 
-    <!-- Modal: new space -->
-    <div id="modal-new-space" class="modal-backdrop hidden">
-        <div class="modal">
-            <h2>New space</h2>
-            <label>Name<input id="new-space-name" type="text" placeholder="my-space" /></label>
-            <label>Description<input id="new-space-desc" type="text" placeholder="Short description" /></label>
-            <label>Tags (comma-separated)<input id="new-space-tags" type="text" placeholder="project, work" /></label>
-            <div class="modal-actions">
-                <button id="modal-space-cancel" class="btn btn-ghost">Cancel</button>
-                <button id="modal-space-create" class="btn btn-primary">Create</button>
+                <!-- Memory detail panel -->
+                <div id="memory-panel" class="hidden">
+                    <header class="panel-header">
+                        <div class="panel-title-row">
+                            <h3 id="mem-title"></h3>
+                            <button id="btn-mem-close" class="btn btn-sm btn-ghost">✕</button>
+                        </div>
+                        <div class="panel-subheader">
+                            <div class="memory-meta">
+                                <span id="mem-tier-badge" class="tier-badge"></span>
+                                <div id="mem-tags-row" class="tag-row"></div>
+                            </div>
+                            <div class="panel-actions">
+                                <button id="btn-mem-promote" class="btn btn-sm btn-ghost" title="Promote tier">
+                                    ↑ Promote
+                                </button>
+                                <button id="btn-mem-demote" class="btn btn-sm btn-ghost" title="Demote tier">
+                                    ↓ Demote
+                                </button>
+                                <button id="btn-mem-pin" class="btn btn-sm btn-ghost" title="Pin/Unpin">📌</button>
+                                <button id="btn-mem-edit" class="btn btn-sm btn-secondary">Edit</button>
+                                <button id="btn-mem-delete" class="btn btn-sm btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    </header>
+                    <div id="mem-content" class="mem-content"></div>
+                    <div id="mem-edit-area" class="hidden">
+                        <textarea id="mem-edit-input" rows="12"></textarea>
+                        <div class="edit-actions">
+                            <button id="btn-mem-save" class="btn btn-primary">Save</button>
+                            <button id="btn-mem-cancel-edit" class="btn btn-ghost">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modal: new space -->
+        <div id="modal-new-space" class="modal-backdrop hidden">
+            <div class="modal">
+                <h2>New space</h2>
+                <label>Name<input id="new-space-name" type="text" placeholder="my-space" /></label>
+                <label>Description<input id="new-space-desc" type="text" placeholder="Short description" /></label>
+                <label
+                    >Tags (comma-separated)<input id="new-space-tags" type="text" placeholder="project, work"
+                /></label>
+                <div class="modal-actions">
+                    <button id="modal-space-cancel" class="btn btn-ghost">Cancel</button>
+                    <button id="modal-space-create" class="btn btn-primary">Create</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Modal: new memory -->
-    <div id="modal-new-memory" class="modal-backdrop hidden">
-        <div class="modal">
-            <h2>New memory</h2>
-            <label>Name<input id="new-mem-name" type="text" placeholder="memory-name" /></label>
-            <label>Tags (comma-separated)<input id="new-mem-tags" type="text" placeholder="backend, auth" /></label>
-            <label>Tier
-                <select id="new-mem-tier">
-                    <option value="1">🔴 T1 — Hot</option>
-                    <option value="2" selected>🟡 T2 — Warm</option>
-                    <option value="3">🔵 T3 — Cold</option>
-                </select>
-            </label>
-            <label>Content<textarea id="new-mem-content" rows="8" placeholder="Memory content…"></textarea></label>
-            <div class="modal-actions">
-                <button id="modal-mem-cancel" class="btn btn-ghost">Cancel</button>
-                <button id="modal-mem-create" class="btn btn-primary">Add</button>
+        <!-- Modal: new memory -->
+        <div id="modal-new-memory" class="modal-backdrop hidden">
+            <div class="modal">
+                <h2>New memory</h2>
+                <label>Name<input id="new-mem-name" type="text" placeholder="memory-name" /></label>
+                <label>Tags (comma-separated)<input id="new-mem-tags" type="text" placeholder="backend, auth" /></label>
+                <label
+                    >Tier
+                    <select id="new-mem-tier">
+                        <option value="1">🔴 T1 — Hot</option>
+                        <option value="2" selected>🟡 T2 — Warm</option>
+                        <option value="3">🔵 T3 — Cold</option>
+                    </select>
+                </label>
+                <label>Content<textarea id="new-mem-content" rows="8" placeholder="Memory content…"></textarea></label>
+                <div class="modal-actions">
+                    <button id="modal-mem-cancel" class="btn btn-ghost">Cancel</button>
+                    <button id="modal-mem-create" class="btn btn-primary">Add</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="app.js"></script>
-</body>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="app.js"></script>
+    </body>
 </html>

@@ -18,7 +18,7 @@ export async function getEmbedding(text: string): Promise<EmbeddingVector | null
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${CONFIG.rag.apiKey}`,
+                    Authorization: `Bearer ${CONFIG.rag.apiKey}`,
                 },
                 body: JSON.stringify({
                     model: CONFIG.rag.model,
@@ -39,7 +39,7 @@ export async function getEmbedding(text: string): Promise<EmbeddingVector | null
                 continue;
             }
 
-            const data = await response.json() as {
+            const data = (await response.json()) as {
                 data: { embedding: number[] }[];
             };
 
@@ -47,9 +47,13 @@ export async function getEmbedding(text: string): Promise<EmbeddingVector | null
         } catch (e: any) {
             const isLast = attempt === maxAttempts;
             if (isLast) {
-                console.error(`[RAG] Failed to get embedding: ${e.message} (attempt ${attempt}/${maxAttempts}) — giving up`);
+                console.error(
+                    `[RAG] Failed to get embedding: ${e.message} (attempt ${attempt}/${maxAttempts}) — giving up`
+                );
             } else {
-                console.warn(`[RAG] Failed to get embedding: ${e.message} (attempt ${attempt}/${maxAttempts}) — retrying...`);
+                console.warn(
+                    `[RAG] Failed to get embedding: ${e.message} (attempt ${attempt}/${maxAttempts}) — retrying...`
+                );
             }
             if (isLast) return null;
             await new Promise((r) => setTimeout(r, 1000 * attempt));

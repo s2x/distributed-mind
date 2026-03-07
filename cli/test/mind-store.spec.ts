@@ -420,7 +420,7 @@ describe('MindStore — LRU Eviction', () => {
         await store.addMemory('test', 'overflow', 'content', { tier: 1 });
 
         expect(store.getMemory('test', 'pinned-first')!.tier).toBe(1); // still T1
-        expect(store.getMemory('test', 'mem-1')!.tier).toBe(2);        // evicted to T2
+        expect(store.getMemory('test', 'mem-1')!.tier).toBe(2); // evicted to T2
     });
 
     test('recordAccess promotion should silently skip if destination full and all pinned', async () => {
@@ -703,22 +703,22 @@ describe('MindStore — Import', () => {
 describe('MindStore — RAG Integration', () => {
     test('should calculate cosine similarity correctly', () => {
         const { cosineSimilarity } = require('../src/helpers/rag');
-        
+
         // Identical vectors should have similarity 1
         const v1 = [1, 0, 0];
         const v2 = [1, 0, 0];
         expect(cosineSimilarity(v1, v2)).toBeCloseTo(1, 5);
-        
+
         // Orthogonal vectors should have similarity 0
         const v3 = [1, 0, 0];
         const v4 = [0, 1, 0];
         expect(cosineSimilarity(v3, v4)).toBeCloseTo(0, 5);
-        
+
         // Opposite vectors should have similarity -1
         const v5 = [1, 0, 0];
         const v6 = [-1, 0, 0];
         expect(cosineSimilarity(v5, v6)).toBeCloseTo(-1, 5);
-        
+
         // Similar vectors should have high positive similarity
         const v7 = [1, 2, 3];
         const v8 = [2, 4, 6];
@@ -727,11 +727,11 @@ describe('MindStore — RAG Integration', () => {
 
     test('should convert between blob and vector', () => {
         const { vectorToBlob, blobToVector } = require('../src/helpers/rag');
-        
+
         const original = new Float32Array([1.5, -2.3, 4.7, 0.0]);
         const blob = vectorToBlob(Array.from(original));
         const restored = blobToVector(blob);
-        
+
         expect(restored.length).toBe(original.length);
         for (let i = 0; i < original.length; i++) {
             expect(restored[i]!).toBeCloseTo(original[i]!, 5);
@@ -740,7 +740,7 @@ describe('MindStore — RAG Integration', () => {
 
     test('should check RAG enabled/disabled from config', () => {
         const { isRagEnabled } = require('../src/helpers/rag');
-        
+
         // RAG is disabled by default in tests (no env vars)
         expect(isRagEnabled()).toBe(false);
     });
