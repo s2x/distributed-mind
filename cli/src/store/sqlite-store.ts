@@ -185,31 +185,36 @@ export function createSqliteStore(dbPath: string): MindStore {
         return {
             name: row.name,
             description: row.description,
+            hidden: row.hidden === 1,
             tags: getTagsForSpace(row.name),
             created_at: row.created_at,
             updated_at: row.updated_at,
         };
     }
 
-    function listSpaces(filter?: { tag?: string }): SpaceSummary[] {
+    function listSpaces(filter?: { tag?: string; includeHidden?: boolean }): SpaceSummary[] {
         let sql: string;
         let params: any[];
+
+        const includeHidden = filter?.includeHidden ?? false;
 
         if (filter?.tag) {
             const normalizedFilter = normalizeTag(filter.tag);
             sql = `
-                SELECT s.name, s.description,
+                SELECT s.name, s.description, s.hidden,
                        (SELECT COUNT(*) FROM memories m WHERE m.space_name = s.name) AS memory_count
                 FROM spaces s
                 JOIN space_tags st ON st.space_name = s.name AND st.tag = ?
+                ${includeHidden ? '' : 'WHERE s.hidden = 0'}
                 ORDER BY s.name
             `;
             params = [normalizedFilter];
         } else {
             sql = `
-                SELECT s.name, s.description,
+                SELECT s.name, s.description, s.hidden,
                        (SELECT COUNT(*) FROM memories m WHERE m.space_name = s.name) AS memory_count
                 FROM spaces s
+                ${includeHidden ? '' : 'WHERE s.hidden = 0'}
                 ORDER BY s.name
             `;
             params = [];
@@ -219,16 +224,24 @@ export function createSqliteStore(dbPath: string): MindStore {
         return rows.map((r) => ({
             name: r.name,
             description: r.description,
+            hidden: r.hidden === 1,
             tags: getTagsForSpace(r.name),
             memory_count: r.memory_count,
         }));
     }
 
-    function updateSpace(name: string, updates: { description?: string }): void {
+    function updateSpace(name: string, updates: { description?: string; hidden?: boolean }): void {
         requireSpace(name);
         if (updates.description !== undefined) {
             db.run('UPDATE spaces SET description = ?, updated_at = ? WHERE name = ?', [
                 updates.description,
+                now(),
+                name,
+            ]);
+        }
+        if (updates.hidden !== undefined) {
+            db.run('UPDATE spaces SET hidden = ?, updated_at = ? WHERE name = ?', [
+                updates.hidden ? 1 : 0,
                 now(),
                 name,
             ]);

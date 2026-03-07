@@ -31,7 +31,7 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
 function printHelp(logger: Logger): void {
   logger.logInfo(style('🧠 mind — long-term memory for agents and humans', ['bold']));
 
-  const sections = ['Spaces', 'Memories', 'Tiers', 'Links', 'Search', 'Status', 'Tags'];
+  const sections = ['Spaces', 'Memories', 'Tiers', 'Links', 'Search', 'Status', 'Tags', 'Checkpoint'];
   for (const name of sections) {
     const group = ALL_GROUPS.find((g) => g.name === name);
     if (!group) continue;

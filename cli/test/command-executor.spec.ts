@@ -109,6 +109,55 @@ describe('Command Executor — Spaces', () => {
         executeCommand(['untag', 'test', 'project'], store, logger);
         expect(store.getSpace('test')!.tags).not.toContain('project');
     });
+
+    test('should update space to hidden', () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('test', 'Test');
+
+        executeCommand(['update', 'test', '--hidden'], store, logger);
+
+        const space = store.getSpace('test');
+        expect(space!.hidden).toBe(true);
+
+        // Should not appear in regular list
+        const list = store.listSpaces();
+        expect(list.length).toBe(0);
+
+        // Should appear with hidden flag
+        const listHidden = store.listSpaces({ includeHidden: true });
+        expect(listHidden.length).toBe(1);
+    });
+
+    test('should update hidden space to visible', () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('test', 'Test');
+        store.updateSpace('test', { hidden: true });
+
+        executeCommand(['update', 'test', '--no-hidden'], store, logger);
+
+        const space = store.getSpace('test');
+        expect(space!.hidden).toBe(false);
+
+        // Should appear in regular list
+        const list = store.listSpaces();
+        expect(list.length).toBe(1);
+    });
+
+    test('should list hidden spaces with --hidden flag', () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('visible', 'Visible');
+        store.createSpace('hidden', 'Hidden');
+        store.updateSpace('hidden', { hidden: true });
+
+        executeCommand(['list', '--hidden'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('visible'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('hidden'))).toBe(true);
+    });
 });
 
 describe('Command Executor — Memories', () => {
@@ -429,5 +478,201 @@ describe('Command Executor — Status', () => {
         expect(() =>
             executeCommand(['add', 'test', 'frozen', 'content', '--tier', '4'], store, logger)
         ).toThrow('T4');
+    });
+});
+
+describe('Command Executor — Checkpoint', () => {
+    test('should create a checkpoint', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Implement auth', 'Fix login bug'], store, logger);
+
+        // Check checkpoint space was created (hidden)
+        const checkpointSpace = store.getSpace('myproject:sessions');
+        expect(checkpointSpace).not.toBeNull();
+        expect(checkpointSpace!.hidden).toBe(true);
+
+        // Check memory was created in checkpoint space
+        const memories = store.listMemories('myproject:sessions');
+        expect(memories.length).toBe(1);
+        expect(memories[0]!.tags).toContain('checkpoint');
+        expect(memories[0]!.tags).toContain('active');
+        expect(memories[0]!.tier).toBe(1); // T1 hot
+
+        // Check log output
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('Checkpoint created'))).toBe(true);
+    });
+
+    test('should update existing active checkpoint', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        // Create first checkpoint
+        await executeCommand(['checkpoint', 'set', 'myproject', 'First goal', 'First pending'], store, logger);
+        const memories1 = store.listMemories('myproject:sessions');
+        const firstId = memories1[0]!.id;
+
+        // Update the same checkpoint
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Updated goal', 'Updated pending'], store, logger);
+        const memories2 = store.listMemories('myproject:sessions');
+
+        // Should still be one checkpoint (updated, not created)
+        expect(memories2.length).toBe(1);
+        expect(memories2[0]!.id).toBe(firstId);
+
+        // Check content was updated
+        const mem = store.getMemoryById(firstId);
+        const content = JSON.parse(mem!.content);
+        expect(content.goal).toBe('Updated goal');
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('updated'))).toBe(true);
+    });
+
+    test('should recover active checkpoint', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        // Create checkpoint
+        await executeCommand(['checkpoint', 'set', 'myproject', 'My goal', 'My pending'], store, logger);
+
+        // Recover it
+        await executeCommand(['checkpoint', 'recover', 'myproject'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('Active checkpoint'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('My goal'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('My pending'))).toBe(true);
+    });
+
+    test('should return empty when no checkpoint to recover', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        await executeCommand(['checkpoint', 'recover', 'myproject'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('No checkpoint'))).toBe(true);
+    });
+
+    test('should complete a checkpoint', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        // Create checkpoint
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
+        const memories = store.listMemories('myproject:sessions');
+        const checkpointId = memories[0]!.id;
+
+        // Complete it
+        await executeCommand(['checkpoint', 'complete', 'myproject', String(checkpointId), 'Fixed the bug'], store, logger);
+
+        // Check it was completed
+        const updated = store.getMemoryById(checkpointId);
+        expect(updated!.tags).toContain('completed');
+        expect(updated!.tags).not.toContain('active');
+        expect(updated!.tier).toBe(2); // Demoted to T2
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('completed'))).toBe(true);
+    });
+
+    test('should list checkpoints', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        // Create checkpoint
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
+        const memories = store.listMemories('myproject:sessions');
+        const checkpointId = memories[0]!.id;
+
+        // Complete it
+        await executeCommand(['checkpoint', 'complete', 'myproject', String(checkpointId), 'Done'], store, logger);
+
+        // List all
+        await executeCommand(['checkpoint', 'list', 'myproject'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('Checkpoints for'))).toBe(true);
+    });
+
+    test('should create hidden checkpoint space', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
+
+        // Hidden spaces should not appear in regular list
+        const regularList = store.listSpaces();
+        expect(regularList.some((s) => s.name === 'myproject:sessions')).toBe(false);
+
+        // But should appear with hidden flag
+        const hiddenList = store.listSpaces({ includeHidden: true });
+        expect(hiddenList.some((s) => s.name === 'myproject:sessions')).toBe(true);
+    });
+
+    test('should create checkpoint with notes', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending', '--notes', 'Important context'], store, logger);
+
+        const memories = store.listMemories('myproject:sessions');
+        const mem = store.getMemoryById(memories[0]!.id);
+        const content = JSON.parse(mem!.content);
+
+        expect(content.notes).toBe('Important context');
+    });
+});
+
+describe('Command Executor — Tags', () => {
+    test('should list all tags', () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('test', 'Test');
+        store.addSpaceTag('test', 'project');
+        store.addSpaceTag('test', 'important');
+
+        executeCommand(['tags'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('project'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('important'))).toBe(true);
+    });
+
+    test('should list only space tags', () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('test', 'Test');
+        store.addSpaceTag('test', 'project');
+
+        executeCommand(['tags', '--spaces'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('project'))).toBe(true);
+    });
+
+    test('should list only memory tags', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('test', 'Test');
+        store.addSpaceTag('test', 'space-tag');
+        const mem = await store.addMemory('test', 'mem', 'content');
+        store.addMemoryTag(mem.id, 'memory-tag');
+
+        executeCommand(['tags', '--memories'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('memory-tag'))).toBe(true);
     });
 });

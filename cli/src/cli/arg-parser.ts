@@ -21,13 +21,49 @@ export class ArgParser {
     matches(args: string[]): boolean {
         if (!this.flagsAreValid(args)) return false;
         const positional = this.getPositionalArgs(args);
-        if (this.shape.length !== positional.length) return false;
-
-        for (let i = 0; i < this.shape.length; i++) {
-            if (this.isParam(this.shape[i]!)) continue;
-            if (!this.shape[i]?.split('|').some((x) => x === positional[i])) return false;
+        
+        // Match shape parts to positional args, handling command synonyms with spaces
+        let posIdx = 0;
+        
+        for (let shapeIdx = 0; shapeIdx < this.shape.length; shapeIdx++) {
+            const part = this.shape[shapeIdx]!;
+            
+            if (this.isParam(part)) {
+                // It's a parameter - should match current positional
+                if (posIdx >= positional.length) return false;
+                posIdx++;
+            } else {
+                // It's a command part - check all alternatives (split by |)
+                const aliases = part.split('|');
+                let foundMatch = false;
+                
+                for (const alias of aliases) {
+                    const words = alias.trim().split(/\s+/).filter(w => w.length > 0);
+                    const wordCount = words.length;
+                    
+                    // Check if positional matches this alias starting at posIdx
+                    if (posIdx + wordCount <= positional.length) {
+                        let match = true;
+                        for (let w = 0; w < wordCount; w++) {
+                            if (positional[posIdx + w] !== words[w]) {
+                                match = false;
+                                break;
+                            }
+                        }
+                        if (match) {
+                            posIdx += wordCount;
+                            foundMatch = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!foundMatch) return false;
+            }
         }
-        return true;
+        
+        // Must have consumed all positional args
+        return posIdx === positional.length;
     }
 
     static param(name: string): string {
@@ -84,11 +120,31 @@ export class ArgParser {
     getParams(args: string[]): any {
         const positional = this.getPositionalArgs(args);
         const params: any = {};
+        
+        let posIdx = 0;
 
-        for (let i = 0; i < this.shape.length; i++) {
-            const part = this.shape[i]!;
+        for (let shapeIdx = 0; shapeIdx < this.shape.length; shapeIdx++) {
+            const part = this.shape[shapeIdx]!;
+            
             if (this.isParam(part)) {
-                params[this.getParamName(part)] = positional[i];
+                // It's a parameter - assign current positional arg
+                params[this.getParamName(part)] = positional[posIdx] ?? undefined;
+                posIdx++;
+            } else {
+                // It's a command part - skip the words
+                const aliases = part.split('|');
+                // Find matching alias to know how many words to skip
+                let wordCount = 0;
+                for (const alias of aliases) {
+                    const words = alias.trim().split(/\s+/).filter(w => w.length > 0);
+                    const testWords = positional.slice(posIdx, posIdx + words.length);
+                    if (testWords.length === words.length && 
+                        testWords.every((w, i) => w === words[i])) {
+                        wordCount = words.length;
+                        break;
+                    }
+                }
+                posIdx += wordCount;
             }
         }
         return params;

@@ -18,8 +18,8 @@ export interface MindStore {
     // Spaces
     createSpace(name: string, description: string, tags?: string[]): void;
     getSpace(name: string): Space | null;
-    listSpaces(filter?: { tag?: string }): SpaceSummary[];
-    updateSpace(name: string, updates: { description?: string }): void;
+    listSpaces(filter?: { tag?: string; includeHidden?: boolean }): SpaceSummary[];
+    updateSpace(name: string, updates: { description?: string; hidden?: boolean }): void;
     deleteSpace(name: string): void;
     renameSpace(oldName: string, newName: string): void;
     addSpaceTag(space: string, tag: string): void;

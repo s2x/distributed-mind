@@ -9,6 +9,7 @@ import { createMemoryTools } from './tools/memories';
 import { createTierTools } from './tools/tiers';
 import { createLinkTools } from './tools/links';
 import { createSearchTools } from './tools/search';
+import { createCheckpointTools } from './tools/checkpoint';
 
 const MEMORY_PROTOCOL_INSTRUCTIONS = `
 ## Mind Memory Protocol
@@ -120,6 +121,7 @@ function createMcpServer(store: MindStore): Server {
     ...createTierTools(store),
     ...createLinkTools(store),
     ...createSearchTools(store),
+    ...createCheckpointTools(store),
   };
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {

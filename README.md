@@ -92,9 +92,15 @@ For the full command list:
 ```bash
 ./mind help
 ./mind create <space> "description"
+./mind update <space> --hidden
+./mind list --hidden
 ./mind add <space> <name> "content"
 ./mind list <space>
 ./mind read <space> <name>
+./mind checkpoint set <space> "goal" "pending"
+./mind checkpoint recover <space>
+./mind checkpoint complete <space> <id> "what was done"
+./mind checkpoint list <space> --status active
 ./mind search "query"
 ./mind query --space <space> --from 2026-01-01 --to 2026-12-31 --limit 20 --offset 0
 ./mind update --check
@@ -135,6 +141,13 @@ Example MCP tool usage (for agents):
 ```
 
 `memory_query` returns structured results including `items` and pagination info (`limit`, `offset`, `nextOffset`).
+
+Checkpoint MCP tools are also available for session continuity:
+
+- `checkpoint_set`
+- `checkpoint_complete`
+- `checkpoint_recover`
+- `checkpoint_list`
 
 ### Agent Setup
 

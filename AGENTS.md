@@ -48,15 +48,15 @@ User → ./mind <command> [args] [--flag value]
 |--------|------|----------------|
 | Entry script | `mind` (Bash) | Resolve repo root, dispatch to `cli/src/mind.ts`. |
 | Entry module | `cli/src/mind.ts` | Bootstrap store/logger and run CLI command executor. |
-| CLI command modules | `cli/src/cli/commands/*.ts` | Atomic command definitions/handlers grouped by domain (`spaces`, `memories`, `tiers`, `links`, `search`, `status`, `tags`, `guide`, `migration`, `runtime`). |
+| CLI command modules | `cli/src/cli/commands/*.ts` | Atomic command definitions/handlers grouped by domain (`spaces`, `memories`, `tiers`, `links`, `search`, `status`, `tags`, `checkpoint`, `guide`, `migration`, `runtime`). |
 | CLI executor | `cli/src/cli/command-executor.ts` | Load command groups from `cli/commands/index.ts`, dispatch matched command, and render help sections. |
 | Arg parser | `cli/src/cli/arg-parser.ts` | Match CLI args to a shape (positional `<param>`, aliases `a\|b`, `--flag value`), extract params + flags, render help. |
 | Setup/runtime helpers | `cli/src/cli/setup.ts` | Agent setup + detached process management helpers for MCP/web servers. |
 | MindStore interface | `cli/src/store/mind-store.ts` | Abstract interface for all data operations. |
 | SQLite store | `cli/src/store/sqlite-store.ts` | Full `MindStore` implementation using `bun:sqlite`. Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled. |
-| Schema | `cli/src/store/schema.ts` | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 4 (migrates v1→v2→v3→v4). |
-| MCP server | `cli/src/mcp/server.ts` | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes 25 tools. |
-| MCP tools | `cli/src/mcp/tools/` | Tool implementations: `spaces.ts`, `memories.ts`, `tiers.ts`, `links.ts`, `search.ts`. |
+| Schema | `cli/src/store/schema.ts` | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 5 (migrates v1→v2→v3→v4→v5). |
+| MCP server | `cli/src/mcp/server.ts` | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes 29 tools. |
+| MCP tools | `cli/src/mcp/tools/` | Tool implementations: `spaces.ts`, `memories.ts`, `tiers.ts`, `links.ts`, `search.ts`, `checkpoint.ts`. |
 | API server | `cli/src/api/server.ts` | Bun HTTP server that serves `/api/*` routes and static assets from `web/public/`. |
 | API router | `cli/src/api/router.ts` | Route matcher/dispatcher for API endpoints. |
 | API routes | `cli/src/api/routes/*.ts` | Atomic REST route declarations grouped by domain (`spaces`, `memories`, `search`, `status`). |
@@ -68,7 +68,9 @@ User → ./mind <command> [args] [--flag value]
 ### 2.3 Data model
 
 - **Brain:** A SQLite database (`mind.db`) at `data/` in the repo root (or `MIND_DATA_DIR`).
-- **Space:** `{ name: string, description: string, tags: string[], created_at, updated_at }`. Identified by name (primary key).
+- **Space:** `{ name: string, description: string, hidden: boolean, tags: string[], created_at, updated_at }`. Identified by name (primary key).
+- **Hidden spaces:** Spaces can be marked hidden and are omitted from default `list`; include them with `list --hidden`.
+- **Checkpoint spaces:** Session checkpoints are stored in hidden derived spaces named `<space>:sessions`.
 - **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3|4, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at, changed_at }`. Identified by `(space_name, name)`.
 - **Tier system:**
   - 🔴 **T1 (hot)** — frequently accessed (limit: 25/space)
@@ -88,7 +90,7 @@ User → ./mind <command> [args] [--flag value]
 | Table | Key columns | Notes |
 |-------|------------|-------|
 | `meta` | `key`, `value` | Tracks `schema_version`. |
-| `spaces` | `name` (PK), `description`, timestamps | |
+| `spaces` | `name` (PK), `description`, `hidden`, timestamps | |
 | `space_tags` | `space_name` (FK), `tag` | Cascades on space rename/delete. |
 | `memories` | `id` (PK), `space_name` (FK), `name`, `content`, `tier`, `pinned`, `access_count`, `last_accessed_at`, `embedding`, timestamps (`created_at`, `updated_at`, `changed_at`) | UNIQUE on `(space_name, name)`. Cascades on space delete/rename. |
 | `memory_tags` | `memory_id` (FK), `tag` | Cascades on memory delete. |
@@ -99,7 +101,7 @@ User → ./mind <command> [args] [--flag value]
 
 ## 3. Technical considerations
 
-- **Schema version:** Current schema is version 4. Existing v1 databases (tier `CHECK (tier BETWEEN 1 AND 3)`) are migrated automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds the `embedding BLOB` column. V3→V4 adds `changed_at` and backfills it from `updated_at`.
+- **Schema version:** Current schema is version 5. Existing v1 databases (tier `CHECK (tier BETWEEN 1 AND 3)`) are migrated automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds the `embedding BLOB` column. V3→V4 adds `changed_at` and backfills it from `updated_at`. V4→V5 adds `spaces.hidden` with default `0`.
 - **Bun:** The project is run and tested with Bun. Use `bun run`, `bun test`, and Bun's built-in TypeScript + SQLite support. No separate compile step.
 - **bun:sqlite FTS5 bug:** bun:sqlite (v1.2.10) cannot handle FTS5 `content=table` sync triggers — any UPDATE or DELETE on the source table errors with "N values for M columns". **Workaround:** `memories_fts` is a standalone FTS5 table (no `content=` option, no triggers). FTS is synced manually in `sqlite-store.ts` via `ftsInsert`, `ftsUpdate`, `ftsDelete` helpers called from `addMemory`, `updateMemory`, `deleteMemory`, `deleteMemoryByName`, `deleteSpace`, and `importFromJson`.
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
@@ -107,7 +109,7 @@ User → ./mind <command> [args] [--flag value]
 - **Testing:** CLI tests live in `cli/test/`, use `bun:test`, and rely on:
   - **`test-store.ts`** (`cli/test/mocks/test-store.ts`): creates a temporary SQLite DB in `/tmp/` per test instance; returns `{ store, cleanup }`.
   - **`mocked-logger.ts`** (`cli/test/mocks/mocked-logger.ts`): captures `logInfo`/`logError` for assertions.
-  - Test files: `cli/test/mind-store.spec.ts` (store-level) and `cli/test/command-executor.spec.ts` (CLI-level).
+  - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), and `cli/test/arg-parser.spec.ts` (arg parser).
   - **`scripts/test-rag.sh`**: E2E integration test for RAG. Requires `OPENAI_API_KEY`, makes real OpenAI API calls. Uses `MIND_DB_PATH` to create a temp DB. Run via `make test-rag` or directly.
 - **Docker:** `web/Dockerfile` builds the web app; `docker-compose.yml` runs it with volume `./data` (or `BRAIN_DATA_DIR`) mounted at `/data`, port 3000, and `restart: unless-stopped`.
 - **Dependencies:** Production: `bun-style`. Dev: `@types/bun`. Peer: `typescript ^5`.
@@ -222,11 +224,12 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 |--------|---------|---------|--------|-------|-------------|
 | Help | `help` | `h` | — | — | List all commands. |
 | Create space | `create` | `c` | `<space>` `<description>` | `--tags` | Create a new space (comma-sep tags). |
-| List spaces | `list` | `ls`, `l` | — | `--tag` | List all spaces (optionally filtered). |
+| List spaces | `list` | `ls`, `l` | — | `--tag`, `--hidden` | List all visible spaces by default (optionally include hidden). |
 | List memories | `list` | `ls`, `l` | `<space>` | `--tier`, `--tag` | List T1+T2 memories in a space (use `--tier 3` for cold; `--tier 4` returns empty). |
 | Delete space | `delete` | `d` | `<space>` | — | Delete a space and all its memories. |
 | Rename space | `rename` | `rn` | `<old>` `<new>` | — | Rename a space. |
 | Describe space | `describe` | `ds` | `<space>` `<description>` | — | Change a space's description. |
+| Update space | `update` | — | `<space>` | `--description`, `--hidden`, `--no-hidden` | Update space description and/or visibility. |
 | Tag space | `tag` | `t` | `<space>` `<tag>` | — | Add a tag to a space. |
 | Untag space | `untag` | — | `<space>` `<tag>` | — | Remove a tag from a space. |
 | Add memory | `add` | `a` | `<space>` `<name>` `<content>` | `--tags`, `--tier` | Add a memory. |
@@ -246,6 +249,10 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 | Status (global) | `status` | — | — | — | Show storage info and per-tier breakdown. |
 | Status (space) | `status` | — | `<space>` | — | Show tier breakdown for a specific space. |
 | List tags | `tags` | `tgs` | — | `--spaces`, `--memories` | List all tags in the system (defaults to both). |
+| Checkpoint set | `checkpoint set` | `cp set` | `<space>` `<goal>` `<pending>` | `--notes` | Create or update an active checkpoint in `<space>:sessions`. |
+| Checkpoint complete | `checkpoint complete` | `cp complete`, `checkpoint done`, `cp done` | `<space>` `<id>` `<what>` | — | Complete a checkpoint, mark tags, and demote tier. |
+| Checkpoint recover | `checkpoint recover` | `cp recover` | `<space>` | `--history` | Recover the most recent active checkpoint (optionally include completed history). |
+| Checkpoint list | `checkpoint list` | `cp list` | `<space>` | `--status` | List checkpoints from `<space>:sessions`. |
 | Guide | `guide` | `g` | — | — | Show usage guide (human mode). |
 | Guide (mode) | `guide` | `g` | `<mode>` | — | Show guide (`agent` or `human`). |
 | Import | `import` | — | — | — | Import legacy `brain.json` into SQLite. |
@@ -255,7 +262,7 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 
 ### 4.9 MCP Tools
 
-The MCP server exposes 25 tools for agent integration:
+The MCP server exposes 29 tools for agent integration:
 
 #### Spaces (8 tools)
 | Tool | Description |
@@ -298,6 +305,14 @@ The MCP server exposes 25 tools for agent integration:
 | `link_create` | Create a link between memories |
 | `link_delete` | Delete a link |
 | `links_list` | List links for a memory |
+
+#### Checkpoint (4 tools)
+| Tool | Description |
+|------|-------------|
+| `checkpoint_set` | Create or update a checkpoint in `<space>:sessions` |
+| `checkpoint_complete` | Mark a checkpoint completed |
+| `checkpoint_recover` | Recover latest active checkpoint |
+| `checkpoint_list` | List checkpoints for a space |
 
 #### Search & Status (2 tools)
 | Tool | Description |

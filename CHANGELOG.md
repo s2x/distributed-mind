@@ -28,6 +28,21 @@ Example:
 ## [Unreleased]
 
 ### Added
+- Added checkpoint system for session persistence and recovery:
+  - `checkpoint set` / `cp set` - Create/update a checkpoint
+  - `checkpoint complete` / `cp complete` - Mark checkpoint as completed
+  - `checkpoint recover` / `cp recover` - Recover latest active checkpoint
+  - `checkpoint list` / `cp list` - List all checkpoints for a space
+- Added hidden spaces feature:
+  - `mind update <space> --hidden` - Mark space as hidden
+  - `mind update <space> --no-hidden` - Unmark space as hidden
+  - `mind list --hidden` - Show hidden spaces
+- Added MCP checkpoint tools: `checkpoint_set`, `checkpoint_complete`, `checkpoint_recover`, `checkpoint_list`
+- Added checkpoint space organization: `<space>:sessions` for storing checkpoints
+
+### Changed
+- Added `mind update <space> --description|--hidden|--no-hidden` for explicit space updates.
+- Spaces now have a `hidden` field (default: false)
 - Added MCP setup, process management, and detached runtime commands.
 - Added one-line installer (`scripts/install.sh`) for user-local installation.
 - Added self-update command (`mind update`) from GitHub releases.

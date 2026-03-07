@@ -4,6 +4,7 @@ export interface Space {
     name: string;
     description: string;
     tags: string[];
+    hidden: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -12,6 +13,7 @@ export interface SpaceSummary {
     name: string;
     description: string;
     tags: string[];
+    hidden: boolean;
     memory_count: number;
 }
 

@@ -9,6 +9,7 @@ import { tagsGroup } from './tags';
 import { guideGroup } from './guide';
 import { migrationGroup } from './migration';
 import { runtimeGroup } from './runtime';
+import { checkpointGroup } from './checkpoint';
 import type { CommandGroup } from './types';
 
 export const SERVER_GROUP_HELP: ArgParser[] = runtimeGroup.helpEntries;
@@ -24,6 +25,7 @@ export const ALL_GROUPS: CommandGroup[] = [
     runtimeGroup,
     guideGroup,
     migrationGroup,
+    checkpointGroup,
 ];
 
 export * from './types';

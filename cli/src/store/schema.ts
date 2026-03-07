@@ -1,6 +1,6 @@
-// ── SQLite schema and migrations for Mind v4 ──
+// ── SQLite schema and migrations for Mind v5 ──
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const SCHEMA_SQL = `
 -- Version tracking
@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS meta (
 CREATE TABLE IF NOT EXISTS spaces (
     name        TEXT PRIMARY KEY,
     description TEXT NOT NULL DEFAULT '',
+    hidden      INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -130,6 +131,13 @@ UPDATE memories SET changed_at = updated_at WHERE changed_at IS NULL;
 UPDATE meta SET value = '4' WHERE key = 'schema_version';
 `;
 
+// ── Migration: v4 → v5 ──
+// Changes: add spaces.hidden column for hidden spaces (used by checkpoint system)
+const MIGRATE_V4_TO_V5 = `
+ALTER TABLE spaces ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+UPDATE meta SET value = '5' WHERE key = 'schema_version';
+`;
+
 export function initializeDatabase(db: import('bun:sqlite').Database): void {
     db.exec('PRAGMA journal_mode = WAL;');
     db.exec('PRAGMA foreign_keys = ON;');
@@ -160,6 +168,11 @@ export function initializeDatabase(db: import('bun:sqlite').Database): void {
     if (currentVersion < 4) {
         // Migrate v3 → v4
         db.exec(MIGRATE_V3_TO_V4);
+    }
+
+    if (currentVersion < 5) {
+        // Migrate v4 → v5
+        db.exec(MIGRATE_V4_TO_V5);
     }
 
     // Future migrations: add else-if blocks here for v3→v4, etc.

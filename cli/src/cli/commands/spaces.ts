@@ -14,7 +14,19 @@ const CREATE = new ArgParser(
 const LIST = new ArgParser(
     ['list|ls|l'],
     'Lists all spaces',
-    [{ name: 'tag', alias: 't', hasValue: true }]
+    [
+        { name: 'tag', alias: 't', hasValue: true },
+        { name: 'hidden', alias: 'H', hasValue: false },
+    ]
+);
+const UPDATE = new ArgParser(
+    ['update', p('space')],
+    'Updates a space (description or visibility)',
+    [
+        { name: 'description', alias: 'd', hasValue: true },
+        { name: 'hidden', alias: 'H', hasValue: false },
+        { name: 'no-hidden', hasValue: false },
+    ]
 );
 const DELETE = new ArgParser(['delete|d', p('space')], 'Deletes a space and all its memories');
 const RENAME = new ArgParser(['rename|rn', p('old'), p('new')], 'Renames a space');
@@ -24,7 +36,7 @@ const UNTAG = new ArgParser(['untag', p('space'), p('tag')], 'Removes a tag from
 
 export const spacesGroup: CommandGroup = {
     name: 'Spaces',
-    helpEntries: [CREATE, LIST, DELETE, RENAME, DESCRIBE, TAG, UNTAG],
+    helpEntries: [CREATE, LIST, DELETE, RENAME, UPDATE, DESCRIBE, TAG, UNTAG],
     commands: [
         {
             matches: (args) => CREATE.matches(args),
@@ -41,7 +53,8 @@ export const spacesGroup: CommandGroup = {
             execute: async (args, store, logger) => {
                 const flags = LIST.getFlags(args);
                 const tag = flags.tag ? String(flags.tag) : undefined;
-                const spaces = store.listSpaces({ tag });
+                const includeHidden = flags.hidden === true;
+                const spaces = store.listSpaces({ tag, includeHidden });
 
                 if (spaces.length === 0) {
                     logger.logInfo('No spaces found');
@@ -51,7 +64,8 @@ export const spacesGroup: CommandGroup = {
                 logger.logInfo(style('🧠 Spaces:', ['bold', 'magenta']));
                 for (const s of spaces) {
                     const tags = formatTags(s.tags);
-                    logger.logInfo(`   ${style(s.name, ['bold'])}: ${style(s.description, ['gray'])} (${s.memory_count} memories) ${tags}`);
+                    const hiddenBadge = s.hidden ? style(' [hidden]', ['gray', 'dim']) : '';
+                    logger.logInfo(`   ${style(s.name, ['bold'])}: ${style(s.description, ['gray'])} (${s.memory_count} memories) ${tags}${hiddenBadge}`);
                 }
             },
         },
@@ -77,6 +91,36 @@ export const spacesGroup: CommandGroup = {
                 const { space, description } = DESCRIBE.getParams(args);
                 store.updateSpace(space, { description });
                 logger.logInfo(style(`✅ Space "${space}" description updated`, ['bold', 'green']));
+            },
+        },
+        {
+            matches: (args) => UPDATE.matches(args),
+            execute: async (args, store, logger) => {
+                const { space } = UPDATE.getParams(args);
+                const flags = UPDATE.getFlags(args);
+                const updates: { description?: string; hidden?: boolean } = {};
+                
+                if (flags.description !== undefined) {
+                    updates.description = String(flags.description);
+                }
+                if (flags.hidden === true) {
+                    updates.hidden = true;
+                } else if (flags['no-hidden'] === true) {
+                    updates.hidden = false;
+                }
+                
+                if (Object.keys(updates).length === 0) {
+                    logger.logInfo(style('⚠️  No updates provided. Use --description or --hidden/--no-hidden', ['yellow']));
+                    return;
+                }
+                
+                store.updateSpace(space, updates);
+                
+                const parts: string[] = [];
+                if (updates.description !== undefined) parts.push('description');
+                if (updates.hidden !== undefined) parts.push(updates.hidden ? 'hidden' : 'visible');
+                
+                logger.logInfo(style(`✅ Space "${space}" updated: ${parts.join(', ')}`, ['bold', 'green']));
             },
         },
         {
