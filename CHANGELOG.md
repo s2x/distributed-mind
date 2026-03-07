@@ -47,6 +47,7 @@ Example:
 - Unified date rendering in CLI memory outputs (`list`, `read`, `search --detail`, `query`) to a shared changed-date format and improved `search/query` help flag descriptions with expected values/formats.
 - Changed shared memory reference rendering in CLI lists/search/query to bracketed format (`[Space] / [Memory]`) for faster visual scanning.
 - Changed MCP call-tool responses to include structured payload data (when provided by tool handlers), not only text content.
+- Increased Bun HTTP idle timeout defaults to reduce premature request timeouts (`MIND_MCP_IDLE_TIMEOUT` default 120s, `MIND_API_IDLE_TIMEOUT` default 30s).
 
 ### Fixed
 - Fixed command wiring inconsistencies between runtime entrypoint and subcommand modules.

@@ -245,9 +245,11 @@ function jsonRpcSessionError(status: number, message: string): Response {
 export async function startMcpHttpServer(store: MindStore, port: number = 7438): Promise<void> {
   const sessions = new Map<string, SessionEntry>();
   const mcpPort = Number(port || process.env.MCP_PORT || 7438);
+  const idleTimeout = Number(process.env.MIND_MCP_IDLE_TIMEOUT ?? 120);
 
   Bun.serve({
     port: mcpPort,
+    idleTimeout,
     async fetch(req: Request): Promise<Response> {
       const url = new URL(req.url);
 

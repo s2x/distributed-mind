@@ -36,6 +36,7 @@ function resolveStaticFile(pathname: string): Response {
 
 export async function runApiServer(port?: number, existingStore?: MindStore): Promise<void> {
   const httpPort = port ?? Number(process.env.PORT ?? 3000);
+  const idleTimeout = Number(process.env.MIND_API_IDLE_TIMEOUT ?? 30);
 
   if (!existingStore) {
     if (!fs.existsSync(CONFIG.dataDir)) {
@@ -47,6 +48,7 @@ export async function runApiServer(port?: number, existingStore?: MindStore): Pr
 
   Bun.serve({
     port: httpPort,
+    idleTimeout,
     async fetch(req) {
       try {
         const matched = await matchApiRoute(req, store);
