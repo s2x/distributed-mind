@@ -12,9 +12,17 @@ import { createSpaceTools } from './tools/spaces';
 import { createSystemTools } from './tools/system';
 import { createTierTools } from './tools/tiers';
 
+type ToolAnnotations = {
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+};
+
 type ToolDefinition = {
     description?: string;
     schema: any;
+    annotations?: ToolAnnotations;
     handler: (args: any) => Promise<any>;
 };
 
@@ -46,9 +54,10 @@ function createMcpServer(store: MindStore): Server {
             tools: Object.entries(allTools).map(([name, tool]) => ({
                 name,
                 description: tool.description
-                    ? `${tool.description}\n\nSee system_instructions for full protocol guidelines.`
+                    ? `${tool.description}\n\nSee system_instructions for full mind usage guidelines.`
                     : `Call system_instructions first to get full mind usage guidelines.\n\nTool: ${name}`,
                 inputSchema: tool.schema ? zodToJsonSchema(tool.schema) : { type: 'object', properties: {} },
+                annotations: tool.annotations,
             })),
         };
     });
@@ -87,15 +96,63 @@ function createMcpServer(store: MindStore): Server {
     return server;
 }
 
+// Zod 4.x to JSON Schema conversion
 function zodToJsonSchema(schema: any): any {
-    if (schema?._def?.typeName === 'ZodObject') {
+    if (!schema || !schema._def) {
+        return { type: 'object', properties: {} };
+    }
+
+    const def = schema._def;
+
+    // Handle ZodObject
+    if (def.type === 'object') {
+        const shape = def.shape || {};
         const properties: any = {};
         const required: string[] = [];
 
-        for (const [key, value] of Object.entries(schema.shape)) {
-            const zodValue = value as any;
-            properties[key] = zodTypeToJson(zodValue);
-            if (!zodValue.isOptional?.()) {
+        for (const [key, value] of Object.entries(shape)) {
+            const fieldDef = value._def;
+            const fieldType = fieldDef.type;
+            const fieldSchema = value;
+            const fieldDescription = (fieldSchema as any).description;
+
+            if (fieldType === 'string') {
+                properties[key] = { type: 'string' };
+                if (fieldDescription) properties[key].description = fieldDescription;
+                required.push(key);
+            } else if (fieldType === 'number') {
+                properties[key] = { type: 'number' };
+                if (fieldDescription) properties[key].description = fieldDescription;
+                required.push(key);
+            } else if (fieldType === 'boolean') {
+                properties[key] = { type: 'boolean' };
+                if (fieldDescription) properties[key].description = fieldDescription;
+                required.push(key);
+            } else if (fieldType === 'optional') {
+                const innerDef = fieldDef.innerType?._def;
+                if (innerDef?.type === 'string') {
+                    properties[key] = { type: 'string' };
+                } else if (innerDef?.type === 'number') {
+                    properties[key] = { type: 'number' };
+                } else if (innerDef?.type === 'boolean') {
+                    properties[key] = { type: 'boolean' };
+                } else if (innerDef?.type === 'array') {
+                    properties[key] = { type: 'array', items: { type: 'string' } };
+                } else {
+                    properties[key] = { type: 'string' };
+                }
+                if (fieldDescription) properties[key].description = fieldDescription;
+            } else if (fieldType === 'array') {
+                properties[key] = { type: 'array', items: { type: 'string' } };
+                if (fieldDescription) properties[key].description = fieldDescription;
+                required.push(key);
+            } else if (fieldType === 'enum') {
+                properties[key] = { type: 'string', enum: fieldDef.values };
+                if (fieldDescription) properties[key].description = fieldDescription;
+                required.push(key);
+            } else {
+                properties[key] = { type: 'string' };
+                if (fieldDescription) properties[key].description = fieldDescription;
                 required.push(key);
             }
         }
@@ -107,33 +164,7 @@ function zodToJsonSchema(schema: any): any {
         };
     }
 
-    return { type: 'object' };
-}
-
-function zodTypeToJson(zodType: any): any {
-    const typeName = zodType?._def?.typeName;
-
-    switch (typeName) {
-        case 'ZodString':
-            return { type: 'string', description: zodType.description };
-        case 'ZodNumber':
-            return { type: 'number', description: zodType.description };
-        case 'ZodBoolean':
-            return { type: 'boolean', description: zodType.description };
-        case 'ZodArray':
-            return {
-                type: 'array',
-                items: zodTypeToJson(zodType._def.type),
-                description: zodType.description,
-            };
-        case 'ZodOptional':
-            return {
-                ...zodTypeToJson(zodType._def.innerType),
-                description: zodType.description,
-            };
-        default:
-            return { type: 'string', description: zodType?.description };
-    }
+    return { type: 'object', properties: {} };
 }
 
 export async function startMcpServer(store: MindStore): Promise<void> {

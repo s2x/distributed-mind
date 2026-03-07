@@ -2,41 +2,24 @@ import { z } from 'zod';
 import type { MindStore } from '../../store/mind-store';
 
 const LinkCreateSchema = z.object({
-    sourceId: z
-        .number()
-        .describe(
-            '**Required.** Source memory ID (the "from" memory). Get ID from memory_list, memory_query, or search. Cannot link a memory to itself.'
-        ),
-    targetId: z
-        .number()
-        .describe(
-            '**Required.** Target memory ID (the "to" memory). Get ID from memory_list, memory_query, or search. Cannot link to self.'
-        ),
-    label: z
-        .string()
-        .optional()
-        .describe(
-            'Optional. Relationship label. Common: "related" (default), "depends-on", "fixes", "blocks", "duplicates". Custom labels allowed.'
-        ),
+    sourceId: z.number().describe('Source memory ID.'),
+    targetId: z.number().describe('Target memory ID.'),
+    label: z.string().optional().describe('Optional relationship label.'),
 });
 
 const LinkDeleteSchema = z.object({
-    sourceId: z.number().describe('**Required.** Source memory ID of the link to remove.'),
-    targetId: z.number().describe('**Required.** Target memory ID of the link to remove.'),
+    sourceId: z.number().describe('Source memory ID of the link to remove.'),
+    targetId: z.number().describe('Target memory ID of the link to remove.'),
 });
 
 const LinksListSchema = z.object({
-    memoryId: z
-        .number()
-        .describe(
-            '**Required.** Memory ID to list links for. Returns both outgoing links (where this memory is source) and incoming links (where this memory is target).'
-        ),
+    memoryId: z.number().describe('Memory ID to list links for.'),
 });
 
 const LINK_TOOL_DESCRIPTIONS: Record<string, string> = {
-    link_create: 'Create a directional link between two memories with an optional label.',
+    link_create: 'Create a directional link between two memories.',
     link_delete: 'Remove a link between two memories.',
-    links_list: 'List all links (incoming and outgoing) for a memory.',
+    links_list: 'List all links for a memory.',
 };
 
 export function createLinkTools(store: MindStore) {
@@ -44,21 +27,26 @@ export function createLinkTools(store: MindStore) {
         link_create: {
             schema: LinkCreateSchema,
             description: LINK_TOOL_DESCRIPTIONS.link_create,
-            handler: async (args: z.infer<typeof LinkCreateSchema>) => {
-                if (args.sourceId === args.targetId) {
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+            handler: async (args: unknown) => {
+                const parsed = LinkCreateSchema.parse(args ?? {});
+                if (!parsed.sourceId || !parsed.targetId) {
+                    throw new Error('Both sourceId and targetId are required.');
+                }
+                if (parsed.sourceId === parsed.targetId) {
                     throw new Error('Cannot link a memory to itself.');
                 }
 
-                store.link(args.sourceId, args.targetId, args.label);
+                store.link(parsed.sourceId, parsed.targetId, parsed.label);
 
-                const sourceMemory = store.getMemoryById(args.sourceId);
-                const targetMemory = store.getMemoryById(args.targetId);
+                const sourceMemory = store.getMemoryById(parsed.sourceId);
+                const targetMemory = store.getMemoryById(parsed.targetId);
 
                 return {
                     content: [
                         {
                             type: 'text',
-                            text: `Linked: "${sourceMemory?.name}" → "${targetMemory?.name}"${args.label ? ` [${args.label}]` : ''}`,
+                            text: `Linked: "${sourceMemory?.name}" → "${targetMemory?.name}"${parsed.label ? ` [${parsed.label}]` : ''}`,
                         },
                     ],
                 };
@@ -67,11 +55,16 @@ export function createLinkTools(store: MindStore) {
         link_delete: {
             schema: LinkDeleteSchema,
             description: LINK_TOOL_DESCRIPTIONS.link_delete,
-            handler: async (args: z.infer<typeof LinkDeleteSchema>) => {
-                store.unlink(args.sourceId, args.targetId);
+            annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+            handler: async (args: unknown) => {
+                const parsed = LinkDeleteSchema.parse(args ?? {});
+                if (!parsed.sourceId || !parsed.targetId) {
+                    throw new Error('Both sourceId and targetId are required.');
+                }
+                store.unlink(parsed.sourceId, parsed.targetId);
 
-                const sourceMemory = store.getMemoryById(args.sourceId);
-                const targetMemory = store.getMemoryById(args.targetId);
+                const sourceMemory = store.getMemoryById(parsed.sourceId);
+                const targetMemory = store.getMemoryById(parsed.targetId);
 
                 return {
                     content: [
@@ -86,13 +79,18 @@ export function createLinkTools(store: MindStore) {
         links_list: {
             schema: LinksListSchema,
             description: LINK_TOOL_DESCRIPTIONS.links_list,
-            handler: async (args: z.infer<typeof LinksListSchema>) => {
-                const memory = store.getMemoryById(args.memoryId);
+            annotations: { readOnlyHint: true },
+            handler: async (args: unknown) => {
+                const parsed = LinksListSchema.parse(args ?? {});
+                if (!parsed.memoryId) {
+                    throw new Error('Memory ID is required.');
+                }
+                const memory = store.getMemoryById(parsed.memoryId);
                 if (!memory) {
-                    throw new Error(`Memory with ID ${args.memoryId} not found.`);
+                    throw new Error(`Memory with ID ${parsed.memoryId} not found.`);
                 }
 
-                const links = store.getLinks(args.memoryId);
+                const links = store.getLinks(parsed.memoryId);
 
                 return {
                     content: [{ type: 'text', text: `Found ${links.length} link(s) for memory "${memory.name}".` }],

@@ -71,4 +71,7 @@ Example:
 
 - Fixed command wiring inconsistencies between runtime entrypoint and subcommand modules.
 - Improved detached startup behavior with process liveness checks and clearer failure messages.
+- Fixed MCP tools not receiving parameters: corrected Zod to JSON Schema conversion for Zod 4.x in `cli/src/mcp/server.ts`
+- Added MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) to all 29 MCP tools
+- Added defensive validation with clear error messages to all MCP tool handlers
 - Replaced ad-hoc MCP HTTP handling with the official Streamable HTTP transport implementation (session-aware initialize/tools flow), fixing Cursor connection errors (`Unknown method`, SSE fallback 404).

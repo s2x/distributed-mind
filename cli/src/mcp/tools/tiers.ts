@@ -2,40 +2,24 @@ import { z } from 'zod';
 import type { MindStore } from '../../store/mind-store';
 
 const MemoryPromoteSchema = z.object({
-    id: z
-        .number()
-        .describe(
-            '**Required.** Memory ID to promote. Get ID from memory_list, memory_query, or search. Promotion moves memory one tier up: T4→T3, T3→T2, T2→T1. Cannot promote if already at T1.'
-        ),
+    id: z.number().describe('Memory ID to promote. Moves one tier up: T4→T3→T2→T1.'),
 });
 
 const MemoryDemoteSchema = z.object({
-    id: z
-        .number()
-        .describe(
-            '**Required.** Memory ID to demote. Get ID from memory_list, memory_query, or search. Demotion moves memory one tier down: T1→T2, T2→T3, T3→T4. Cannot demote if already at T4 (frozen).'
-        ),
+    id: z.number().describe('Memory ID to demote. Moves one tier down: T1→T2→T3→T4.'),
 });
 
 const MemoryPinSchema = z.object({
-    id: z
-        .number()
-        .describe(
-            '**Required.** Memory ID to pin. Get ID from memory_list, memory_query, or search. Pinned memories: 1) Do NOT auto-promote on read, 2) Are immune to LRU eviction. Use for critical memories.'
-        ),
+    id: z.number().describe('Memory ID to pin. Prevents auto-promotion and LRU eviction.'),
 });
 
 const MemoryUnpinSchema = z.object({
-    id: z
-        .number()
-        .describe(
-            '**Required.** Memory ID to unpin. Get ID from memory_list, memory_query, or search. Unpinned memories resume normal tier behavior: auto-promote on read, eligible for LRU eviction.'
-        ),
+    id: z.number().describe('Memory ID to unpin. Restores normal tier behavior.'),
 });
 
 const TIER_TOOL_DESCRIPTIONS: Record<string, string> = {
-    memory_promote: 'Promote a memory one tier up (T4→T3→T2→T1).',
-    memory_demote: 'Demote a memory one tier down (T1→T2→T3→T4).',
+    memory_promote: 'Promote a memory one tier up.',
+    memory_demote: 'Demote a memory one tier down.',
     memory_pin: 'Pin a memory to prevent auto-promotion and LRU eviction.',
     memory_unpin: 'Unpin a memory to restore normal tier behavior.',
 };
@@ -45,19 +29,24 @@ export function createTierTools(store: MindStore) {
         memory_promote: {
             schema: MemoryPromoteSchema,
             description: TIER_TOOL_DESCRIPTIONS.memory_promote,
-            handler: async (args: z.infer<typeof MemoryPromoteSchema>) => {
-                const memoryBefore = store.getMemoryById(args.id);
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+            handler: async (args: unknown) => {
+                const parsed = MemoryPromoteSchema.parse(args ?? {});
+                if (!parsed.id) {
+                    throw new Error('Memory ID is required.');
+                }
+                const memoryBefore = store.getMemoryById(parsed.id);
                 if (!memoryBefore) {
-                    throw new Error(`Memory with ID ${args.id} not found.`);
+                    throw new Error(`Memory with ID ${parsed.id} not found.`);
                 }
                 if (memoryBefore.tier === 1) {
                     throw new Error('Cannot promote: memory is already at T1 (hot).');
                 }
 
-                store.promote(args.id);
-                const memory = store.getMemoryById(args.id);
+                store.promote(parsed.id);
+                const memory = store.getMemoryById(parsed.id);
                 if (!memory) {
-                    throw new Error(`Memory with ID ${args.id} not found after promotion.`);
+                    throw new Error(`Memory with ID ${parsed.id} not found after promotion.`);
                 }
                 return {
                     content: [
@@ -73,19 +62,24 @@ export function createTierTools(store: MindStore) {
         memory_demote: {
             schema: MemoryDemoteSchema,
             description: TIER_TOOL_DESCRIPTIONS.memory_demote,
-            handler: async (args: z.infer<typeof MemoryDemoteSchema>) => {
-                const memoryBefore = store.getMemoryById(args.id);
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+            handler: async (args: unknown) => {
+                const parsed = MemoryDemoteSchema.parse(args ?? {});
+                if (!parsed.id) {
+                    throw new Error('Memory ID is required.');
+                }
+                const memoryBefore = store.getMemoryById(parsed.id);
                 if (!memoryBefore) {
-                    throw new Error(`Memory with ID ${args.id} not found.`);
+                    throw new Error(`Memory with ID ${parsed.id} not found.`);
                 }
                 if (memoryBefore.tier === 4) {
                     throw new Error('Cannot demote: memory is already at T4 (frozen).');
                 }
 
-                store.demote(args.id);
-                const memory = store.getMemoryById(args.id);
+                store.demote(parsed.id);
+                const memory = store.getMemoryById(parsed.id);
                 if (!memory) {
-                    throw new Error(`Memory with ID ${args.id} not found after demotion.`);
+                    throw new Error(`Memory with ID ${parsed.id} not found after demotion.`);
                 }
                 return {
                     content: [
@@ -101,11 +95,16 @@ export function createTierTools(store: MindStore) {
         memory_pin: {
             schema: MemoryPinSchema,
             description: TIER_TOOL_DESCRIPTIONS.memory_pin,
-            handler: async (args: z.infer<typeof MemoryPinSchema>) => {
-                store.pin(args.id);
-                const memory = store.getMemoryById(args.id);
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+            handler: async (args: unknown) => {
+                const parsed = MemoryPinSchema.parse(args ?? {});
+                if (!parsed.id) {
+                    throw new Error('Memory ID is required.');
+                }
+                store.pin(parsed.id);
+                const memory = store.getMemoryById(parsed.id);
                 if (!memory) {
-                    throw new Error(`Memory with ID ${args.id} not found.`);
+                    throw new Error(`Memory with ID ${parsed.id} not found.`);
                 }
                 return {
                     content: [
@@ -121,11 +120,16 @@ export function createTierTools(store: MindStore) {
         memory_unpin: {
             schema: MemoryUnpinSchema,
             description: TIER_TOOL_DESCRIPTIONS.memory_unpin,
-            handler: async (args: z.infer<typeof MemoryUnpinSchema>) => {
-                store.unpin(args.id);
-                const memory = store.getMemoryById(args.id);
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+            handler: async (args: unknown) => {
+                const parsed = MemoryUnpinSchema.parse(args ?? {});
+                if (!parsed.id) {
+                    throw new Error('Memory ID is required.');
+                }
+                store.unpin(parsed.id);
+                const memory = store.getMemoryById(parsed.id);
                 if (!memory) {
-                    throw new Error(`Memory with ID ${args.id} not found.`);
+                    throw new Error(`Memory with ID ${parsed.id} not found.`);
                 }
                 return {
                     content: [{ type: 'text', text: `Memory "${memory.name}" unpinned.` }],

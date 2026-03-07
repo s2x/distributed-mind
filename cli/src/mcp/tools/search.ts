@@ -3,44 +3,19 @@ import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
 
 const SearchSchema = z.object({
-    query: z
-        .string()
-        .describe(
-            '**Required.** Search query using FTS5 full-text search. Supports: single words, phrases, AND ("fix AND bug"), OR ("error OR warning"), prefix ("config*"). Use specific terms for better results.'
-        ),
-    space: z
-        .string()
-        .optional()
-        .describe(
-            'Optional. Limit search to a specific space. Example: "projects/mind". Default: searches all spaces.'
-        ),
-    tag: z
-        .string()
-        .optional()
-        .describe('Optional. Filter by tag. Example: "cat:decision" searches only memories with that tag.'),
-    tier: z
-        .number()
-        .int()
-        .min(1)
-        .max(4)
-        .optional()
-        .describe(
-            'Optional. Filter by tier: 1 (hot), 2 (warm), 3 (cold), 4 (frozen). Default: all tiers including frozen (T4).'
-        ),
+    query: z.string().min(1).describe('Search query using FTS5 syntax.'),
+    space: z.string().optional().describe('Limit search to a specific space.'),
+    tag: z.string().optional().describe('Filter by tag.'),
+    tier: z.number().int().min(1).max(4).optional().describe('Filter by tier: 1, 2, 3, 4.'),
 });
 
 const StatusSchema = z.object({
-    space: z
-        .string()
-        .optional()
-        .describe(
-            'Optional. Space name for space-specific status. Omit for global status showing all spaces. Space status shows tier breakdown (T1/T2/T3/T4 counts and limits).'
-        ),
+    space: z.string().optional().describe('Space name for space-specific status.'),
 });
 
 const SEARCH_TOOL_DESCRIPTIONS: Record<string, string> = {
-    search: 'Full-text search across all memories (including T4 frozen). Supports FTS5 syntax.',
-    status: 'Get storage status: global or per-space (tier counts, limits, memory count).',
+    search: 'Full-text search across all memories.',
+    status: 'Get storage status: global or per-space.',
 };
 
 export function createSearchTools(store: MindStore) {
@@ -48,15 +23,20 @@ export function createSearchTools(store: MindStore) {
         search: {
             schema: SearchSchema,
             description: SEARCH_TOOL_DESCRIPTIONS.search,
-            handler: async (args: z.infer<typeof SearchSchema>) => {
-                const results = await store.search(args.query, {
-                    space: args.space,
-                    tag: args.tag,
-                    tier: args.tier as Tier | undefined,
+            annotations: { readOnlyHint: true, openWorldHint: false },
+            handler: async (args: unknown) => {
+                const parsed = SearchSchema.parse(args ?? {});
+                if (!parsed.query) {
+                    throw new Error('Search query is required.');
+                }
+                const results = await store.search(parsed.query, {
+                    space: parsed.space,
+                    tag: parsed.tag,
+                    tier: parsed.tier as Tier | undefined,
                 });
 
                 return {
-                    content: [{ type: 'text', text: `Found ${results.length} result(s) for "${args.query}".` }],
+                    content: [{ type: 'text', text: `Found ${results.length} result(s) for "${parsed.query}".` }],
                     results,
                 };
             },
@@ -64,15 +44,17 @@ export function createSearchTools(store: MindStore) {
         status: {
             schema: StatusSchema,
             description: SEARCH_TOOL_DESCRIPTIONS.status,
-            handler: async (args: z.infer<typeof StatusSchema>) => {
-                const status = store.getStatus(args.space);
+            annotations: { readOnlyHint: true },
+            handler: async (args: unknown) => {
+                const parsed = StatusSchema.parse(args ?? {});
+                const status = store.getStatus(parsed.space);
 
                 return {
                     content: [
                         {
                             type: 'text',
-                            text: args.space
-                                ? `Status for space "${args.space}" retrieved.`
+                            text: parsed.space
+                                ? `Status for space "${parsed.space}" retrieved.`
                                 : `Global mind status retrieved.`,
                         },
                     ],

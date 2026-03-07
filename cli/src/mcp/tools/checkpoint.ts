@@ -3,84 +3,34 @@ import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
 
 const CheckpointSetSchema = z.object({
-    space: z
-        .string()
-        .describe(
-            '**Required.** Working space name (NOT the checkpoint space — the space you are working in). Example: "projects/mind" or "my-project". This creates a hidden space: "my-project:sessions".'
-        ),
-    goal: z
-        .string()
-        .describe(
-            '**Required.** Current goal or task. What are you actively working on? This displays to recovered sessions.'
-        ),
-    pending: z
-        .string()
-        .describe(
-            '**Required.** What remains to be done. Remaining tasks, unfinished work. This helps recover session context.'
-        ),
-    notes: z
-        .string()
-        .optional()
-        .describe('Optional. Additional context, links, or notes. Not displayed in recovery by default.'),
-    relatedMemoryIds: z
-        .array(z.number())
-        .optional()
-        .describe(
-            'Optional. Memory IDs to link to this checkpoint. Useful for tracking related decisions, bugs, or context memories. Get IDs from memory_list/query/search.'
-        ),
+    space: z.string().min(1).describe('Working space name.'),
+    goal: z.string().optional().describe('Current goal or task.'),
+    pending: z.string().optional().describe('What remains to be done.'),
+    notes: z.string().optional().describe('Additional context or notes.'),
+    relatedMemoryIds: z.array(z.number()).optional().describe('Memory IDs to link to this checkpoint.'),
 });
 
 const CheckpointCompleteSchema = z.object({
-    space: z
-        .string()
-        .describe(
-            '**Required.** Working space name (same as used in checkpoint_set). This identifies which checkpoint space to use.'
-        ),
-    checkpointId: z
-        .number()
-        .describe(
-            '**Required.** ID of the checkpoint to mark complete. Get ID from checkpoint_list or checkpoint_recover. This moves the checkpoint from active to completed.'
-        ),
-    whatWasDone: z
-        .string()
-        .describe(
-            '**Required.** Summary of what was accomplished. This is recorded in the checkpoint history and helps track progress over time.'
-        ),
+    space: z.string().describe('Working space name.'),
+    checkpointId: z.number().describe('ID of the checkpoint to mark complete.'),
+    whatWasDone: z.string().optional().describe('Summary of what was accomplished.'),
 });
 
 const CheckpointRecoverSchema = z.object({
-    space: z
-        .string()
-        .describe(
-            '**Required.** Working space name to recover checkpoint from. Looks for hidden space: "space-name:sessions".'
-        ),
-    includeHistory: z
-        .boolean()
-        .optional()
-        .describe(
-            'Optional. Include completed (historical) checkpoints in results. Default: false — only returns active checkpoint. Set true to see full history.'
-        ),
+    space: z.string().describe('Working space name to recover checkpoint from.'),
+    includeHistory: z.boolean().optional().describe('Include completed checkpoints in results.'),
 });
 
 const CheckpointListSchema = z.object({
-    space: z
-        .string()
-        .describe(
-            '**Required.** Working space name to list checkpoints from. Looks in hidden space: "space-name:sessions".'
-        ),
-    status: z
-        .enum(['active', 'completed', 'all'])
-        .optional()
-        .describe(
-            'Optional. Filter by checkpoint status: "active" (default, in-progress), "completed" (done), "all" (both). Default: "active".'
-        ),
+    space: z.string().describe('Working space name to list checkpoints from.'),
+    status: z.enum(['active', 'completed', 'all']).optional().describe('Filter by status: active, completed, all.'),
 });
 
 const CHECKPOINT_TOOL_DESCRIPTIONS: Record<string, string> = {
-    checkpoint_set: 'Create or update a checkpoint for the current work session (goal + pending).',
-    checkpoint_complete: 'Mark a checkpoint as completed with a summary of what was done.',
-    checkpoint_recover: 'Recover the most recent active checkpoint to resume work.',
-    checkpoint_list: 'List all checkpoints for a space (active, completed, or all).',
+    checkpoint_set: 'Create or update a checkpoint for the current work session.',
+    checkpoint_complete: 'Mark a checkpoint as completed with a summary.',
+    checkpoint_recover: 'Recover the most recent active checkpoint.',
+    checkpoint_list: 'List all checkpoints for a space.',
 };
 
 function getCheckpointSpaceName(space: string): string {
@@ -96,20 +46,27 @@ export function createCheckpointTools(store: MindStore) {
         checkpoint_set: {
             schema: CheckpointSetSchema,
             description: CHECKPOINT_TOOL_DESCRIPTIONS.checkpoint_set,
-            handler: async (args: z.infer<typeof CheckpointSetSchema>) => {
-                const checkpointSpace = getCheckpointSpaceName(args.space);
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+            handler: async (args: unknown) => {
+                const parsed = CheckpointSetSchema.parse(args ?? {});
+
+                if (!parsed.space) {
+                    throw new Error('Space is required.');
+                }
+
+                const checkpointSpace = getCheckpointSpaceName(parsed.space);
 
                 const existingSpace = store.getSpace(checkpointSpace);
                 if (!existingSpace) {
-                    store.createSpace(checkpointSpace, `Checkpoints for ${args.space}`, ['checkpoint', 'system']);
+                    store.createSpace(checkpointSpace, `Checkpoints for ${parsed.space}`, ['checkpoint', 'system']);
                     store.updateSpace(checkpointSpace, { hidden: true });
                 }
 
                 const content = JSON.stringify(
                     {
-                        goal: args.goal,
-                        pending: args.pending,
-                        notes: args.notes || '',
+                        goal: parsed.goal ?? '',
+                        pending: parsed.pending ?? '',
+                        notes: parsed.notes ?? '',
                         createdAt: now(),
                         updatedAt: now(),
                     },
@@ -125,9 +82,9 @@ export function createCheckpointTools(store: MindStore) {
                     const memory = store.getMemoryById(activeCheckpoint.id);
                     if (memory) {
                         const existingContent = JSON.parse(memory.content);
-                        existingContent.goal = args.goal;
-                        existingContent.pending = args.pending;
-                        existingContent.notes = args.notes || '';
+                        existingContent.goal = parsed.goal ?? '';
+                        existingContent.pending = parsed.pending ?? '';
+                        existingContent.notes = parsed.notes ?? '';
                         existingContent.updatedAt = now();
 
                         await store.updateMemory(activeCheckpoint.id, {
@@ -143,12 +100,12 @@ export function createCheckpointTools(store: MindStore) {
                     });
                 }
 
-                if (args.relatedMemoryIds && args.relatedMemoryIds.length > 0 && checkpoint) {
-                    for (const memoryId of args.relatedMemoryIds) {
+                if (parsed.relatedMemoryIds && parsed.relatedMemoryIds.length > 0 && checkpoint) {
+                    for (const memoryId of parsed.relatedMemoryIds) {
                         try {
                             store.link(checkpoint.id, memoryId, 'related');
                         } catch {
-                            // Link might already exist or memory might not exist, ignore
+                            // Ignore link errors
                         }
                     }
                 }
@@ -176,37 +133,47 @@ export function createCheckpointTools(store: MindStore) {
         checkpoint_complete: {
             schema: CheckpointCompleteSchema,
             description: CHECKPOINT_TOOL_DESCRIPTIONS.checkpoint_complete,
-            handler: async (args: z.infer<typeof CheckpointCompleteSchema>) => {
-                const checkpointSpace = getCheckpointSpaceName(args.space);
-                const memory = store.getMemoryById(args.checkpointId);
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+            handler: async (args: unknown) => {
+                const parsed = CheckpointCompleteSchema.parse(args ?? {});
+
+                if (!parsed.space) {
+                    throw new Error('Space is required.');
+                }
+                if (!parsed.checkpointId) {
+                    throw new Error('Checkpoint ID is required.');
+                }
+
+                const checkpointSpace = getCheckpointSpaceName(parsed.space);
+                const memory = store.getMemoryById(parsed.checkpointId);
 
                 if (!memory) {
-                    throw new Error(`Checkpoint with id ${args.checkpointId} not found.`);
+                    throw new Error(`Checkpoint with id ${parsed.checkpointId} not found.`);
                 }
 
                 if (memory.space_name !== checkpointSpace) {
-                    throw new Error(`Checkpoint ${args.checkpointId} does not belong to space "${checkpointSpace}".`);
+                    throw new Error(`Checkpoint ${parsed.checkpointId} does not belong to space "${checkpointSpace}".`);
                 }
 
                 const existingContent = JSON.parse(memory.content);
-                existingContent.whatWasDone = args.whatWasDone;
+                existingContent.whatWasDone = parsed.whatWasDone ?? '';
                 existingContent.completedAt = now();
                 existingContent.updatedAt = now();
 
-                await store.updateMemory(args.checkpointId, {
+                await store.updateMemory(parsed.checkpointId, {
                     content: JSON.stringify(existingContent, null, 2),
                 });
 
-                store.removeMemoryTag(args.checkpointId, 'active');
-                store.addMemoryTag(args.checkpointId, 'completed');
+                store.removeMemoryTag(parsed.checkpointId, 'active');
+                store.addMemoryTag(parsed.checkpointId, 'completed');
 
                 try {
-                    store.demote(args.checkpointId);
+                    store.demote(parsed.checkpointId);
                 } catch {
-                    // Might be at T1 already or at max capacity, ignore
+                    // Ignore demotion errors
                 }
 
-                const updatedMemory = store.getMemoryById(args.checkpointId);
+                const updatedMemory = store.getMemoryById(parsed.checkpointId);
 
                 return {
                     content: [
@@ -231,13 +198,20 @@ export function createCheckpointTools(store: MindStore) {
         checkpoint_recover: {
             schema: CheckpointRecoverSchema,
             description: CHECKPOINT_TOOL_DESCRIPTIONS.checkpoint_recover,
-            handler: async (args: z.infer<typeof CheckpointRecoverSchema>) => {
-                const checkpointSpace = getCheckpointSpaceName(args.space);
+            annotations: { readOnlyHint: true },
+            handler: async (args: unknown) => {
+                const parsed = CheckpointRecoverSchema.parse(args ?? {});
+
+                if (!parsed.space) {
+                    throw new Error('Space is required.');
+                }
+
+                const checkpointSpace = getCheckpointSpaceName(parsed.space);
 
                 const space = store.getSpace(checkpointSpace);
                 if (!space) {
                     return {
-                        content: [{ type: 'text', text: `No checkpoint space found for "${args.space}".` }],
+                        content: [{ type: 'text', text: `No checkpoint space found for "${parsed.space}".` }],
                         checkpoint: null,
                     };
                 }
@@ -246,7 +220,7 @@ export function createCheckpointTools(store: MindStore) {
 
                 let activeCheckpoints = allCheckpoints.filter((m) => m.tags.includes('active'));
 
-                if (args.includeHistory) {
+                if (parsed.includeHistory) {
                     const completedCheckpoints = allCheckpoints.filter((m) => m.tags.includes('completed'));
                     activeCheckpoints = [...activeCheckpoints, ...completedCheckpoints];
                 }
@@ -308,21 +282,28 @@ export function createCheckpointTools(store: MindStore) {
         checkpoint_list: {
             schema: CheckpointListSchema,
             description: CHECKPOINT_TOOL_DESCRIPTIONS.checkpoint_list,
-            handler: async (args: z.infer<typeof CheckpointListSchema>) => {
-                const checkpointSpace = getCheckpointSpaceName(args.space);
+            annotations: { readOnlyHint: true },
+            handler: async (args: unknown) => {
+                const parsed = CheckpointListSchema.parse(args ?? {});
+
+                if (!parsed.space) {
+                    throw new Error('Space is required.');
+                }
+
+                const checkpointSpace = getCheckpointSpaceName(parsed.space);
 
                 const space = store.getSpace(checkpointSpace);
                 if (!space) {
                     return {
-                        content: [{ type: 'text', text: `No checkpoint space found for "${args.space}".` }],
+                        content: [{ type: 'text', text: `No checkpoint space found for "${parsed.space}".` }],
                         checkpoints: [],
                     };
                 }
 
                 let checkpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
 
-                if (args.status && args.status !== 'all') {
-                    checkpoints = checkpoints.filter((m) => m.tags.includes(args.status!));
+                if (parsed.status && parsed.status !== 'all') {
+                    checkpoints = checkpoints.filter((m) => m.tags.includes(parsed.status!));
                 }
 
                 checkpoints.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
