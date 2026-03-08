@@ -51,7 +51,7 @@ User → ./mind <command> [args] [--flag value]
 | CLI command modules   | `cli/src/cli/commands/*.ts`       | Atomic command definitions/handlers grouped by domain (`spaces`, `memories`, `tiers`, `links`, `search`, `status`, `tags`, `checkpoint`, `guide`, `migration`, `runtime`). |
 | CLI executor          | `cli/src/cli/command-executor.ts` | Load command groups from `cli/commands/index.ts`, dispatch matched command, and render help sections.                                                                      |
 | Arg parser            | `cli/src/cli/arg-parser.ts`       | Match CLI args to a shape (positional `<param>`, aliases `a\|b`, `--flag value`), extract params + flags, render help.                                                     |
-| Setup/runtime helpers | `cli/src/cli/setup.ts`            | Agent setup + detached process management helpers for MCP/web servers. OpenCode setup is idempotent/non-destructive and injects a managed Memory Protocol instructions file loaded from markdown resources. |
+| Setup/runtime helpers | `cli/src/cli/setup.ts`            | Agent setup + detached process management helpers for MCP/web servers. Uses a capability-driven adapter model (L1 MCP, L2 instruction injection, L3 hooks automation) with explicit status (`supported`/`unsupported`/`unverified`) and visible fallback diagnostics. OpenCode setup remains idempotent/non-destructive and injects a managed Memory Protocol instructions file loaded from markdown resources. Claude setup now injects managed protocol instructions into `~/.claude/CLAUDE.md` and supports opt-in hook automation via `MIND_SETUP_CLAUDE_ENABLE_HOOKS=true` (non-blocking fallback). |
 | MindStore interface   | `cli/src/store/mind-store.ts`     | Abstract interface for all data operations.                                                                                                                                |
 | SQLite store          | `cli/src/store/sqlite-store.ts`   | Full `MindStore` implementation using `bun:sqlite`. Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled.    |
 | Schema                | `cli/src/store/schema.ts`         | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 5 (migrates v1→v2→v3→v4→v5).                            |
@@ -107,12 +107,16 @@ User → ./mind <command> [args] [--flag value]
 - **bun:sqlite FTS5 bug:** bun:sqlite (v1.2.10) cannot handle FTS5 `content=table` sync triggers — any UPDATE or DELETE on the source table errors with "N values for M columns". **Workaround:** `memories_fts` is a standalone FTS5 table (no `content=` option, no triggers). FTS is synced manually in `sqlite-store.ts` via `ftsInsert`, `ftsUpdate`, `ftsDelete` helpers called from `addMemory`, `updateMemory`, `deleteMemory`, `deleteMemoryByName`, `deleteSpace`, and `importFromJson`.
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
 - **Config / storage path:** `cli/src/config.ts` resolves `CONFIG.dbPath` from `MIND_DB_PATH` env var (full path override) or `MIND_DATA_DIR` env var + `mind.db` (defaults to `data/` at repo root). The web server uses `MIND_DATA_DIR` (or `/data` in Docker). `data/` is in `.gitignore`. HTTP idle timeouts are configurable via `MIND_MCP_IDLE_TIMEOUT` (default 120s) and `MIND_API_IDLE_TIMEOUT` (default 30s).
-- **OpenCode setup behavior:** `mind setup opencode` deep-merges existing JSON config (preserving unknown keys), writes/refreshes `~/.config/opencode/instructions/mind-memory-protocol.md`, and ensures that exact path is present exactly once as the first entry in the OpenCode `instructions` list.
-- **Protocol sources:** The OpenCode instruction payload and MCP `system_instructions` payload are sourced from markdown files in `cli/src/resources/protocols/` via `cli/src/helpers/markdown-resource.ts`.
+- **Setup capability model:** each agent adapter declares L1 (MCP), L2 (instruction/protocol injection), and L3 (hooks/session automation) with status `supported`, `unsupported`, or `unverified`, plus confidence/evidence/fallback notes printed during `mind setup` flows. No silent capability skip.
+- **Claude setup behavior:** `mind setup claude-code` deep-merges `~/.claude/settings.json`, writes/refreshes `~/.claude/instructions/mind-memory-protocol.md`, and upserts a managed block in `~/.claude/CLAUDE.md` pointing to that protocol. L3 hook automation is opt-in (`MIND_SETUP_CLAUDE_ENABLE_HOOKS=true`) and non-blocking; failures fall back to manual workflow guidance.
+- **Capability declarations beyond wired adapters:** capability matrix includes `openclaw` as an **experimental** declaration (status-only, no setup wiring) and `vscode` / `antigravity` / `kiro` as roadmap-only entries (status declarations only, no setup wiring).
+- **OpenCode setup behavior:** `mind setup opencode` deep-merges existing JSON config (preserving unknown keys), configures `mcp.mind` as local command transport (`type: "local"`, `command: ["<path-to-mind>", "mcp"]`), writes/refreshes `~/.config/opencode/instructions/mind-memory-protocol.md`, and ensures that exact path is present exactly once as the first entry in the OpenCode `instructions` list. L3 prudent session/compaction automation is default-on and non-blocking: setup writes a managed plugin at `~/.config/opencode/plugins/mind-automation.js` that handles `session.created`, `session.compacted`, `experimental.session.compacting`, and prudent session-end summaries with deterministic caps/idempotency.
+- **Codex setup behavior:** `mind setup codex` appends (if missing) a local MCP stanza in `~/.codex/config.toml` with `command = "<path-to-mind>"` and `args = ["mcp"]` (stdio/local transport, no forced HTTP args).
+- **Protocol sources:** OpenCode and Claude managed protocol payloads, plus MCP `system_instructions` payload, are sourced from markdown files in `cli/src/resources/protocols/` via `cli/src/helpers/markdown-resource.ts`.
 - **Testing:** CLI tests live in `cli/test/`, use `bun:test`, and rely on:
     - **`test-store.ts`** (`cli/test/mocks/test-store.ts`): creates a temporary SQLite DB in `/tmp/` per test instance; returns `{ store, cleanup }`.
     - **`mocked-logger.ts`** (`cli/test/mocks/mocked-logger.ts`): captures `logInfo`/`logError` for assertions.
-    - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), `cli/test/setup-opencode.spec.ts` (OpenCode setup/instruction injection), `cli/test/system-tools.spec.ts` (MCP system instructions source loading), and `cli/test/arg-parser.spec.ts` (arg parser).
+    - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), `cli/test/setup-opencode.spec.ts` (OpenCode setup/instruction injection), `cli/test/setup-capabilities.spec.ts` (capability declarations + fallback diagnostics), `cli/test/system-tools.spec.ts` (MCP system instructions source loading), and `cli/test/arg-parser.spec.ts` (arg parser).
     - **`scripts/test-rag.sh`**: E2E integration test for RAG. Requires `OPENAI_API_KEY`, makes real OpenAI API calls. Uses `MIND_DB_PATH` to create a temp DB. Run via `make test-rag` or directly.
 - **Docker:** `web/Dockerfile` builds the web app; `docker-compose.yml` runs it with volume `./data` (or `BRAIN_DATA_DIR`) mounted at `/data`, port 3000, and `restart: unless-stopped`.
 - **Dependencies:** Production: `bun-style`. Dev: `@types/bun`. Peer: `typescript ^5`.
@@ -166,8 +170,8 @@ Add to your agent's MCP config:
 {
     "mcp": {
         "mind": {
-            "type": "http",
-            "url": "http://localhost:7438/mcp",
+            "type": "local",
+            "command": ["/absolute/path/to/mind", "mcp"],
             "enabled": true
         }
     },
@@ -199,6 +203,8 @@ Add to your agent's MCP config:
 ./mind setup codex        # Auto-configure Codex
 ./mind setup gemini-cli   # Auto-configure Gemini CLI
 ```
+
+`./mind setup` (without an agent) prints an explicit capability matrix for all supported adapters plus non-wired declarations. It now prints full per-level status/confidence/evidence/fallback diagnostics for each listed adapter. OpenClaw is intentionally marked **experimental** (unverified/unsupported, no setup wiring), and Cursor L2/L3 remain intentionally `unverified` until concrete implementation evidence exists.
 
 ### 4.6 Running tests
 

@@ -56,7 +56,9 @@ describe('OpenCode setup integration', () => {
         expect(parsed.theme).toBe('dark');
         expect(parsed.customKey.keep).toBe(true);
         expect(parsed.mcp.github.command).toBe('npx');
-        expect(parsed.mcp.mind.url).toBe('http://localhost:7438/mcp');
+        const expectedMindPath = join(import.meta.dir, '..', '..', 'mind');
+        expect(parsed.mcp.mind.type).toBe('local');
+        expect(parsed.mcp.mind.command).toEqual([expectedMindPath, 'mcp']);
         expect(parsed.mcp.mind.enabled).toBe(true);
 
         expect(Array.isArray(parsed.instructions)).toBe(true);
@@ -103,5 +105,26 @@ describe('OpenCode setup integration', () => {
         const instructionEntries = (parsed.instructions as string[]).filter((item) => item === expectedInstructionPath);
         expect(instructionEntries.length).toBe(1);
         expect(parsed.instructions[0]).toBe(expectedInstructionPath);
+    });
+
+    test('writes OpenCode prudent automation plugin by default', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        expect(existsSync(pluginPath)).toBe(true);
+    });
+
+    test('writes OpenCode prudent automation plugin with required handlers', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        expect(existsSync(pluginPath)).toBe(true);
+
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+        expect(pluginText).toContain('session.created');
+        expect(pluginText).toContain('session.compacted');
+        expect(pluginText).toContain('experimental.session.compacting');
+        expect(pluginText).toContain('checkpoint set');
+        expect(pluginText).toContain('checkpoint recover');
     });
 });

@@ -160,12 +160,62 @@ Checkpoint MCP tools are also available for session continuity:
 ./mind setup gemini-cli
 ```
 
+> Note: **OpenClaw** is currently **Experimental** (status declaration only). There is no `./mind setup openclaw` wiring yet.
+
+`./mind setup` (without agent) now prints a capability matrix per integration using a 3-level model:
+
+- **L1**: MCP transport wiring
+- **L2**: instruction/protocol injection
+- **L3**: hooks/session/compaction automation
+
+Each level is explicitly marked as `supported`, `unsupported`, or `unverified` with evidence/fallback notes.
+If a capability is not implemented, setup output is explicit (no silent skip).
+
+#### Agent status matrix
+
+Status labels used here:
+
+- **Complete**: L1/L2/L3 are all `supported`
+- **Partial**: at least one level is `unsupported` or `unverified`
+- **Experimental**: declaration exists but integration is explicitly unstable/unverified
+- **Roadmap**: planned declaration only, no adapter wiring
+
+| **Agent** | **Status** | **Capability reality** |
+| :-- | :-- | :-- |
+| OpenCode | Complete | L1 `supported`, L2 `supported`, L3 `supported` |
+| Claude Code | Complete | L1 `supported`, L2 `supported`, L3 `supported` (opt-in hooks) |
+| Codex | Partial | L1 `supported`, L2 `unsupported`, L3 `unsupported` |
+| Cursor | Partial | L1 `supported`, L2 `unverified`, L3 `unverified` |
+| Windsurf | Partial | L1 `supported`, L2 `unsupported`, L3 `unsupported` |
+| Gemini CLI | Partial | L1 `supported`, L2 `unsupported`, L3 `unsupported` |
+| OpenClaw | Experimental | L1 `unverified`, L2 `unsupported`, L3 `unsupported` (status-only declaration; safe fallback only; no setup wiring) |
+| VSCode | Roadmap | L1 `unverified`, L2 `unsupported`, L3 `unsupported` |
+| Antigravity | Roadmap | L1 `unverified`, L2 `unsupported`, L3 `unsupported` |
+| Kiro | Roadmap | L1 `unverified`, L2 `unsupported`, L3 `unsupported` |
+
+Rollout policy:
+
+- Wave 1 priority agents: **OpenCode, Claude Code, Gemini CLI, Cursor**
+- Claude Code now includes managed **L2 protocol injection** by writing `~/.claude/instructions/mind-memory-protocol.md` and maintaining a managed block in `~/.claude/CLAUDE.md`
+- Claude Code **L3 hooks automation is opt-in and non-blocking** (default off). Enable with `MIND_SETUP_CLAUDE_ENABLE_HOOKS=true` before running setup.
+- Cursor **L2/L3** are currently reported as **unverified** until concrete implementation evidence is added
+- Existing integrations outside Wave 1 remain wired in the same capability model with explicit status
+- OpenClaw is listed as **experimental** in capability output (non-breaking declaration, no setup wiring yet)
+- Next-wave roadmap adapters remain declaration-only: **VSCode, Antigravity, Kiro** (non-breaking, no setup wiring yet)
+
 `./mind setup opencode` is idempotent and non-destructive:
 
 - preserves unknown keys already present in `~/.config/opencode/opencode.json`
-- ensures `mcp.mind` points to `http://localhost:7438/mcp`
+- configures `mcp.mind` as local command transport (`type: "local"`, `command: ["<path-to-mind>", "mcp"]`)
 - writes/refreshes `~/.config/opencode/instructions/mind-memory-protocol.md`
 - ensures that instruction file is present in OpenCode's `instructions` list
+- configures prudent L3 session/compaction automation by default and non-blocking, writing `~/.config/opencode/plugins/mind-automation.js` during setup
+
+`./mind setup codex` keeps setup idempotent and writes local MCP command args in `~/.codex/config.toml`:
+
+- `[mcp_servers.mind]`
+- `command = "<path-to-mind>"`
+- `args = ["mcp"]`
 
 Check server process status:
 

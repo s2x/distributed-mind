@@ -28,6 +28,10 @@ Example:
 ## [Unreleased]
 
 ### Added
+- Added a README agent status matrix (`Complete` / `Partial` / `Experimental` / `Roadmap`) mapped directly to current L1/L2/L3 capability declarations.
+- Added capability-driven setup adapters for agent integrations with explicit L1/L2/L3 declarations (`supported`/`unsupported`/`unverified`) plus confidence/evidence/fallback diagnostics.
+- Added default-on, non-blocking OpenCode prudent automation setup that writes a managed plugin (`~/.config/opencode/plugins/mind-automation.js`) with session start scaffolding, compaction continuity hooks, and prudent session summaries with deterministic anti-noise caps.
+- Added setup capability diagnostics coverage in `cli/test/setup-capabilities.spec.ts`, including explicit Cursor `unverified` assertions for L2/L3 and fallback visibility checks.
 - Added checkpoint system for session persistence and recovery:
     - `checkpoint set` / `cp set` - Create/update a checkpoint
     - `checkpoint complete` / `cp complete` - Mark checkpoint as completed
@@ -40,8 +44,14 @@ Example:
 - Added MCP checkpoint tools: `checkpoint_set`, `checkpoint_complete`, `checkpoint_recover`, `checkpoint_list`
 - Added checkpoint space organization: `<space>:sessions` for storing checkpoints
 - Added regression coverage for protocol-resource wiring in setup and MCP system tools: `cli/test/setup-opencode.spec.ts` and `cli/test/system-tools.spec.ts`.
+- Added **experimental** capability declaration for `openclaw` as status-only output (`L1 unverified`, `L2/L3 unsupported`) with explicit fallback diagnostics and no setup wiring.
+- Added Claude setup hardening coverage in `cli/test/setup-capabilities.spec.ts` for non-destructive reruns, managed block idempotency, and opt-in hook stability/idempotency.
+- Added Gemini CLI and Windsurf setup capability regression assertions to keep evidence-based fallback diagnostics and avoid silent L2/L3 upgrades.
 
 ### Changed
+
+- Changed OpenClaw capability declaration from roadmap wording to explicit **experimental** status with stronger fallback diagnostics and no setup wiring overclaims.
+- Changed README agent status labels from Spanish to English and improved status table header emphasis for clearer scanability.
 
 - Added `mind update <space> --description|--hidden|--no-hidden` for explicit space updates.
 - Spaces now have a `hidden` field (default: false)
@@ -53,8 +63,14 @@ Example:
 - Added API endpoint `GET /api/memories/query` for metadata/date memory queries.
 - Added MCP `memory_query` tool with metadata/date filters and offset pagination (`nextOffset`).
 - Changed `mind setup opencode` to be explicitly idempotent/non-destructive with deep-merge JSON behavior and managed Memory Protocol instruction injection.
+- Changed `mind setup opencode` MCP transport wiring from remote HTTP URL to OpenCode-compatible local command transport (`type: "local"`, `command: ["<path-to-mind>", "mcp"]`).
 - Hardened `mind setup opencode` to place the managed `~/.config/opencode/instructions/mind-memory-protocol.md` path as the first `instructions` entry (exact path, deduplicated), and updated the managed protocol text to explicitly require calling `mind_system_instructions` before tool usage.
-- Refactored embedded protocol markdown into canonical files under `cli/src/resources/protocols/` and added shared loader `cli/src/helpers/markdown-resource.ts` for OpenCode setup injection and MCP `system_instructions` content.
+- Changed `mind setup codex` MCP args to local stdio command mode (`args = ["mcp"]`) instead of forcing HTTP start flags.
+- Changed `mind setup claude-code` to inject a managed protocol file plus managed block in `~/.claude/CLAUDE.md`, keeping setup idempotent/non-destructive.
+- Added opt-in, non-blocking Claude L3 hook automation behind `MIND_SETUP_CLAUDE_ENABLE_HOOKS=true`, with explicit safe fallback messaging when disabled or unsupported.
+- Added roadmap capability declarations (`vscode`, `antigravity`, `kiro`) to setup matrix output as status-only entries (no setup wiring).
+- Refactored embedded protocol markdown into canonical files under `cli/src/resources/protocols/` and added shared loader `cli/src/helpers/markdown-resource.ts` for OpenCode/Claude setup injection and MCP `system_instructions` content.
+- Changed `mind setup` matrix listing output to print full per-level status/confidence/evidence/fallback lines for each adapter (not only summarized statuses).
 
 ### Changed
 
