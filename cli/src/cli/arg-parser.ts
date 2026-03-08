@@ -1,4 +1,4 @@
-import { style } from 'bun-style';
+import { style } from '../helpers/style';
 
 export class ArgParser {
     private shape: string[];

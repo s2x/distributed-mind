@@ -1,5 +1,5 @@
 import { ArgParser } from '../arg-parser';
-import { style } from 'bun-style';
+import { style } from '../../helpers/style';
 import { CONFIG } from '../../config';
 import * as fs from 'fs';
 import type { CommandGroup } from './types';

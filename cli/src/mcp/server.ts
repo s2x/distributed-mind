@@ -110,11 +110,17 @@ function zodToJsonSchema(schema: any): any {
         const properties: any = {};
         const required: string[] = [];
 
-        for (const [key, value] of Object.entries(shape)) {
-            const fieldDef = value._def;
+        for (const [key, value] of Object.entries(shape as Record<string, unknown>)) {
+            if (!value || typeof value !== 'object' || !('_def' in value)) {
+                properties[key] = { type: 'string' };
+                required.push(key);
+                continue;
+            }
+
+            const fieldSchema = value as { _def: any; description?: string };
+            const fieldDef = fieldSchema._def;
             const fieldType = fieldDef.type;
-            const fieldSchema = value;
-            const fieldDescription = (fieldSchema as any).description;
+            const fieldDescription = fieldSchema.description;
 
             if (fieldType === 'string') {
                 properties[key] = { type: 'string' };

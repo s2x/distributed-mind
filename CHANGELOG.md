@@ -28,7 +28,6 @@ Example:
 ## [Unreleased]
 
 ### Added
-
 - Added checkpoint system for session persistence and recovery:
     - `checkpoint set` / `cp set` - Create/update a checkpoint
     - `checkpoint complete` / `cp complete` - Mark checkpoint as completed
@@ -40,6 +39,7 @@ Example:
     - `mind list --hidden` - Show hidden spaces
 - Added MCP checkpoint tools: `checkpoint_set`, `checkpoint_complete`, `checkpoint_recover`, `checkpoint_list`
 - Added checkpoint space organization: `<space>:sessions` for storing checkpoints
+- Added regression coverage for protocol-resource wiring in setup and MCP system tools: `cli/test/setup-opencode.spec.ts` and `cli/test/system-tools.spec.ts`.
 
 ### Changed
 
@@ -52,6 +52,9 @@ Example:
 - Added `mind query` (`query|q`) to filter memories by space/tag/tier/date with pagination.
 - Added API endpoint `GET /api/memories/query` for metadata/date memory queries.
 - Added MCP `memory_query` tool with metadata/date filters and offset pagination (`nextOffset`).
+- Changed `mind setup opencode` to be explicitly idempotent/non-destructive with deep-merge JSON behavior and managed Memory Protocol instruction injection.
+- Hardened `mind setup opencode` to place the managed `~/.config/opencode/instructions/mind-memory-protocol.md` path as the first `instructions` entry (exact path, deduplicated), and updated the managed protocol text to explicitly require calling `mind_system_instructions` before tool usage.
+- Refactored embedded protocol markdown into canonical files under `cli/src/resources/protocols/` and added shared loader `cli/src/helpers/markdown-resource.ts` for OpenCode setup injection and MCP `system_instructions` content.
 
 ### Changed
 
@@ -68,10 +71,10 @@ Example:
 - Increased Bun HTTP idle timeout defaults to reduce premature request timeouts (`MIND_MCP_IDLE_TIMEOUT` default 120s, `MIND_API_IDLE_TIMEOUT` default 30s).
 
 ### Fixed
-
 - Fixed command wiring inconsistencies between runtime entrypoint and subcommand modules.
 - Improved detached startup behavior with process liveness checks and clearer failure messages.
 - Fixed MCP tools not receiving parameters: corrected Zod to JSON Schema conversion for Zod 4.x in `cli/src/mcp/server.ts`
 - Added MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) to all 29 MCP tools
 - Added defensive validation with clear error messages to all MCP tool handlers
 - Replaced ad-hoc MCP HTTP handling with the official Streamable HTTP transport implementation (session-aware initialize/tools flow), fixing Cursor connection errors (`Unknown method`, SSE fallback 404).
+- Fixed TypeScript build stability under `verbatimModuleSyntax`: narrowed unknown Zod shape entries in MCP schema conversion, corrected `web/server.ts` tag helper import path, and replaced direct `bun-style` imports with a local style helper using type-only `ansi-styles` imports.

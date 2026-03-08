@@ -1,4 +1,4 @@
-import { style } from 'bun-style';
+import { style } from '../helpers/style';
 import { renderCommands } from '../helpers/format';
 import type { Logger } from '../helpers/logger';
 import type { MindStore } from '../store/mind-store';

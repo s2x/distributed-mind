@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { createSqliteStore } from '../cli/src/store/sqlite-store';
-import { normalizeTag, normalizeTags } from '../cli/src/utils';
+import { normalizeTag, normalizeTags } from '../cli/src/helpers/tags';
 import type { MindStore } from '../cli/src/store/mind-store';
 import type { Tier } from '../cli/src/types';
 

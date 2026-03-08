@@ -51,18 +51,19 @@ User → ./mind <command> [args] [--flag value]
 | CLI command modules   | `cli/src/cli/commands/*.ts`       | Atomic command definitions/handlers grouped by domain (`spaces`, `memories`, `tiers`, `links`, `search`, `status`, `tags`, `checkpoint`, `guide`, `migration`, `runtime`). |
 | CLI executor          | `cli/src/cli/command-executor.ts` | Load command groups from `cli/commands/index.ts`, dispatch matched command, and render help sections.                                                                      |
 | Arg parser            | `cli/src/cli/arg-parser.ts`       | Match CLI args to a shape (positional `<param>`, aliases `a\|b`, `--flag value`), extract params + flags, render help.                                                     |
-| Setup/runtime helpers | `cli/src/cli/setup.ts`            | Agent setup + detached process management helpers for MCP/web servers.                                                                                                     |
+| Setup/runtime helpers | `cli/src/cli/setup.ts`            | Agent setup + detached process management helpers for MCP/web servers. OpenCode setup is idempotent/non-destructive and injects a managed Memory Protocol instructions file loaded from markdown resources. |
 | MindStore interface   | `cli/src/store/mind-store.ts`     | Abstract interface for all data operations.                                                                                                                                |
 | SQLite store          | `cli/src/store/sqlite-store.ts`   | Full `MindStore` implementation using `bun:sqlite`. Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled.    |
 | Schema                | `cli/src/store/schema.ts`         | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 5 (migrates v1→v2→v3→v4→v5).                            |
 | MCP server            | `cli/src/mcp/server.ts`           | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes 29 tools.                                                                                                      |
-| MCP tools             | `cli/src/mcp/tools/`              | Tool implementations: `spaces.ts`, `memories.ts`, `tiers.ts`, `links.ts`, `search.ts`, `checkpoint.ts`.                                                                    |
+| MCP tools             | `cli/src/mcp/tools/`              | Tool implementations: `spaces.ts`, `memories.ts`, `tiers.ts`, `links.ts`, `search.ts`, `checkpoint.ts`, `system.ts`.                                                       |
 | API server            | `cli/src/api/server.ts`           | Bun HTTP server that serves `/api/*` routes and static assets from `web/public/`.                                                                                          |
 | API router            | `cli/src/api/router.ts`           | Route matcher/dispatcher for API endpoints.                                                                                                                                |
 | API routes            | `cli/src/api/routes/*.ts`         | Atomic REST route declarations grouped by domain (`spaces`, `memories`, `search`, `status`).                                                                               |
 | Config                | `cli/src/config.ts`               | `CONFIG.dataDir`, `CONFIG.dbPath`, `CONFIG.legacyJsonPath`, `CONFIG.rag`. Respects `MIND_DATA_DIR` and `MIND_DB_PATH` env vars. `TIER_LIMITS` per-tier capacity constants. |
 | Types                 | `cli/src/types.ts`                | All domain types: `Space`, `Memory`, `Link`, `Tier`, `SearchResult`, `StatusResult`, `LegacyBrain`, etc.                                                                   |
-| Helpers               | `cli/src/helpers/*.ts`            | Shared helpers: logger, tag normalization, formatting/memory refs, and RAG helpers.                                                                                        |
+| Helpers               | `cli/src/helpers/*.ts`            | Shared helpers: logger, tag normalization, formatting/memory refs, markdown resource loading, and RAG helpers.                                                             |
+| Protocol resources    | `cli/src/resources/protocols/*.md`| Canonical markdown sources for OpenCode setup protocol injection and MCP `system_instructions` tool content.                                                               |
 | Web frontend          | `web/public/*`                    | SPA for browsing and editing spaces and memories.                                                                                                                          |
 
 ### 2.3 Data model
@@ -106,10 +107,12 @@ User → ./mind <command> [args] [--flag value]
 - **bun:sqlite FTS5 bug:** bun:sqlite (v1.2.10) cannot handle FTS5 `content=table` sync triggers — any UPDATE or DELETE on the source table errors with "N values for M columns". **Workaround:** `memories_fts` is a standalone FTS5 table (no `content=` option, no triggers). FTS is synced manually in `sqlite-store.ts` via `ftsInsert`, `ftsUpdate`, `ftsDelete` helpers called from `addMemory`, `updateMemory`, `deleteMemory`, `deleteMemoryByName`, `deleteSpace`, and `importFromJson`.
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
 - **Config / storage path:** `cli/src/config.ts` resolves `CONFIG.dbPath` from `MIND_DB_PATH` env var (full path override) or `MIND_DATA_DIR` env var + `mind.db` (defaults to `data/` at repo root). The web server uses `MIND_DATA_DIR` (or `/data` in Docker). `data/` is in `.gitignore`. HTTP idle timeouts are configurable via `MIND_MCP_IDLE_TIMEOUT` (default 120s) and `MIND_API_IDLE_TIMEOUT` (default 30s).
+- **OpenCode setup behavior:** `mind setup opencode` deep-merges existing JSON config (preserving unknown keys), writes/refreshes `~/.config/opencode/instructions/mind-memory-protocol.md`, and ensures that exact path is present exactly once as the first entry in the OpenCode `instructions` list.
+- **Protocol sources:** The OpenCode instruction payload and MCP `system_instructions` payload are sourced from markdown files in `cli/src/resources/protocols/` via `cli/src/helpers/markdown-resource.ts`.
 - **Testing:** CLI tests live in `cli/test/`, use `bun:test`, and rely on:
     - **`test-store.ts`** (`cli/test/mocks/test-store.ts`): creates a temporary SQLite DB in `/tmp/` per test instance; returns `{ store, cleanup }`.
     - **`mocked-logger.ts`** (`cli/test/mocks/mocked-logger.ts`): captures `logInfo`/`logError` for assertions.
-    - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), and `cli/test/arg-parser.spec.ts` (arg parser).
+    - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), `cli/test/setup-opencode.spec.ts` (OpenCode setup/instruction injection), `cli/test/system-tools.spec.ts` (MCP system instructions source loading), and `cli/test/arg-parser.spec.ts` (arg parser).
     - **`scripts/test-rag.sh`**: E2E integration test for RAG. Requires `OPENAI_API_KEY`, makes real OpenAI API calls. Uses `MIND_DB_PATH` to create a temp DB. Run via `make test-rag` or directly.
 - **Docker:** `web/Dockerfile` builds the web app; `docker-compose.yml` runs it with volume `./data` (or `BRAIN_DATA_DIR`) mounted at `/data`, port 3000, and `restart: unless-stopped`.
 - **Dependencies:** Production: `bun-style`. Dev: `@types/bun`. Peer: `typescript ^5`.
@@ -167,7 +170,10 @@ Add to your agent's MCP config:
             "url": "http://localhost:7438/mcp",
             "enabled": true
         }
-    }
+    },
+    "instructions": [
+        "~/.config/opencode/instructions/mind-memory-protocol.md"
+    ]
 }
 ```
 

@@ -1,4 +1,4 @@
-import { style } from 'bun-style';
+import { style } from './style';
 import type { Logger } from './logger';
 import type { ArgParser } from '../cli/arg-parser';
 

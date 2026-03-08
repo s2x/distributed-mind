@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
 import { spawn } from 'child_process';
+import { loadMarkdownResource } from '../helpers/markdown-resource';
 
 type Agent = 'claude-code' | 'opencode' | 'codex' | 'cursor' | 'windsurf' | 'gemini-cli';
 
@@ -14,6 +15,19 @@ interface AgentConfig {
 
 const DEFAULT_MCP_PORT = 7438;
 const DEFAULT_WEB_PORT = 3000;
+
+const OPENCODE_MEMORY_PROTOCOL_FILENAME = 'mind-memory-protocol.md';
+const OPENCODE_MEMORY_PROTOCOL_SOURCE_PATH = path.resolve(
+    __dirname,
+    '..',
+    'resources',
+    'protocols',
+    'opencode-memory-protocol.md'
+);
+
+function getHomeDir(): string {
+    return process.env.HOME ?? homedir();
+}
 
 function ensureDir(dirPath: string): void {
     if (!fs.existsSync(dirPath)) {
@@ -111,6 +125,26 @@ function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>
         }
     }
     return out;
+}
+
+function ensureOpenCodeInstructionPath(): string {
+    const instructionsDir = path.join(getHomeDir(), '.config', 'opencode', 'instructions');
+    const instructionPath = path.join(instructionsDir, OPENCODE_MEMORY_PROTOCOL_FILENAME);
+    ensureDir(instructionsDir);
+    writeText(instructionPath, loadMarkdownResource(OPENCODE_MEMORY_PROTOCOL_SOURCE_PATH));
+    return instructionPath;
+}
+
+function placeInstructionFirst(
+    config: Record<string, unknown>,
+    instructionPath: string
+): Record<string, unknown> {
+    const existingInstructions = Array.isArray(config.instructions) ? config.instructions : [];
+    const deduped = existingInstructions.filter((entry) => entry !== instructionPath);
+    return {
+        ...config,
+        instructions: [instructionPath, ...deduped],
+    };
 }
 
 function getMcpPort(): number {
@@ -248,7 +282,7 @@ function getAgentConfig(agent: Agent): AgentConfig {
         },
         opencode: {
             name: 'OpenCode',
-            configPath: path.join(homedir(), '.config', 'opencode', 'opencode.json'),
+            configPath: path.join(getHomeDir(), '.config', 'opencode', 'opencode.json'),
             format: 'json',
             build: () => ({
                 mcp: {
@@ -314,7 +348,13 @@ export async function runSetup(agent: Agent): Promise<void> {
     if (cfg.format === 'json') {
         const current = readJson(cfg.configPath);
         const patch = cfg.build(mcpUrl, mindPath) as Record<string, unknown>;
-        const merged = deepMerge(current, patch);
+        let merged = deepMerge(current, patch);
+
+        if (agent === 'opencode') {
+            const instructionsPath = ensureOpenCodeInstructionPath();
+            merged = placeInstructionFirst(merged, instructionsPath);
+        }
+
         writeJson(cfg.configPath, merged);
     } else {
         const current = readText(cfg.configPath);

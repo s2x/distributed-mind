@@ -1,5 +1,5 @@
 import { ArgParser } from '../arg-parser';
-import { style } from 'bun-style';
+import { style } from '../../helpers/style';
 import { normalizeTag } from '../../helpers/tags';
 import { tierLabel, formatTags, formatChangedLine, formatMemoryLine } from '../../helpers/format';
 import type { CommandGroup } from './types';

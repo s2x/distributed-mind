@@ -160,6 +160,13 @@ Checkpoint MCP tools are also available for session continuity:
 ./mind setup gemini-cli
 ```
 
+`./mind setup opencode` is idempotent and non-destructive:
+
+- preserves unknown keys already present in `~/.config/opencode/opencode.json`
+- ensures `mcp.mind` points to `http://localhost:7438/mcp`
+- writes/refreshes `~/.config/opencode/instructions/mind-memory-protocol.md`
+- ensures that instruction file is present in OpenCode's `instructions` list
+
 Check server process status:
 
 ```bash

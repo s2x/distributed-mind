@@ -1,5 +1,5 @@
 import { ArgParser } from '../arg-parser';
-import { style } from 'bun-style';
+import { style } from '../../helpers/style';
 import type { CommandGroup } from './types';
 
 const LIST_TAGS = new ArgParser(['tags|tgs'], 'Lists all tags in the system', [
