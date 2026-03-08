@@ -28,6 +28,10 @@ Example:
 ## [Unreleased]
 
 ### Added
+- Added shared capability metadata module (`cli/src/cli/capabilities.ts`) so setup matrix output and recovery flows reuse the same L1/L2/L3 status/confidence/evidence/fallback declarations.
+- Added integrated Recovery Pack generation for `checkpoint recover` (CLI + MCP) with `format` support (`text|md|json`) and capability-aware degradation guidance.
+- Added checkpoint recovery tests covering format coherence (`text|md|json`), no-active-checkpoint guidance, and capability-profile fallback payloads.
+- Added deterministic hybrid retrieval regression tests for weighted FTS+semantic ranking and semantic threshold fallback when FTS has no hits.
 - Added a README agent status matrix (`Complete` / `Partial` / `Experimental` / `Roadmap`) mapped directly to current L1/L2/L3 capability declarations.
 - Added capability-driven setup adapters for agent integrations with explicit L1/L2/L3 declarations (`supported`/`unsupported`/`unverified`) plus confidence/evidence/fallback diagnostics.
 - Added default-on, non-blocking OpenCode prudent automation setup that writes a managed plugin (`~/.config/opencode/plugins/mind-automation.js`) with session start scaffolding, compaction continuity hooks, and prudent session summaries with deterministic anti-noise caps.
@@ -49,6 +53,8 @@ Example:
 - Added Gemini CLI and Windsurf setup capability regression assertions to keep evidence-based fallback diagnostics and avoid silent L2/L3 upgrades.
 
 ### Changed
+- Changed search ranking (with RAG enabled) to deterministic weighted normalized hybrid scoring over FTS rank + semantic similarity, while keeping FTS-only behavior compatible when RAG is disabled.
+- Changed `checkpoint recover` to remain the single recovery interface while adding Recovery Pack output and explicit capability-profile communication for degraded orchestration paths.
 
 - Changed OpenClaw capability declaration from roadmap wording to explicit **experimental** status with stronger fallback diagnostics and no setup wiring overclaims.
 - Changed README agent status labels from Spanish to English and improved status table header emphasis for clearer scanability.

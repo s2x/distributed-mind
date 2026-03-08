@@ -2,6 +2,8 @@ import { ArgParser } from '../arg-parser';
 import { style } from '../../helpers/style';
 import { formatTags } from '../../helpers/format';
 import type { CommandGroup } from './types';
+import { buildRecoveryPack, renderRecoveryPack, type RecoveryFormat } from '../../checkpoint/recovery-pack';
+import { isAgent, type Agent } from '../capabilities';
 
 const p = ArgParser.param.bind(ArgParser);
 
@@ -20,7 +22,11 @@ const COMPLETE = new ArgParser(
 const RECOVER = new ArgParser(
     ['checkpoint recover|cp recover', p('space')],
     'Recovers the most recent active checkpoint',
-    [{ name: 'history', alias: 'H', hasValue: false }]
+    [
+        { name: 'history', alias: 'H', hasValue: false },
+        { name: 'format', alias: 'f', hasValue: true },
+        { name: 'agent', alias: 'a', hasValue: true },
+    ]
 );
 
 const LIST = new ArgParser(['checkpoint list|cp list', p('space')], 'Lists all checkpoints for a space', [
@@ -155,69 +161,23 @@ export const checkpointGroup: CommandGroup = {
                 const flags = RECOVER.getFlags(args);
                 const space = params.space;
                 const includeHistory = flags.history === true;
+                const requestedFormat = String(flags.format ?? 'text') as RecoveryFormat;
+                const requestedAgent = flags.agent ? String(flags.agent) : 'opencode';
 
-                const checkpointSpace = getCheckpointSpaceName(space);
-
-                // Check if checkpoint space exists
-                const checkpointSpaceExists = store.getSpace(checkpointSpace);
-                if (!checkpointSpaceExists) {
-                    logger.logInfo(style(`ℹ️  No checkpoint space found for "${space}"`, ['yellow']));
-                    return;
+                if (!['text', 'md', 'json'].includes(requestedFormat)) {
+                    throw new Error('--format must be one of: text, md, json');
+                }
+                if (!isAgent(requestedAgent)) {
+                    throw new Error(`Unknown --agent value: ${requestedAgent}`);
                 }
 
-                // Get active checkpoints
-                const allCheckpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
-                let activeCheckpoints = allCheckpoints.filter((m) => m.tags.includes('active'));
+                const recoveryPack = await buildRecoveryPack(store, {
+                    space,
+                    includeHistory,
+                    agent: requestedAgent as Agent,
+                });
 
-                if (includeHistory) {
-                    const completedCheckpoints = allCheckpoints.filter((m) => m.tags.includes('completed'));
-                    activeCheckpoints = [...activeCheckpoints, ...completedCheckpoints];
-                }
-
-                // Sort by updated_at descending
-                activeCheckpoints.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-
-                if (activeCheckpoints.length === 0) {
-                    logger.logInfo(style(`ℹ️  No active checkpoints found`, ['yellow']));
-                    return;
-                }
-
-                // Get the most recent
-                const latest = activeCheckpoints[0]!;
-                const fullMemory = store.getMemoryById(latest.id);
-
-                if (!fullMemory) {
-                    logger.logInfo(style(`❌ Checkpoint memory not found`, ['red']));
-                    return;
-                }
-
-                // Get links
-                const links = store.getLinks(latest.id);
-
-                // Parse content
-                let content;
-                try {
-                    content = JSON.parse(fullMemory.content);
-                } catch {
-                    content = { raw: fullMemory.content };
-                }
-
-                logger.logInfo(style(`📍 Active checkpoint: "${latest.name}"`, ['bold', 'cyan']));
-                logger.logInfo(style(`   Goal: ${content.goal}`, []));
-                logger.logInfo(style(`   Pending: ${content.pending}`, []));
-                if (content.notes) {
-                    logger.logInfo(style(`   Notes: ${content.notes}`, ['dim']));
-                }
-                if (links.length > 0) {
-                    logger.logInfo(style(`   Links: ${links.length} related memory(ies)`, ['dim']));
-                    for (const link of links.slice(0, 3)) {
-                        logger.logInfo(style(`      → ${link.target_space}/${link.target_name}`, ['dim']));
-                    }
-                    if (links.length > 3) {
-                        logger.logInfo(style(`      ... and ${links.length - 3} more`, ['dim']));
-                    }
-                }
-                logger.logInfo(style(`   Use checkpoint:complete to mark as done`, ['dim']));
+                logger.logInfo(renderRecoveryPack(recoveryPack, requestedFormat));
             },
         },
         {

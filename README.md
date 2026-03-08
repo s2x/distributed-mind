@@ -98,7 +98,7 @@ For the full command list:
 ./mind list <space>
 ./mind read <space> <name>
 ./mind checkpoint set <space> "goal" "pending"
-./mind checkpoint recover <space>
+./mind checkpoint recover <space> --format text|md|json --agent opencode
 ./mind checkpoint complete <space> <id> "what was done"
 ./mind checkpoint list <space> --status active
 ./mind search "query"
@@ -148,6 +148,8 @@ Checkpoint MCP tools are also available for session continuity:
 - `checkpoint_complete`
 - `checkpoint_recover`
 - `checkpoint_list`
+
+`checkpoint_recover` now supports `format` (`text|md|json`) and optional `agent` profile selection, and returns a Recovery Pack payload with checkpoint state, recent context hits, and capability-aware fallback guidance.
 
 ### Agent Setup
 

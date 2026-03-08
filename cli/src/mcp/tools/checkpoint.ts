@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
+import { buildRecoveryPack, renderRecoveryPack, type RecoveryFormat } from '../../checkpoint/recovery-pack';
+import { isAgent, type Agent } from '../../cli/capabilities';
 
 const CheckpointSetSchema = z.object({
     space: z.string().min(1).describe('Working space name.'),
@@ -19,6 +21,8 @@ const CheckpointCompleteSchema = z.object({
 const CheckpointRecoverSchema = z.object({
     space: z.string().describe('Working space name to recover checkpoint from.'),
     includeHistory: z.boolean().optional().describe('Include completed checkpoints in results.'),
+    format: z.enum(['text', 'md', 'json']).optional().describe('Output format for recovery pack.'),
+    agent: z.string().optional().describe('Agent profile to evaluate capability fallback against.'),
 });
 
 const CheckpointListSchema = z.object({
@@ -206,75 +210,46 @@ export function createCheckpointTools(store: MindStore) {
                     throw new Error('Space is required.');
                 }
 
-                const checkpointSpace = getCheckpointSpaceName(parsed.space);
+                const requestedFormat = (parsed.format ?? 'text') as RecoveryFormat;
+                const requestedAgent = parsed.agent ?? 'opencode';
+                const resolvedAgent: Agent = isAgent(requestedAgent) ? requestedAgent : 'opencode';
 
-                const space = store.getSpace(checkpointSpace);
-                if (!space) {
-                    return {
-                        content: [{ type: 'text', text: `No checkpoint space found for "${parsed.space}".` }],
-                        checkpoint: null,
-                    };
-                }
+                const recoveryPack = await buildRecoveryPack(store, {
+                    space: parsed.space,
+                    includeHistory: parsed.includeHistory,
+                    agent: resolvedAgent,
+                });
 
-                const allCheckpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
-
-                let activeCheckpoints = allCheckpoints.filter((m) => m.tags.includes('active'));
-
-                if (parsed.includeHistory) {
-                    const completedCheckpoints = allCheckpoints.filter((m) => m.tags.includes('completed'));
-                    activeCheckpoints = [...activeCheckpoints, ...completedCheckpoints];
-                }
-
-                activeCheckpoints.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-
-                if (activeCheckpoints.length === 0) {
-                    return {
-                        content: [{ type: 'text', text: `No active checkpoints found.` }],
-                        checkpoint: null,
-                    };
-                }
-
-                const latest = activeCheckpoints[0]!;
-                const fullMemory = store.getMemoryById(latest.id);
-
-                if (!fullMemory) {
-                    return {
-                        content: [{ type: 'text', text: `Checkpoint memory not found.` }],
-                        checkpoint: null,
-                    };
-                }
-
-                const links = store.getLinks(latest.id);
-
-                let content;
-                try {
-                    content = JSON.parse(fullMemory.content);
-                } catch {
-                    content = { raw: fullMemory.content };
-                }
+                const checkpoint = recoveryPack.checkpoint
+                    ? {
+                          id: recoveryPack.checkpoint.id,
+                          space: recoveryPack.checkpoint.space,
+                          name: recoveryPack.checkpoint.name,
+                          tier: 1 as Tier,
+                          tags: recoveryPack.checkpoint.tags,
+                          content: recoveryPack.checkpoint.content,
+                          links: recoveryPack.checkpoint.links.map((link) => ({
+                              targetId: link.targetId,
+                              targetName: link.targetName,
+                              targetSpace: link.targetSpace,
+                              label: link.label,
+                          })),
+                      }
+                    : null;
 
                 return {
                     content: [
                         {
                             type: 'text',
-                            text: `Found active checkpoint: "${latest.name}".`,
+                            text: renderRecoveryPack(recoveryPack, requestedFormat),
                         },
                     ],
-                    checkpoint: {
-                        id: fullMemory.id,
-                        space: fullMemory.space_name,
-                        name: fullMemory.name,
-                        tier: fullMemory.tier,
-                        tags: fullMemory.tags,
-                        content,
-                        links: links.map((l) => ({
-                            targetId: l.target_id,
-                            targetName: l.target_name,
-                            targetSpace: l.target_space,
-                            label: l.label,
-                        })),
-                    },
-                    note: 'Use checkpoint_list to see other checkpoints if needed.',
+                    checkpoint,
+                    recoveryPack,
+                    note:
+                        recoveryPack.checkpoint === null
+                            ? 'No active checkpoint found; recovery guidance included.'
+                            : 'Use checkpoint_list to see other checkpoints if needed.',
                 };
             },
         },

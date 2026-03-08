@@ -550,6 +550,37 @@ describe('Command Executor — Checkpoint', () => {
         expect(logs.some((l) => l.message.includes('My pending'))).toBe(true);
     });
 
+    test('should recover checkpoint in markdown format', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Ship feature', 'Close pending qa'], store, logger);
+        await executeCommand(['checkpoint', 'recover', 'myproject', '--format', 'md', '--agent', 'opencode'], store, logger);
+
+        const logs = logger.getLogs();
+        expect(logs.some((l) => l.message.includes('# Recovery Pack'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('Ship feature'))).toBe(true);
+    });
+
+    test('should recover checkpoint in json format with capability profile', async () => {
+        store = createTestStore();
+        const logger = mockedLogger();
+        store.createSpace('myproject', 'A project');
+
+        await executeCommand(['checkpoint', 'set', 'myproject', 'Ship feature', 'Close pending qa'], store, logger);
+        await executeCommand(['checkpoint', 'recover', 'myproject', '--format', 'json', '--agent', 'codex'], store, logger);
+
+        const payload = logger
+            .getLogs()
+            .map((l) => l.message)
+            .find((message) => message.includes('"capability_profile"'));
+
+        expect(payload).toBeDefined();
+        expect(payload).toContain('"L1_MCP"');
+        expect(payload).toContain('"fallback"');
+    });
+
     test('should return empty when no checkpoint to recover', async () => {
         store = createTestStore();
         const logger = mockedLogger();

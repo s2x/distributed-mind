@@ -238,6 +238,62 @@ describe('MCP Checkpoint Tools', () => {
         expect(firstLink).toBeDefined();
         expect(firstLink?.target_id).toBe(mem.id);
     });
+
+    test('checkpoint_recover should support text|md|json formats with coherent content', async () => {
+        store = createTestStore();
+        store.createSpace('myproject', 'A project');
+        await store.addMemory('myproject', 'auth', 'JWT auth flow');
+
+        const tools = createCheckpointTools(store);
+        await tools.checkpoint_set.handler({
+            space: 'myproject',
+            goal: 'Stabilize auth',
+            pending: 'Fix token refresh edge cases',
+        });
+
+        const textRes = await tools.checkpoint_recover.handler({
+            space: 'myproject',
+            format: 'text',
+            agent: 'opencode',
+        });
+        const mdRes = await tools.checkpoint_recover.handler({
+            space: 'myproject',
+            format: 'md',
+            agent: 'opencode',
+        });
+        const jsonRes = await tools.checkpoint_recover.handler({
+            space: 'myproject',
+            format: 'json',
+            agent: 'opencode',
+        });
+
+        expect(textRes.recoveryPack).toBeDefined();
+        expect(mdRes.recoveryPack).toBeDefined();
+        expect(jsonRes.recoveryPack).toBeDefined();
+        expect(jsonRes.recoveryPack?.checkpoint?.content?.goal).toBe('Stabilize auth');
+        expect(mdRes.content[0]?.text).toContain('Stabilize auth');
+        expect(textRes.content[0]?.text).toContain('Stabilize auth');
+        expect(jsonRes.recoveryPack?.capability_profile?.L1_MCP?.status).toBeDefined();
+        expect(jsonRes.recoveryPack?.capability_profile?.L2_INSTRUCTIONS?.fallback).toBeDefined();
+        expect(jsonRes.recoveryPack?.capability_profile?.L3_HOOKS?.evidence).toBeDefined();
+    });
+
+    test('checkpoint_recover should return useful guidance when no active checkpoint exists', async () => {
+        store = createTestStore();
+        store.createSpace('myproject', 'A project');
+
+        const tools = createCheckpointTools(store);
+        const res = await tools.checkpoint_recover.handler({
+            space: 'myproject',
+            format: 'json',
+            agent: 'codex',
+        });
+
+        expect(res.checkpoint).toBeNull();
+        expect(res.recoveryPack?.guidance?.length).toBeGreaterThan(0);
+        expect(res.recoveryPack?.capability_profile?.L2_INSTRUCTIONS?.status).toBe('unsupported');
+        expect(res.content[0]?.text).toContain('guidance');
+    });
 });
 
 describe('MCP Spaces Tools', () => {

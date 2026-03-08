@@ -609,6 +609,14 @@ export function createSqliteStore(dbPath: string): MindStore {
         // If RAG is enabled, enrich and re-rank results with semantic similarity.
         // If FTS returned nothing, fall back to pure semantic search across all candidates.
         if (isRagEnabled()) {
+            const normalizeScores = (values: number[]): number[] => {
+                if (values.length === 0) return [];
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                if (min === max) return values.map(() => 1);
+                return values.map((value) => (value - min) / (max - min));
+            };
+
             const getEmbeddingForId = (id: number): Float32Array | null => {
                 const row = db.query('SELECT embedding FROM memories WHERE id = ?').get(id) as any;
                 return row?.embedding ? blobToVector(row.embedding) : null;
@@ -616,12 +624,33 @@ export function createSqliteStore(dbPath: string): MindStore {
 
             // FTS returned results — re-rank by semantic similarity
             if (rows.length > 0) {
+                const HYBRID_FTS_WEIGHT = 0.65;
+                const HYBRID_SEMANTIC_WEIGHT = 0.35;
                 const allIds = rows.map((r) => r.id);
                 const semanticResults = await semanticSearch(query, getEmbeddingForId, allIds);
                 const semanticMap = new Map(semanticResults.map((sr) => [sr.id, sr.score]));
+                const rankMap = new Map(rows.map((row) => [row.id, Number(row.rank) || 0]));
 
-                // Re-rank by semantic similarity (highest first)
-                rows.sort((a, b) => (semanticMap.get(b.id) ?? 0) - (semanticMap.get(a.id) ?? 0));
+                const normalizedFts = normalizeScores(rows.map((row) => -(Number(row.rank) || 0)));
+                const normalizedSemantic = normalizeScores(rows.map((row) => semanticMap.get(row.id) ?? 0));
+                const hybridScore = new Map<number, number>();
+
+                for (let index = 0; index < rows.length; index++) {
+                    const row = rows[index]!;
+                    const score =
+                        (normalizedFts[index] ?? 0) * HYBRID_FTS_WEIGHT +
+                        (normalizedSemantic[index] ?? 0) * HYBRID_SEMANTIC_WEIGHT;
+                    hybridScore.set(row.id, score);
+                }
+
+                // Re-rank by hybrid score (highest first), deterministic tie-breakers.
+                rows.sort((a, b) => {
+                    const byHybrid = (hybridScore.get(b.id) ?? 0) - (hybridScore.get(a.id) ?? 0);
+                    if (byHybrid !== 0) return byHybrid;
+                    const byRank = (rankMap.get(a.id) ?? 0) - (rankMap.get(b.id) ?? 0);
+                    if (byRank !== 0) return byRank;
+                    return a.id - b.id;
+                });
 
                 return rows.map((r) => ({
                     id: r.id,

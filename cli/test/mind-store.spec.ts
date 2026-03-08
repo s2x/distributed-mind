@@ -1,6 +1,7 @@
-import { describe, expect, test, afterEach } from 'bun:test';
+import { describe, expect, test, afterEach, spyOn } from 'bun:test';
 import { createTestStore } from './mocks/test-store';
 import type { MindStore } from '../src/store/mind-store';
+import * as ragHelpers from '../src/helpers/rag';
 
 let store: MindStore & { cleanup: () => void };
 
@@ -616,6 +617,49 @@ describe('MindStore — Search', () => {
 
         const results = await store.search('nonexistent');
         expect(results.length).toBe(0);
+    });
+
+    test('should use deterministic hybrid order when RAG is enabled and FTS has hits', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        await store.addMemory('test', 'auth-a', 'authentication token');
+        await store.addMemory('test', 'auth-b', 'authentication token');
+
+        const ragEnabledSpy = spyOn(ragHelpers, 'isRagEnabled').mockReturnValue(true);
+        const semanticSpy = spyOn(ragHelpers, 'semanticSearch').mockResolvedValue([
+            { id: store.getMemory('test', 'auth-b')!.id, score: 0.95 },
+            { id: store.getMemory('test', 'auth-a')!.id, score: 0.1 },
+        ]);
+
+        const results = await store.search('authentication', { space: 'test' });
+        expect(results.length).toBe(2);
+        expect(results[0]!.name).toBe('auth-b');
+
+        semanticSpy.mockRestore();
+        ragEnabledSpy.mockRestore();
+    });
+
+    test('should use semantic threshold fallback when FTS has no hits and RAG is enabled', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        await store.addMemory('test', 'alpha', 'one');
+        await store.addMemory('test', 'beta', 'two');
+
+        const alphaId = store.getMemory('test', 'alpha')!.id;
+        const betaId = store.getMemory('test', 'beta')!.id;
+
+        const ragEnabledSpy = spyOn(ragHelpers, 'isRagEnabled').mockReturnValue(true);
+        const semanticSpy = spyOn(ragHelpers, 'semanticSearch').mockResolvedValue([
+            { id: alphaId, score: 0.35 },
+            { id: betaId, score: 0.25 },
+        ]);
+
+        const results = await store.search('query-with-no-fts-hit', { space: 'test' });
+        expect(results.length).toBe(1);
+        expect(results[0]!.name).toBe('alpha');
+
+        semanticSpy.mockRestore();
+        ragEnabledSpy.mockRestore();
     });
 });
 
