@@ -1,14 +1,14 @@
-# mind
+# 🧠 Mind
 
-**Capture once. Remember forever.**
+_**Capture once. Remember forever.**_
 
-mind is a persistent memory system for developers and AI agents.
+Mind is a persistent memory system for developers and AI agents.
 
 It helps you store what matters (decisions, bugfixes, notes, patterns, tasks), organize it, and retrieve it instantly across sessions.
 
-## What Is mind?
+## What Is Mind?
 
-mind is a Bun + TypeScript project that provides:
+Mind is a Bun + TypeScript project that provides:
 
 - a powerful **CLI** for managing long-term memory,
 - an **MCP server** for AI agent integration,
@@ -19,7 +19,7 @@ All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags,
 ## How It Works (High Level)
 
 1. You write memories into named **spaces** (`projects/app`, `user/preferences`, etc).
-2. mind stores them in SQLite with tags and metadata.
+2. Mind stores them in SQLite with tags and metadata.
 3. You retrieve them with fast full-text search and filters.
 4. Memories are organized by tier (hot/warm/cold/frozen) and can auto-promote based on access.
 5. AI agents can use the same memory via MCP tools.
@@ -42,7 +42,7 @@ All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags,
 curl -fsSL https://raw.githubusercontent.com/GabrielMartinMoran/mind/main/scripts/install.sh | bash
 ```
 
-This installs mind to user-local paths (no sudo):
+This installs Mind to user-local paths (no sudo):
 
 - app: `~/.local/share/mind`
 - launcher: `~/.local/bin/mind`
@@ -74,15 +74,15 @@ bun install
 ## Quick Start
 
 ```bash
-./mind create projects/mind "Mind project memory"
-./mind add projects/mind architecture "CLI uses command registry + atomic command modules"
-./mind search architecture
+mind create projects/mind "Mind project memory"
+mind add projects/mind architecture "CLI uses command registry + atomic command modules"
+mind search architecture
 ```
 
 For the full command list:
 
 ```bash
-./mind help
+mind help
 ```
 
 ## Usage
@@ -90,39 +90,39 @@ For the full command list:
 ### CLI
 
 ```bash
-./mind help
-./mind create <space> "description"
-./mind update <space> --hidden
-./mind list --hidden
-./mind add <space> <name> "content"
-./mind list <space>
-./mind read <space> <name>
-./mind checkpoint set <space> "goal" "pending"
-./mind checkpoint recover <space> --format text|md|json --agent opencode
-./mind checkpoint complete <space> <id> "what was done"
-./mind checkpoint list <space> --status active
-./mind search "query"
-./mind query --space <space> --from 2026-01-01 --to 2026-12-31 --limit 20 --offset 0
-./mind update --check
-./mind update
+mind help
+mind create <space> "description"
+mind update <space> --hidden
+mind list --hidden
+mind add <space> <name> "content"
+mind list <space>
+mind read <space> <name>
+mind checkpoint set <space> "goal" "pending"
+mind checkpoint recover <space> --format text|md|json --agent opencode
+mind checkpoint complete <space> <id> "what was done"
+mind checkpoint list <space> --status active
+mind search "query"
+mind query --space <space> --from 2026-01-01 --to 2026-12-31 --limit 20 --offset 0
+mind update --check
+mind update
 ```
 
 ### Web Server
 
 ```bash
-./mind serve start
-./mind serve start --port 8080
-./mind serve start --detached
-./mind serve stop
+mind serve start
+mind serve start --port 8080
+mind serve start --detached
+mind serve stop
 ```
 
 ### MCP Server
 
 ```bash
-./mind mcp                           # stdio mode
-./mind mcp start --http              # HTTP mode
-./mind mcp start --http --detached   # HTTP background
-./mind mcp stop
+mind mcp                           # stdio mode
+mind mcp start --http              # HTTP mode
+mind mcp start --http --detached   # HTTP background
+mind mcp stop
 ```
 
 Example MCP tool usage (for agents):
@@ -154,17 +154,17 @@ Checkpoint MCP tools are also available for session continuity:
 ### Agent Setup
 
 ```bash
-./mind setup claude-code
-./mind setup opencode
-./mind setup cursor
-./mind setup windsurf
-./mind setup codex
-./mind setup gemini-cli
+mind setup claude-code
+mind setup opencode
+mind setup cursor
+mind setup windsurf
+mind setup codex
+mind setup gemini-cli
 ```
 
-> Note: **OpenClaw** is currently **Experimental** (status declaration only). There is no `./mind setup openclaw` wiring yet.
+> Note: **OpenClaw** is currently **Experimental** (status declaration only). There is no `mind setup openclaw` wiring yet.
 
-`./mind setup` (without agent) now prints a capability matrix per integration using a 3-level model:
+`mind setup` (without agent) now prints a capability matrix per integration using a 3-level model:
 
 - **L1**: MCP transport wiring
 - **L2**: instruction/protocol injection
@@ -206,7 +206,7 @@ Rollout policy:
 - OpenClaw is listed as **experimental** in capability output (non-breaking declaration, no setup wiring yet)
 - Next-wave roadmap adapters remain declaration-only: **VSCode, Antigravity, Kiro** (non-breaking, no setup wiring yet)
 
-`./mind setup opencode` is idempotent and non-destructive:
+`mind setup opencode` is idempotent and non-destructive:
 
 - preserves unknown keys already present in `~/.config/opencode/opencode.json`
 - configures `mcp.mind` as local command transport (`type: "local"`, `command: ["<path-to-mind>", "mcp"]`)
@@ -214,7 +214,7 @@ Rollout policy:
 - ensures that instruction file is present in OpenCode's `instructions` list
 - configures prudent L3 session/compaction automation by default and non-blocking, writing `~/.config/opencode/plugins/mind-automation.js` during setup
 
-`./mind setup codex` keeps setup idempotent and writes local MCP command args in `~/.codex/config.toml`:
+`mind setup codex` keeps setup idempotent and writes local MCP command args in `~/.codex/config.toml`:
 
 - `[mcp_servers.mind]`
 - `command = "<path-to-mind>"`
@@ -222,7 +222,7 @@ Rollout policy:
 
 It also non-destructively upserts a managed Memory Protocol block in `~/.codex/AGENTS.md`.
 
-`./mind setup cursor` keeps existing MCP setup behavior and now configures global L3 continuity hooks:
+`mind setup cursor` keeps existing MCP setup behavior and now configures global L3 continuity hooks:
 
 - writes/updates `~/.cursor/hooks.json` with managed idempotent entries for `sessionStart`, `preCompact`, and `stop`
 - writes/refreshes executable hook script `~/.cursor/hooks/mind-session-continuity.sh`
@@ -231,7 +231,7 @@ It also non-destructively upserts a managed Memory Protocol block in `~/.codex/A
 Check server process status:
 
 ```bash
-./mind server-status
+mind server-status
 ```
 
 ### Update
@@ -253,7 +253,7 @@ mind update --version v0.1.0        # update to a specific tag
 Legacy migration:
 
 ```bash
-./mind import
+mind import
 ```
 
 ## Project Structure
@@ -265,7 +265,7 @@ cli/src/
   api/        # HTTP command, router, route modules, API server
   helpers/    # logger, tags, format, rag helpers
   store/      # SQLite schema + MindStore implementation
-  mind.ts     # main entrypoint used by ./mind
+  mind.ts     # main entrypoint used by mind
 
 web/public/   # frontend assets served by API server
 ```
