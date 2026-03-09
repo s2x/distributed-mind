@@ -28,6 +28,10 @@ Example:
 ## [Unreleased]
 
 ### Added
+
+- Added Cursor global L3 setup automation in `mind setup cursor`, writing managed idempotent hooks entries in `~/.cursor/hooks.json` and managed executable script artifacts in `~/.cursor/hooks/` with non-blocking fallback messaging.
+- Added Codex global L2 managed protocol injection in `mind setup codex` by non-destructively upserting a managed block in `~/.codex/AGENTS.md`.
+- Added setup regression coverage for Cursor/Codex idempotency and non-destructive behavior, including managed hooks/script artifacts and managed AGENTS.md block upsert checks.
 - Added shared capability metadata module (`cli/src/cli/capabilities.ts`) so setup matrix output and recovery flows reuse the same L1/L2/L3 status/confidence/evidence/fallback declarations.
 - Added integrated Recovery Pack generation for `checkpoint recover` (CLI + MCP) with `format` support (`text|md|json`) and capability-aware degradation guidance.
 - Added checkpoint recovery tests covering format coherence (`text|md|json`), no-active-checkpoint guidance, and capability-profile fallback payloads.
@@ -53,6 +57,7 @@ Example:
 - Added Gemini CLI and Windsurf setup capability regression assertions to keep evidence-based fallback diagnostics and avoid silent L2/L3 upgrades.
 
 ### Changed
+
 - Changed search ranking (with RAG enabled) to deterministic weighted normalized hybrid scoring over FTS rank + semantic similarity, while keeping FTS-only behavior compatible when RAG is disabled.
 - Changed `checkpoint recover` to remain the single recovery interface while adding Recovery Pack output and explicit capability-profile communication for degraded orchestration paths.
 
@@ -93,6 +98,7 @@ Example:
 - Increased Bun HTTP idle timeout defaults to reduce premature request timeouts (`MIND_MCP_IDLE_TIMEOUT` default 120s, `MIND_API_IDLE_TIMEOUT` default 30s).
 
 ### Fixed
+
 - Fixed command wiring inconsistencies between runtime entrypoint and subcommand modules.
 - Improved detached startup behavior with process liveness checks and clearer failure messages.
 - Fixed MCP tools not receiving parameters: corrected Zod to JSON Schema conversion for Zod 4.x in `cli/src/mcp/server.ts`

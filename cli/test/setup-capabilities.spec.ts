@@ -2,12 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-    getAgentCapabilityMatrix,
-    getAgentCapabilities,
-    listAgents,
-    runSetup,
-} from '../src/cli/setup';
+import { getAgentCapabilityMatrix, getAgentCapabilities, listAgents, runSetup } from '../src/cli/setup';
 
 let previousHome = '';
 let previousClaudeHooksOptIn = '';
@@ -41,7 +36,12 @@ describe('Setup capability model', () => {
         const cursor = getAgentCapabilities('cursor');
         expect(cursor.L1_MCP.status).toBe('supported');
         expect(cursor.L2_INSTRUCTIONS.status).toBe('unverified');
-        expect(cursor.L3_HOOKS.status).toBe('unverified');
+        expect(cursor.L3_HOOKS.status).toBe('supported');
+
+        const codex = getAgentCapabilities('codex');
+        expect(codex.L1_MCP.status).toBe('supported');
+        expect(codex.L2_INSTRUCTIONS.status).toBe('supported');
+        expect(codex.L3_HOOKS.status).toBe('unsupported');
 
         const opencode = getAgentCapabilities('opencode');
         expect(opencode.L2_INSTRUCTIONS.status).toBe('supported');
@@ -111,12 +111,62 @@ describe('Setup capability model', () => {
         expect(lines.some((line) => line.includes('evidence'))).toBe(true);
     });
 
-    test('keeps L1 setup behavior while surfacing unverified Cursor capabilities', async () => {
+    test('keeps Cursor L1 setup behavior while configuring managed global hooks artifacts', async () => {
+        await runSetup('cursor');
         await runSetup('cursor');
 
         const configPath = join(tempHome, '.cursor', 'mcp.json');
         const config = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, any>;
         expect(config.mcpServers.mind.url).toBe('http://localhost:7438/mcp');
+
+        const hooksPath = join(tempHome, '.cursor', 'hooks.json');
+        const hooks = JSON.parse(readFileSync(hooksPath, 'utf-8')) as Record<string, any>;
+        expect(Array.isArray(hooks.sessionStart)).toBe(true);
+        expect(Array.isArray(hooks.preCompact)).toBe(true);
+        expect(Array.isArray(hooks.stop)).toBe(true);
+
+        const hookScriptPath = join(tempHome, '.cursor', 'hooks', 'mind-session-continuity.sh');
+        expect(readFileSync(hookScriptPath, 'utf-8')).toContain('mind checkpoint set');
+
+        const startMatches = (hooks.sessionStart as Array<Record<string, any>>).filter(
+            (entry) => entry?.command === hookScriptPath
+        );
+        const preCompactMatches = (hooks.preCompact as Array<Record<string, any>>).filter(
+            (entry) => entry?.command === hookScriptPath
+        );
+        const stopMatches = (hooks.stop as Array<Record<string, any>>).filter(
+            (entry) => entry?.command === hookScriptPath
+        );
+
+        expect(startMatches.length).toBe(1);
+        expect(preCompactMatches.length).toBe(1);
+        expect(stopMatches.length).toBe(1);
+    });
+
+    test('keeps Cursor hooks setup non-destructive for existing hooks entries', async () => {
+        const cursorDir = join(tempHome, '.cursor');
+        const hooksPath = join(cursorDir, 'hooks.json');
+
+        mkdirSync(cursorDir, { recursive: true });
+        writeFileSync(
+            hooksPath,
+            JSON.stringify(
+                {
+                    sessionStart: [{ command: '/custom/start.sh' }],
+                    customEvent: [{ command: '/custom/other.sh' }],
+                },
+                null,
+                2
+            )
+        );
+
+        await runSetup('cursor');
+
+        const hooks = JSON.parse(readFileSync(hooksPath, 'utf-8')) as Record<string, any>;
+        expect(hooks.customEvent).toEqual([{ command: '/custom/other.sh' }]);
+        expect(
+            (hooks.sessionStart as Array<Record<string, any>>).some((entry) => entry.command === '/custom/start.sh')
+        ).toBe(true);
     });
 
     test('keeps Windsurf L1 setup behavior while leaving L2/L3 unsupported', async () => {
@@ -164,6 +214,32 @@ describe('Setup capability model', () => {
         expect(configToml).toContain('[mcp_servers.mind]');
         expect(configToml).toContain('args = ["mcp"]');
         expect(configToml).not.toContain('--http');
+    });
+
+    test('injects managed Codex protocol instructions into global AGENTS.md non-destructively and idempotently', async () => {
+        const codexDir = join(tempHome, '.codex');
+        const agentsPath = join(codexDir, 'AGENTS.md');
+
+        mkdirSync(codexDir, { recursive: true });
+        writeFileSync(
+            agentsPath,
+            ['# Existing Codex Instructions', '', 'Keep this custom section.', '', '## Footer notes'].join('\n')
+        );
+
+        await runSetup('codex');
+        await runSetup('codex');
+
+        const agentsMd = readFileSync(agentsPath, 'utf-8');
+        expect(agentsMd).toContain('# Existing Codex Instructions');
+        expect(agentsMd).toContain('## Footer notes');
+        expect(agentsMd).toContain('mind managed protocol start');
+        expect(agentsMd).toContain('mind managed protocol end');
+        expect(agentsMd).toContain('mind_system_instructions');
+
+        const startCount = agentsMd.split('<!-- mind managed protocol start -->').length - 1;
+        const endCount = agentsMd.split('<!-- mind managed protocol end -->').length - 1;
+        expect(startCount).toBe(1);
+        expect(endCount).toBe(1);
     });
 
     test('injects managed Claude protocol instructions into global CLAUDE.md', async () => {

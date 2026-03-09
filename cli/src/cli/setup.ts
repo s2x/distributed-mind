@@ -50,6 +50,17 @@ const CLAUDE_MANAGED_BLOCK_END = '<!-- mind managed protocol end -->';
 const CLAUDE_HOOK_SCRIPT_NAME = 'mind-session-summary.sh';
 const CLAUDE_HOOKS_OPT_IN_ENV = 'MIND_SETUP_CLAUDE_ENABLE_HOOKS';
 
+const CODEX_MEMORY_PROTOCOL_SOURCE_PATH = path.resolve(
+    __dirname,
+    '..',
+    'resources',
+    'protocols',
+    'codex-memory-protocol.md'
+);
+
+const CURSOR_HOOK_SCRIPT_NAME = 'mind-session-continuity.sh';
+const CURSOR_HOOK_EVENTS = ['sessionStart', 'preCompact', 'stop'] as const;
+
 function getHomeDir(): string {
     return process.env.HOME ?? homedir();
 }
@@ -160,10 +171,7 @@ function ensureOpenCodeInstructionPath(): string {
     return instructionPath;
 }
 
-function placeInstructionFirst(
-    config: Record<string, unknown>,
-    instructionPath: string
-): Record<string, unknown> {
+function placeInstructionFirst(config: Record<string, unknown>, instructionPath: string): Record<string, unknown> {
     const existingInstructions = Array.isArray(config.instructions) ? config.instructions : [];
     const deduped = existingInstructions.filter((entry) => entry !== instructionPath);
     return {
@@ -523,6 +531,25 @@ function ensureClaudeManagedInstructions(instructionPath: string): void {
     writeText(claudeMdPath, next);
 }
 
+function ensureCodexManagedInstructions(): void {
+    const codexDir = path.join(getHomeDir(), '.codex');
+    const agentsPath = path.join(codexDir, 'AGENTS.md');
+
+    ensureDir(codexDir);
+    const current = readText(agentsPath);
+
+    const managedBody = [
+        CLAUDE_MANAGED_BLOCK_START,
+        '## mind Memory Protocol (managed)',
+        '',
+        loadMarkdownResource(CODEX_MEMORY_PROTOCOL_SOURCE_PATH).trim(),
+        CLAUDE_MANAGED_BLOCK_END,
+    ].join('\n');
+
+    const next = upsertManagedBlock(current, managedBody);
+    writeText(agentsPath, next);
+}
+
 function shouldEnableClaudeHooks(): boolean {
     const value = (process.env[CLAUDE_HOOKS_OPT_IN_ENV] ?? '').trim().toLowerCase();
     return value === '1' || value === 'true' || value === 'yes';
@@ -555,10 +582,87 @@ mind checkpoint set "$PROJECT_SPACE" "Session close" "Review summary and persist
     return ensureExecutableScript(scriptPath, script);
 }
 
-function withClaudeHooksConfig(
-    config: Record<string, unknown>,
-    hookScriptPath: string
-): Record<string, unknown> {
+function ensureCursorHookScript(): string {
+    const hooksDir = path.join(getHomeDir(), '.cursor', 'hooks');
+    ensureDir(hooksDir);
+
+    const scriptPath = path.join(hooksDir, CURSOR_HOOK_SCRIPT_NAME);
+    const script = `#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v mind >/dev/null 2>&1; then
+  exit 0
+fi
+
+EVENT="\${1:-\${CURSOR_HOOK_EVENT:-unknown}}"
+PROJECT_SPACE="\${MIND_PROJECT_SPACE:-projects/unknown}"
+
+case "$EVENT" in
+  sessionStart)
+    mind checkpoint set "$PROJECT_SPACE" "Cursor session start" "Capture active goal and pending work" --notes "cursor:event=sessionStart" >/dev/null 2>&1 || true
+    ;;
+  preCompact)
+    mind checkpoint set "$PROJECT_SPACE" "Cursor pre-compact" "Snapshot context before compaction" --notes "cursor:event=preCompact" >/dev/null 2>&1 || true
+    mind checkpoint recover "$PROJECT_SPACE" --history >/dev/null 2>&1 || true
+    ;;
+  stop)
+    mind checkpoint set "$PROJECT_SPACE" "Cursor session stop" "Persist final continuity notes" --notes "cursor:event=stop" >/dev/null 2>&1 || true
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+`;
+
+    return ensureExecutableScript(scriptPath, script);
+}
+
+function withCursorHooksConfig(config: Record<string, unknown>, hookScriptPath: string): Record<string, unknown> {
+    const next = { ...config };
+
+    for (const eventName of CURSOR_HOOK_EVENTS) {
+        const existing = Array.isArray(next[eventName]) ? (next[eventName] as Array<unknown>) : [];
+
+        const hasManagedEntry = existing.some((entry) => {
+            if (!entry || typeof entry !== 'object') {
+                return false;
+            }
+
+            const candidate = entry as { command?: string; args?: unknown };
+            return (
+                candidate.command === hookScriptPath &&
+                Array.isArray(candidate.args) &&
+                candidate.args.length === 1 &&
+                candidate.args[0] === eventName
+            );
+        });
+
+        const managedEntry = {
+            command: hookScriptPath,
+            args: [eventName],
+        };
+
+        next[eventName] = hasManagedEntry ? existing : [...existing, managedEntry];
+    }
+
+    return next;
+}
+
+function ensureCursorHooksSetup(): void {
+    const cursorDir = path.join(getHomeDir(), '.cursor');
+    const hooksPath = path.join(cursorDir, 'hooks.json');
+
+    ensureDir(cursorDir);
+
+    const hookScriptPath = ensureCursorHookScript();
+    const currentHooks = readJson(hooksPath);
+    const mergedHooks = withCursorHooksConfig(currentHooks, hookScriptPath);
+
+    writeJson(hooksPath, mergedHooks);
+    console.log(`- Cursor global hooks configured: ${hooksPath}`);
+}
+
+function withClaudeHooksConfig(config: Record<string, unknown>, hookScriptPath: string): Record<string, unknown> {
     const hookEntry = {
         matcher: 'session.stop',
         hooks: [
@@ -834,12 +938,31 @@ export async function runSetup(agent: SupportedAgent): Promise<void> {
             }
         }
 
+        if (agent === 'cursor') {
+            try {
+                ensureCursorHooksSetup();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                console.log(`- Cursor hooks setup failed safely: ${message}`);
+            }
+        }
+
         writeJson(cfg.configPath, merged);
     } else {
         const current = readText(cfg.configPath);
         const snippet = cfg.build(mcpUrl, mindPath) as string;
         const merged = current.includes('[mcp_servers.mind]') ? current : `${current}${snippet}`;
         writeText(cfg.configPath, merged);
+
+        if (agent === 'codex') {
+            try {
+                ensureCodexManagedInstructions();
+                console.log('- Codex managed AGENTS protocol block configured');
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                console.log(`- Codex managed AGENTS protocol setup failed safely: ${message}`);
+            }
+        }
     }
 
     console.log(`✅ Setup complete for ${cfg.name}`);

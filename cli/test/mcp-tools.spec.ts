@@ -291,7 +291,7 @@ describe('MCP Checkpoint Tools', () => {
 
         expect(res.checkpoint).toBeNull();
         expect(res.recoveryPack?.guidance?.length).toBeGreaterThan(0);
-        expect(res.recoveryPack?.capability_profile?.L2_INSTRUCTIONS?.status).toBe('unsupported');
+        expect(res.recoveryPack?.capability_profile?.L2_INSTRUCTIONS?.status).toBe('supported');
         expect(res.content[0]?.text).toContain('guidance');
     });
 });

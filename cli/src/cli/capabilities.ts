@@ -49,7 +49,8 @@ const SUPPORTED_AGENT_CAPABILITIES: SupportedAgentDefinition[] = [
             L2_INSTRUCTIONS: {
                 status: 'supported',
                 confidence: 'high',
-                evidence: 'Writes managed protocol markdown and injects/refreshes a managed section in ~/.claude/CLAUDE.md.',
+                evidence:
+                    'Writes managed protocol markdown and injects/refreshes a managed section in ~/.claude/CLAUDE.md.',
                 fallback: 'If file writes fail, use AGENTS.md and MCP system_instructions manually.',
             },
             L3_HOOKS: {
@@ -73,14 +74,17 @@ const SUPPORTED_AGENT_CAPABILITIES: SupportedAgentDefinition[] = [
             L2_INSTRUCTIONS: {
                 status: 'supported',
                 confidence: 'high',
-                evidence: 'Injects managed mind-memory-protocol.md path first, exact-once, with mind_system_instructions directive.',
+                evidence:
+                    'Injects managed mind-memory-protocol.md path first, exact-once, with mind_system_instructions directive.',
                 fallback: 'N/A',
             },
             L3_HOOKS: {
                 status: 'supported',
                 confidence: 'medium',
-                evidence: 'OpenCode prudent automation is configured by default; setup writes a managed plugin with session.created/session.compacted handlers and experimental.session.compacting context injection.',
-                fallback: 'If plugin write or hook execution fails, setup continues and the managed protocol file keeps the manual continuity workflow available.',
+                evidence:
+                    'OpenCode prudent automation is configured by default; setup writes a managed plugin with session.created/session.compacted handlers and experimental.session.compacting context injection.',
+                fallback:
+                    'If plugin write or hook execution fails, setup continues and the managed protocol file keeps the manual continuity workflow available.',
             },
         },
     },
@@ -95,10 +99,11 @@ const SUPPORTED_AGENT_CAPABILITIES: SupportedAgentDefinition[] = [
                 fallback: 'N/A',
             },
             L2_INSTRUCTIONS: {
-                status: 'unsupported',
+                status: 'supported',
                 confidence: 'high',
-                evidence: 'No Codex instruction injection integration implemented.',
-                fallback: 'Use repository guidance files manually.',
+                evidence: 'Upserts a managed protocol block in ~/.codex/AGENTS.md non-destructively.',
+                fallback:
+                    'If AGENTS.md write fails, use repository protocol docs and MCP system instructions manually.',
             },
             L3_HOOKS: {
                 status: 'unsupported',
@@ -125,10 +130,12 @@ const SUPPORTED_AGENT_CAPABILITIES: SupportedAgentDefinition[] = [
                 fallback: 'Use AGENTS.md / manual protocol guidance until verified.',
             },
             L3_HOOKS: {
-                status: 'unverified',
-                confidence: 'low',
-                evidence: 'No concrete hook automation implementation/evidence for Cursor.',
-                fallback: 'Execute compaction/session workflows manually.',
+                status: 'supported',
+                confidence: 'medium',
+                evidence:
+                    'Writes ~/.cursor/hooks.json with managed global hook entries and managed executable hook script under ~/.cursor/hooks/.',
+                fallback:
+                    'If hook file/script writes fail, setup continues and manual checkpoint/session continuity workflow remains available.',
             },
         },
     },
@@ -266,7 +273,8 @@ const EXPERIMENTAL_AGENT_CAPABILITIES: Record<ExperimentalAgent, CapabilityMatri
                 status: 'unverified',
                 confidence: 'low',
                 evidence: 'Experimental declaration only; no adapter implementation merged or validated yet.',
-                fallback: 'Treat this experimental integration as unstable and keep using manual MCP wiring until implementation and validation are complete.',
+                fallback:
+                    'Treat this experimental integration as unstable and keep using manual MCP wiring until implementation and validation are complete.',
             },
             L2_INSTRUCTIONS: {
                 status: 'unsupported',

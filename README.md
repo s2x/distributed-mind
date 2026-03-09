@@ -182,25 +182,26 @@ Status labels used here:
 - **Experimental**: declaration exists but integration is explicitly unstable/unverified
 - **Roadmap**: planned declaration only, no adapter wiring
 
-| **Agent** | **Status** | **Capability reality** |
-| :-- | :-- | :-- |
-| OpenCode | Complete | L1 `supported`, L2 `supported`, L3 `supported` |
-| Claude Code | Complete | L1 `supported`, L2 `supported`, L3 `supported` (opt-in hooks) |
-| Codex | Partial | L1 `supported`, L2 `unsupported`, L3 `unsupported` |
-| Cursor | Partial | L1 `supported`, L2 `unverified`, L3 `unverified` |
-| Windsurf | Partial | L1 `supported`, L2 `unsupported`, L3 `unsupported` |
-| Gemini CLI | Partial | L1 `supported`, L2 `unsupported`, L3 `unsupported` |
-| OpenClaw | Experimental | L1 `unverified`, L2 `unsupported`, L3 `unsupported` (status-only declaration; safe fallback only; no setup wiring) |
-| VSCode | Roadmap | L1 `unverified`, L2 `unsupported`, L3 `unsupported` |
-| Antigravity | Roadmap | L1 `unverified`, L2 `unsupported`, L3 `unsupported` |
-| Kiro | Roadmap | L1 `unverified`, L2 `unsupported`, L3 `unsupported` |
+| **Agent**   | **Status**   | **Capability reality**                                                                                             |
+| :---------- | :----------- | :----------------------------------------------------------------------------------------------------------------- |
+| OpenCode    | Complete     | L1 `supported`, L2 `supported`, L3 `supported`                                                                     |
+| Claude Code | Complete     | L1 `supported`, L2 `supported`, L3 `supported` (opt-in hooks)                                                      |
+| Codex       | Partial      | L1 `supported`, L2 `supported`, L3 `unsupported`                                                                   |
+| Cursor      | Partial      | L1 `supported`, L2 `unverified`, L3 `supported`                                                                    |
+| Windsurf    | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
+| Gemini CLI  | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
+| OpenClaw    | Experimental | L1 `unverified`, L2 `unsupported`, L3 `unsupported` (status-only declaration; safe fallback only; no setup wiring) |
+| VSCode      | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
+| Antigravity | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
+| Kiro        | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
 
 Rollout policy:
 
 - Wave 1 priority agents: **OpenCode, Claude Code, Gemini CLI, Cursor**
 - Claude Code now includes managed **L2 protocol injection** by writing `~/.claude/instructions/mind-memory-protocol.md` and maintaining a managed block in `~/.claude/CLAUDE.md`
 - Claude Code **L3 hooks automation is opt-in and non-blocking** (default off). Enable with `MIND_SETUP_CLAUDE_ENABLE_HOOKS=true` before running setup.
-- Cursor **L2/L3** are currently reported as **unverified** until concrete implementation evidence is added
+- Cursor **L2** remains intentionally **unverified** (no verified global user-rules injection path)
+- Cursor **L3** is implemented with global hooks wiring (`~/.cursor/hooks.json` + managed hook script)
 - Existing integrations outside Wave 1 remain wired in the same capability model with explicit status
 - OpenClaw is listed as **experimental** in capability output (non-breaking declaration, no setup wiring yet)
 - Next-wave roadmap adapters remain declaration-only: **VSCode, Antigravity, Kiro** (non-breaking, no setup wiring yet)
@@ -218,6 +219,14 @@ Rollout policy:
 - `[mcp_servers.mind]`
 - `command = "<path-to-mind>"`
 - `args = ["mcp"]`
+
+It also non-destructively upserts a managed Memory Protocol block in `~/.codex/AGENTS.md`.
+
+`./mind setup cursor` keeps existing MCP setup behavior and now configures global L3 continuity hooks:
+
+- writes/updates `~/.cursor/hooks.json` with managed idempotent entries for `sessionStart`, `preCompact`, and `stop`
+- writes/refreshes executable hook script `~/.cursor/hooks/mind-session-continuity.sh`
+- preserves existing hook config keys/entries
 
 Check server process status:
 
