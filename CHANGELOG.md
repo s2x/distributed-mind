@@ -27,6 +27,8 @@ Example:
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-09
+
 ### Added
 
 - Added strict template renderer regression tests in `cli/test/template-renderer.spec.ts` to fail on unresolved placeholders/conditionals and leftover template tokens.

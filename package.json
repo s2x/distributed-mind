@@ -1,22 +1,22 @@
 {
-    "name": "mind",
-    "version": "0.1.0",
-    "module": "cli/src/mind.ts",
-    "type": "module",
-    "private": true,
-    "scripts": {
-        "test": "bun test cli/test"
-    },
-    "devDependencies": {
-        "@types/bun": "latest"
-    },
-    "peerDependencies": {
-        "typescript": "^5"
-    },
-    "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.27.1",
-        "ansi-styles": "^6.2.3",
-        "bun-style": "^0.3.2",
-        "zod": "^4.3.6"
-    }
+  "name": "mind",
+  "version": "1.0.0",
+  "module": "cli/src/mind.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "bun test cli/test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "ansi-styles": "^6.2.3",
+    "bun-style": "^0.3.2",
+    "zod": "^4.3.6"
+  }
 }
