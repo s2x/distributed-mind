@@ -2,16 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { renderMemoryProtocol } from '../src/cli/memory-protocol';
 import { runSetup } from '../src/cli/setup';
-
-const OPENCODE_PROTOCOL_SOURCE_PATH = join(
-    import.meta.dir,
-    '..',
-    'src',
-    'resources',
-    'protocols',
-    'opencode-memory-protocol.md'
-);
 
 let previousHome = '';
 let tempHome = '';
@@ -78,10 +70,9 @@ describe('OpenCode setup integration', () => {
         expect(existsSync(injectedPath)).toBe(true);
 
         const injectedText = readFileSync(injectedPath, 'utf-8');
-        const sourceText = readFileSync(OPENCODE_PROTOCOL_SOURCE_PATH, 'utf-8');
-        expect(injectedText).toBe(sourceText);
+        expect(injectedText).toBe(renderMemoryProtocol('opencode'));
         expect(injectedText).toContain('Mind Memory Protocol');
-        expect(injectedText).toContain('post-compaction');
+        expect(injectedText).toContain('Post-Compaction');
         expect(injectedText).toContain('mind_system_instructions');
     });
 
@@ -105,6 +96,39 @@ describe('OpenCode setup integration', () => {
         const instructionEntries = (parsed.instructions as string[]).filter((item) => item === expectedInstructionPath);
         expect(instructionEntries.length).toBe(1);
         expect(parsed.instructions[0]).toBe(expectedInstructionPath);
+    });
+
+    test('normalizes dirty instruction list across multiple reruns', async () => {
+        const opencodeDir = join(tempHome, '.config', 'opencode');
+        const instructionsDir = join(opencodeDir, 'instructions');
+        const configPath = join(opencodeDir, 'opencode.json');
+        const expectedInstructionPath = join(instructionsDir, 'mind-memory-protocol.md');
+        const legacyPath = join(instructionsDir, 'mind-memory-protocol-opencode.md');
+
+        mkdirSync(instructionsDir, { recursive: true });
+        writeFileSync(legacyPath, '# legacy protocol should be removed\n');
+        writeFileSync(
+            configPath,
+            JSON.stringify(
+                {
+                    instructions: ['AGENTS.md', legacyPath, expectedInstructionPath, legacyPath, expectedInstructionPath],
+                },
+                null,
+                2
+            )
+        );
+
+        await runSetup('opencode');
+        await runSetup('opencode');
+        await runSetup('opencode');
+
+        const parsed = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, any>;
+        const entries = parsed.instructions as string[];
+
+        expect(entries[0]).toBe(expectedInstructionPath);
+        expect(entries.filter((item) => item === expectedInstructionPath).length).toBe(1);
+        expect(entries).not.toContain(legacyPath);
+        expect(existsSync(legacyPath)).toBe(false);
     });
 
     test('writes OpenCode prudent automation plugin by default', async () => {

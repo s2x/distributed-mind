@@ -1,19 +1,9 @@
 import { z } from 'zod';
-import * as path from 'node:path';
-import { loadMarkdownResource } from '../../helpers/markdown-resource';
+import { renderSystemInstructions } from '../../cli/system-instructions';
 
 const SystemInstructionsSchema = z.object({});
 
-const SYSTEM_INSTRUCTIONS_SOURCE_PATH = path.resolve(
-    __dirname,
-    '..',
-    '..',
-    'resources',
-    'protocols',
-    'mind-system-instructions.md'
-);
-
-const FULL_INSTRUCTIONS = loadMarkdownResource(SYSTEM_INSTRUCTIONS_SOURCE_PATH);
+const FULL_INSTRUCTIONS = renderSystemInstructions();
 
 export function createSystemTools() {
     return {

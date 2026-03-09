@@ -29,6 +29,11 @@ Example:
 
 ### Added
 
+- Added strict template renderer regression tests in `cli/test/template-renderer.spec.ts` to fail on unresolved placeholders/conditionals and leftover template tokens.
+- Added snapshot coverage for rendered protocol outputs: per-agent memory protocol snapshots and system instructions snapshot (`cli/test/snapshots/*`).
+- Added MCP `system_instructions` contract stability tests to lock tool key, payload acceptance shape, and `instructions_version` response semantics.
+- Added stronger setup hardening tests for dirty reruns (managed block/hook dedupe, instruction list cleanup, and legacy protocol file guardrails).
+
 - Added Cursor global L3 setup automation in `mind setup cursor`, writing managed idempotent hooks entries in `~/.cursor/hooks.json` and managed executable script artifacts in `~/.cursor/hooks/` with non-blocking fallback messaging.
 - Added Codex global L2 managed protocol injection in `mind setup codex` by non-destructively upserting a managed block in `~/.codex/AGENTS.md`.
 - Added setup regression coverage for Cursor/Codex idempotency and non-destructive behavior, including managed hooks/script artifacts and managed AGENTS.md block upsert checks.
@@ -57,6 +62,13 @@ Example:
 - Added Gemini CLI and Windsurf setup capability regression assertions to keep evidence-based fallback diagnostics and avoid silent L2/L3 upgrades.
 
 ### Changed
+
+- Changed template rendering to strict-fail unresolved placeholders/conditionals for all render paths (setup protocol rendering and MCP `system_instructions` rendering).
+- Changed setup reruns to self-heal dirty state by deduplicating managed protocol blocks/hook entries and sanitizing duplicate instruction paths.
+- Changed setup flows to remove known legacy per-agent protocol files when applying managed protocol wiring.
+
+- Changed setup L2 protocol generation for OpenCode, Claude Code, and Codex to render from one canonical template source with a minimal internal renderer, preserving existing idempotent and non-destructive managed-file behavior.
+- Refactored MCP `system_instructions` to render via the canonical internal template pipeline while preserving `instructions_version` (`1.1.0`) and response payload compatibility.
 
 - Changed search ranking (with RAG enabled) to deterministic weighted normalized hybrid scoring over FTS rank + semantic similarity, while keeping FTS-only behavior compatible when RAG is disabled.
 - Changed `checkpoint recover` to remain the single recovery interface while adding Recovery Pack output and explicit capability-profile communication for degraded orchestration paths.

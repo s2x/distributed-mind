@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
 import { spawn } from 'child_process';
-import { loadMarkdownResource } from '../helpers/markdown-resource';
+import { renderMemoryProtocol } from './memory-protocol';
 import {
     type CapabilityMap,
     type SupportedAgent,
@@ -25,24 +25,10 @@ const DEFAULT_MCP_PORT = 7438;
 const DEFAULT_WEB_PORT = 3000;
 
 const OPENCODE_MEMORY_PROTOCOL_FILENAME = 'mind-memory-protocol.md';
-const OPENCODE_MEMORY_PROTOCOL_SOURCE_PATH = path.resolve(
-    __dirname,
-    '..',
-    'resources',
-    'protocols',
-    'opencode-memory-protocol.md'
-);
 
 const OPENCODE_AUTOMATION_PLUGIN_FILENAME = 'mind-automation.js';
 
 const CLAUDE_MEMORY_PROTOCOL_FILENAME = 'mind-memory-protocol.md';
-const CLAUDE_MEMORY_PROTOCOL_SOURCE_PATH = path.resolve(
-    __dirname,
-    '..',
-    'resources',
-    'protocols',
-    'claude-memory-protocol.md'
-);
 
 const CLAUDE_MANAGED_BLOCK_START = '<!-- mind managed protocol start -->';
 const CLAUDE_MANAGED_BLOCK_END = '<!-- mind managed protocol end -->';
@@ -50,16 +36,17 @@ const CLAUDE_MANAGED_BLOCK_END = '<!-- mind managed protocol end -->';
 const CLAUDE_HOOK_SCRIPT_NAME = 'mind-session-summary.sh';
 const CLAUDE_HOOKS_OPT_IN_ENV = 'MIND_SETUP_CLAUDE_ENABLE_HOOKS';
 
-const CODEX_MEMORY_PROTOCOL_SOURCE_PATH = path.resolve(
-    __dirname,
-    '..',
-    'resources',
-    'protocols',
-    'codex-memory-protocol.md'
-);
-
 const CURSOR_HOOK_SCRIPT_NAME = 'mind-session-continuity.sh';
 const CURSOR_HOOK_EVENTS = ['sessionStart', 'preCompact', 'stop'] as const;
+
+const LEGACY_PROTOCOL_FILENAMES = [
+    'mind-memory-protocol-opencode.md',
+    'mind-memory-protocol-claude.md',
+    'mind-memory-protocol-claude-code.md',
+    'mind-memory-protocol-codex.md',
+    'mind-memory-protocol.claude.md',
+    'mind-memory-protocol.codex.md',
+];
 
 function getHomeDir(): string {
     return process.env.HOME ?? homedir();
@@ -167,16 +154,54 @@ function ensureOpenCodeInstructionPath(): string {
     const instructionsDir = path.join(getHomeDir(), '.config', 'opencode', 'instructions');
     const instructionPath = path.join(instructionsDir, OPENCODE_MEMORY_PROTOCOL_FILENAME);
     ensureDir(instructionsDir);
-    writeText(instructionPath, loadMarkdownResource(OPENCODE_MEMORY_PROTOCOL_SOURCE_PATH));
+    removeLegacyProtocolFiles(instructionsDir);
+    writeText(instructionPath, renderMemoryProtocol('opencode'));
     return instructionPath;
+}
+
+function isLegacyProtocolPath(entry: unknown): boolean {
+    if (typeof entry !== 'string') {
+        return false;
+    }
+
+    return LEGACY_PROTOCOL_FILENAMES.includes(path.basename(entry));
+}
+
+function dedupeStringEntries(values: unknown[]): string[] {
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+
+    for (const value of values) {
+        if (typeof value !== 'string') {
+            continue;
+        }
+
+        if (!seen.has(value)) {
+            deduped.push(value);
+            seen.add(value);
+        }
+    }
+
+    return deduped;
+}
+
+function removeLegacyProtocolFiles(baseDir: string): void {
+    for (const filename of LEGACY_PROTOCOL_FILENAMES) {
+        const candidate = path.join(baseDir, filename);
+        if (fs.existsSync(candidate)) {
+            fs.unlinkSync(candidate);
+        }
+    }
 }
 
 function placeInstructionFirst(config: Record<string, unknown>, instructionPath: string): Record<string, unknown> {
     const existingInstructions = Array.isArray(config.instructions) ? config.instructions : [];
-    const deduped = existingInstructions.filter((entry) => entry !== instructionPath);
+    const sanitized = dedupeStringEntries(existingInstructions).filter(
+        (entry) => entry !== instructionPath && !isLegacyProtocolPath(entry)
+    );
     return {
         ...config,
-        instructions: [instructionPath, ...deduped],
+        instructions: [instructionPath, ...sanitized],
     };
 }
 
@@ -489,25 +514,22 @@ function ensureClaudeInstructionPath(): string {
     const instructionsDir = path.join(getHomeDir(), '.claude', 'instructions');
     const instructionPath = path.join(instructionsDir, CLAUDE_MEMORY_PROTOCOL_FILENAME);
     ensureDir(instructionsDir);
-    writeText(instructionPath, loadMarkdownResource(CLAUDE_MEMORY_PROTOCOL_SOURCE_PATH));
+    removeLegacyProtocolFiles(instructionsDir);
+    writeText(instructionPath, renderMemoryProtocol('claude-code'));
     return instructionPath;
 }
 
 function upsertManagedBlock(content: string, block: string): string {
     const escapedStart = CLAUDE_MANAGED_BLOCK_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const escapedEnd = CLAUDE_MANAGED_BLOCK_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}`, 'm');
+    const pattern = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}`, 'g');
+    const stripped = content.replace(pattern, '').replace(/\n{3,}/g, '\n\n').trimEnd();
 
-    if (pattern.test(content)) {
-        return content.replace(pattern, block);
-    }
-
-    const normalized = content.trimEnd();
-    if (normalized.length === 0) {
+    if (stripped.length === 0) {
         return `${block}\n`;
     }
 
-    return `${normalized}\n\n${block}\n`;
+    return `${stripped}\n\n${block}\n`;
 }
 
 function ensureClaudeManagedInstructions(instructionPath: string): void {
@@ -523,7 +545,7 @@ function ensureClaudeManagedInstructions(instructionPath: string): void {
         '',
         `Source: ${instructionPath}`,
         '',
-        loadMarkdownResource(CLAUDE_MEMORY_PROTOCOL_SOURCE_PATH).trim(),
+        renderMemoryProtocol('claude-code').trim(),
         CLAUDE_MANAGED_BLOCK_END,
     ].join('\n');
 
@@ -536,13 +558,14 @@ function ensureCodexManagedInstructions(): void {
     const agentsPath = path.join(codexDir, 'AGENTS.md');
 
     ensureDir(codexDir);
+    removeLegacyProtocolFiles(codexDir);
     const current = readText(agentsPath);
 
     const managedBody = [
         CLAUDE_MANAGED_BLOCK_START,
         '## mind Memory Protocol (managed)',
         '',
-        loadMarkdownResource(CODEX_MEMORY_PROTOCOL_SOURCE_PATH).trim(),
+        renderMemoryProtocol('codex').trim(),
         CLAUDE_MANAGED_BLOCK_END,
     ].join('\n');
 
@@ -623,7 +646,7 @@ function withCursorHooksConfig(config: Record<string, unknown>, hookScriptPath: 
     for (const eventName of CURSOR_HOOK_EVENTS) {
         const existing = Array.isArray(next[eventName]) ? (next[eventName] as Array<unknown>) : [];
 
-        const hasManagedEntry = existing.some((entry) => {
+        const isManagedEntry = (entry: unknown): boolean => {
             if (!entry || typeof entry !== 'object') {
                 return false;
             }
@@ -635,14 +658,16 @@ function withCursorHooksConfig(config: Record<string, unknown>, hookScriptPath: 
                 candidate.args.length === 1 &&
                 candidate.args[0] === eventName
             );
-        });
+        };
 
         const managedEntry = {
             command: hookScriptPath,
             args: [eventName],
         };
 
-        next[eventName] = hasManagedEntry ? existing : [...existing, managedEntry];
+        const withoutManaged = existing.filter((entry) => !isManagedEntry(entry));
+
+        next[eventName] = [...withoutManaged, managedEntry];
     }
 
     return next;
@@ -679,15 +704,30 @@ function withClaudeHooksConfig(config: Record<string, unknown>, hookScriptPath: 
             : {};
 
     const stopHooks = Array.isArray(hooksRoot.Stop) ? hooksRoot.Stop : [];
-    const hasManagedHook = stopHooks.some((entry) => {
-        if (!entry || typeof entry !== 'object') {
-            return false;
-        }
-        const hooks = (entry as { hooks?: Array<{ command?: string }> }).hooks;
-        return Array.isArray(hooks) && hooks.some((hook) => hook?.command === hookScriptPath);
-    });
+    const nextStopHooks = stopHooks
+        .map((entry) => {
+            if (!entry || typeof entry !== 'object') {
+                return entry;
+            }
 
-    const nextStopHooks = hasManagedHook ? stopHooks : [...stopHooks, hookEntry];
+            const candidate = entry as { hooks?: Array<{ command?: string }> };
+            if (!Array.isArray(candidate.hooks)) {
+                return entry;
+            }
+
+            const sanitizedHooks = candidate.hooks.filter((hook) => hook?.command !== hookScriptPath);
+            if (sanitizedHooks.length === 0) {
+                return null;
+            }
+
+            return {
+                ...entry,
+                hooks: sanitizedHooks,
+            };
+        })
+        .filter((entry) => entry !== null);
+
+    nextStopHooks.push(hookEntry);
 
     return {
         ...config,

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { renderMemoryProtocol } from '../src/cli/memory-protocol';
 import { getAgentCapabilityMatrix, getAgentCapabilities, listAgents, runSetup } from '../src/cli/setup';
 
 let previousHome = '';
@@ -169,6 +170,49 @@ describe('Setup capability model', () => {
         ).toBe(true);
     });
 
+    test('deduplicates dirty Cursor managed hook entries across reruns', async () => {
+        const cursorDir = join(tempHome, '.cursor');
+        const hooksPath = join(cursorDir, 'hooks.json');
+        const hookScriptPath = join(cursorDir, 'hooks', 'mind-session-continuity.sh');
+
+        mkdirSync(cursorDir, { recursive: true });
+        writeFileSync(
+            hooksPath,
+            JSON.stringify(
+                {
+                    sessionStart: [
+                        { command: hookScriptPath, args: ['sessionStart'] },
+                        { command: hookScriptPath, args: ['sessionStart'] },
+                    ],
+                    preCompact: [{ command: hookScriptPath, args: ['preCompact'] }],
+                    stop: [{ command: hookScriptPath, args: ['stop'] }, { command: hookScriptPath, args: ['stop'] }],
+                },
+                null,
+                2
+            )
+        );
+
+        await runSetup('cursor');
+        await runSetup('cursor');
+
+        const hooks = JSON.parse(readFileSync(hooksPath, 'utf-8')) as Record<string, any>;
+        expect(
+            (hooks.sessionStart as Array<Record<string, any>>).filter(
+                (entry) => entry.command === hookScriptPath && entry.args?.[0] === 'sessionStart'
+            ).length
+        ).toBe(1);
+        expect(
+            (hooks.preCompact as Array<Record<string, any>>).filter(
+                (entry) => entry.command === hookScriptPath && entry.args?.[0] === 'preCompact'
+            ).length
+        ).toBe(1);
+        expect(
+            (hooks.stop as Array<Record<string, any>>).filter(
+                (entry) => entry.command === hookScriptPath && entry.args?.[0] === 'stop'
+            ).length
+        ).toBe(1);
+    });
+
     test('keeps Windsurf L1 setup behavior while leaving L2/L3 unsupported', async () => {
         await runSetup('windsurf');
 
@@ -235,11 +279,43 @@ describe('Setup capability model', () => {
         expect(agentsMd).toContain('mind managed protocol start');
         expect(agentsMd).toContain('mind managed protocol end');
         expect(agentsMd).toContain('mind_system_instructions');
+        expect(agentsMd).toContain(renderMemoryProtocol('codex').trim());
 
         const startCount = agentsMd.split('<!-- mind managed protocol start -->').length - 1;
         const endCount = agentsMd.split('<!-- mind managed protocol end -->').length - 1;
         expect(startCount).toBe(1);
         expect(endCount).toBe(1);
+    });
+
+    test('repairs dirty Codex managed protocol blocks and removes legacy protocol files', async () => {
+        const codexDir = join(tempHome, '.codex');
+        const agentsPath = join(codexDir, 'AGENTS.md');
+        const legacyProtocolPath = join(codexDir, 'mind-memory-protocol-codex.md');
+
+        mkdirSync(codexDir, { recursive: true });
+        writeFileSync(
+            agentsPath,
+            [
+                '# Codex Notes',
+                '',
+                '<!-- mind managed protocol start -->',
+                'stale 1',
+                '<!-- mind managed protocol end -->',
+                '',
+                '<!-- mind managed protocol start -->',
+                'stale 2',
+                '<!-- mind managed protocol end -->',
+            ].join('\n')
+        );
+        writeFileSync(legacyProtocolPath, '# stale codex protocol');
+
+        await runSetup('codex');
+        await runSetup('codex');
+
+        const agentsMd = readFileSync(agentsPath, 'utf-8');
+        expect(agentsMd.split('<!-- mind managed protocol start -->').length - 1).toBe(1);
+        expect(agentsMd.split('<!-- mind managed protocol end -->').length - 1).toBe(1);
+        expect(existsSync(legacyProtocolPath)).toBe(false);
     });
 
     test('injects managed Claude protocol instructions into global CLAUDE.md', async () => {
@@ -250,6 +326,7 @@ describe('Setup capability model', () => {
 
         expect(claudeMd).toContain('mind managed protocol start');
         expect(claudeMd).toContain('mind_system_instructions');
+        expect(claudeMd).toContain(renderMemoryProtocol('claude-code').trim());
     });
 
     test('keeps Claude L3 hooks opt-in by default', async () => {
@@ -308,6 +385,37 @@ describe('Setup capability model', () => {
         expect(managedEndCount).toBe(1);
     });
 
+    test('repairs dirty Claude managed blocks and removes legacy protocol files', async () => {
+        const claudeDir = join(tempHome, '.claude');
+        const claudeMdPath = join(claudeDir, 'CLAUDE.md');
+        const legacyProtocolPath = join(claudeDir, 'instructions', 'mind-memory-protocol-claude.md');
+
+        mkdirSync(join(claudeDir, 'instructions'), { recursive: true });
+        writeFileSync(
+            claudeMdPath,
+            [
+                '# Claude Notes',
+                '',
+                '<!-- mind managed protocol start -->',
+                'old-1',
+                '<!-- mind managed protocol end -->',
+                '',
+                '<!-- mind managed protocol start -->',
+                'old-2',
+                '<!-- mind managed protocol end -->',
+            ].join('\n')
+        );
+        writeFileSync(legacyProtocolPath, '# stale claude protocol');
+
+        await runSetup('claude-code');
+        await runSetup('claude-code');
+
+        const claudeMd = readFileSync(claudeMdPath, 'utf-8');
+        expect(claudeMd.split('<!-- mind managed protocol start -->').length - 1).toBe(1);
+        expect(claudeMd.split('<!-- mind managed protocol end -->').length - 1).toBe(1);
+        expect(existsSync(legacyProtocolPath)).toBe(false);
+    });
+
     test('keeps Claude hook wiring stable and idempotent when opt-in is enabled', async () => {
         process.env.MIND_SETUP_CLAUDE_ENABLE_HOOKS = 'true';
         await runSetup('claude-code');
@@ -329,5 +437,51 @@ describe('Setup capability model', () => {
         const hookScript = readFileSync(hookPath, 'utf-8');
         expect(hookScript).toContain('mind checkpoint set');
         expect(hookScript).toContain('|| true');
+    });
+
+    test('deduplicates dirty Claude hook entries when opt-in is enabled', async () => {
+        process.env.MIND_SETUP_CLAUDE_ENABLE_HOOKS = 'true';
+        const claudeDir = join(tempHome, '.claude');
+        const settingsPath = join(claudeDir, 'settings.json');
+        const hookPath = join(tempHome, '.claude', 'hooks', 'mind-session-summary.sh');
+
+        mkdirSync(claudeDir, { recursive: true });
+        writeFileSync(
+            settingsPath,
+            JSON.stringify(
+                {
+                    hooks: {
+                        Stop: [
+                            {
+                                matcher: 'session.stop',
+                                hooks: [
+                                    { type: 'command', command: hookPath },
+                                    { type: 'command', command: hookPath },
+                                ],
+                            },
+                            {
+                                matcher: 'session.stop',
+                                hooks: [{ type: 'command', command: hookPath }],
+                            },
+                        ],
+                    },
+                },
+                null,
+                2
+            )
+        );
+
+        await runSetup('claude-code');
+        await runSetup('claude-code');
+
+        const config = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<string, any>;
+        const stopHooks = config.hooks?.Stop as Array<Record<string, any>>;
+        const managedEntries = stopHooks.filter((entry) =>
+            Array.isArray(entry?.hooks)
+                ? entry.hooks.some((hook: Record<string, any>) => hook.command === hookPath)
+                : false
+        );
+
+        expect(managedEntries.length).toBe(1);
     });
 });
