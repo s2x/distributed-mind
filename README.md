@@ -39,7 +39,7 @@ All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags,
 ### One-line installer (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Gentleman-Programming/mind/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/GabrielMartinMoran/mind/main/scripts/install.sh | bash
 ```
 
 This installs mind to user-local paths (no sudo):
@@ -66,7 +66,7 @@ make install-local
 ### Install
 
 ```bash
-git clone https://github.com/Gentleman-Programming/mind.git
+git clone https://github.com/GabrielMartinMoran/mind.git
 cd mind
 bun install
 ```
