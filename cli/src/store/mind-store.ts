@@ -11,6 +11,7 @@ import type {
     MemoryQueryFilter,
     SearchResult,
     StatusResult,
+    SpaceGraphResult,
     LegacyBrain,
 } from '../types';
 
@@ -103,6 +104,9 @@ export interface MindStore {
 
     // Query memories by metadata/date with pagination
     queryMemories(filter?: MemoryQueryFilter): MemorySummary[];
+
+    // Graph view (includes T1..T4)
+    getSpaceGraph(space: string, opts?: { limit?: number; maxLimit?: number }): SpaceGraphResult;
 
     // Status
     getStatus(space?: string): StatusResult;

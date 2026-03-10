@@ -13,7 +13,7 @@
             <aside id="sidebar">
                 <header class="sidebar-header">
                     <span class="logo"><img src="logo.svg" class="logo-img" alt="Mind" /> Mind</span>
-                    <button id="btn-new-space" class="btn btn-sm btn-primary" title="New space">+</button>
+                    <button id="btn-new-space" class="btn btn-sm btn-primary" title="New space" aria-label="Create new space">+</button>
                 </header>
                 <div class="search-bar">
                     <input id="global-search" type="search" placeholder="Search memories…" autocomplete="off" />
@@ -52,6 +52,10 @@
                             <div id="space-tags-row" class="tag-row"></div>
                         </div>
                         <div class="panel-actions">
+                            <button id="btn-view-list" class="btn btn-sm btn-ghost is-active" aria-pressed="true">
+                                List
+                            </button>
+                            <button id="btn-view-map" class="btn btn-sm btn-ghost" aria-pressed="false">Neural Map</button>
                             <button id="btn-add-memory" class="btn btn-sm btn-primary">+ Memory</button>
                             <button id="btn-delete-space" class="btn btn-sm btn-danger">Delete space</button>
                         </div>
@@ -72,6 +76,18 @@
                             <ul class="memory-list" data-tier="3"></ul>
                         </section>
                     </div>
+
+                    <div id="graph-view" class="hidden">
+                        <div class="graph-toolbar">
+                            <button id="btn-graph-zoom-in" class="btn btn-sm btn-ghost" aria-label="Zoom in">+</button>
+                            <button id="btn-graph-zoom-out" class="btn btn-sm btn-ghost" aria-label="Zoom out">−</button>
+                            <button id="btn-graph-reset" class="btn btn-sm btn-ghost">Reset View</button>
+                            <span id="graph-meta" class="muted"></span>
+                        </div>
+                        <div id="graph-canvas-wrap">
+                            <svg id="graph-svg" viewBox="0 0 1000 1000" role="img" aria-label="Neural map graph"></svg>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Memory detail panel -->
@@ -79,7 +95,9 @@
                     <header class="panel-header">
                         <div class="panel-title-row">
                             <h3 id="mem-title"></h3>
-                            <button id="btn-mem-close" class="btn btn-sm btn-ghost">✕</button>
+                            <button id="btn-mem-close" class="btn btn-sm btn-ghost" aria-label="Close memory details">
+                                ✕
+                            </button>
                         </div>
                         <div class="panel-subheader">
                             <div class="memory-meta">
@@ -150,6 +168,7 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="graph-math.js"></script>
         <script src="app.js"></script>
     </body>
 </html>

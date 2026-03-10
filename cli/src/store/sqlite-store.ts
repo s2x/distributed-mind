@@ -18,6 +18,7 @@ import type {
     MemoryQueryFilter,
     SearchResult,
     StatusResult,
+    SpaceGraphResult,
     LegacyBrain,
 } from '../types';
 
@@ -981,6 +982,79 @@ export function createSqliteStore(dbPath: string): MindStore {
         }));
     }
 
+    function getSpaceGraph(space: string, opts?: { limit?: number; maxLimit?: number }): SpaceGraphResult {
+        requireSpace(space);
+
+        const requestedLimit = opts?.limit ?? 300;
+        const maxLimit = opts?.maxLimit ?? 1000;
+        const normalizedRequestedLimit = Math.max(1, Math.trunc(requestedLimit));
+        const appliedLimit = Math.min(normalizedRequestedLimit, Math.max(1, Math.trunc(maxLimit)));
+
+        const totalRow = db.query('SELECT COUNT(*) as total FROM memories WHERE space_name = ?').get(space) as {
+            total: number;
+        };
+        const totalNodes = totalRow.total;
+
+        const rows = db
+            .query(
+                `SELECT id, name, tier
+                 FROM memories
+                 WHERE space_name = ?
+                 ORDER BY tier ASC, access_count DESC, name ASC
+                 LIMIT ?`
+            )
+            .all(space, appliedLimit) as { id: number; name: string; tier: Tier }[];
+
+        const nodeMap = new Map<number, { id: number; name: string; tier: Tier; links_to: number[]; linked_by: number[] }>(
+            rows.map((row) => [row.id, { id: row.id, name: row.name, tier: row.tier, links_to: [], linked_by: [] }])
+        );
+
+        if (rows.length > 0) {
+            const selectedIds = rows.map((row) => row.id);
+            const placeholders = selectedIds.map(() => '?').join(',');
+            const params = [space, space, ...selectedIds, ...selectedIds];
+
+            const linkRows = db
+                .query(
+                    `SELECT l.source_id, l.target_id
+                     FROM links l
+                     JOIN memories sm ON sm.id = l.source_id
+                     JOIN memories tm ON tm.id = l.target_id
+                     WHERE sm.space_name = ?
+                       AND tm.space_name = ?
+                       AND (l.source_id IN (${placeholders}) OR l.target_id IN (${placeholders}))`
+                )
+                .all(...params) as { source_id: number; target_id: number }[];
+
+            for (const linkRow of linkRows) {
+                const sourceNode = nodeMap.get(linkRow.source_id);
+                if (sourceNode) sourceNode.links_to.push(linkRow.target_id);
+
+                const targetNode = nodeMap.get(linkRow.target_id);
+                if (targetNode) targetNode.linked_by.push(linkRow.source_id);
+            }
+
+            for (const node of nodeMap.values()) {
+                node.links_to.sort((a, b) => a - b);
+                node.linked_by.sort((a, b) => a - b);
+            }
+        }
+
+        const nodes = rows.map((row) => nodeMap.get(row.id)!);
+
+        return {
+            nodes,
+            meta: {
+                total_nodes: totalNodes,
+                returned_nodes: nodes.length,
+                requested_limit: normalizedRequestedLimit,
+                applied_limit: appliedLimit,
+                max_limit: Math.max(1, Math.trunc(maxLimit)),
+                truncated: nodes.length < totalNodes,
+            },
+        };
+    }
+
     // ── Status ──
 
     function getStatus(space?: string): StatusResult {
@@ -1110,6 +1184,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         getLinks,
         search: searchMemories,
         queryMemories,
+        getSpaceGraph,
         getStatus,
         importFromJson,
         close,

@@ -448,6 +448,50 @@ describe('MindStore — LRU Eviction', () => {
     });
 });
 
+describe('MindStore — Space Graph', () => {
+    test('should return graph nodes with minimal payload including T4 and directed links', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        const a = await store.addMemory('test', 'A', 'content', { tier: 1 });
+        const b = await store.addMemory('test', 'B', 'content', { tier: 2 });
+        const c = await store.addMemory('test', 'C', 'content', { tier: 3 });
+        store.demote(c.id); // T4
+
+        store.link(a.id, b.id);
+        store.link(c.id, a.id);
+
+        const graph = store.getSpaceGraph('test');
+        expect(graph.nodes.length).toBe(3);
+        expect(graph.meta.total_nodes).toBe(3);
+        expect(graph.meta.truncated).toBe(false);
+
+        const cNode = graph.nodes.find((node) => node.id === c.id)!;
+        expect(cNode.tier).toBe(4);
+        expect(cNode.links_to).toEqual([a.id]);
+
+        const aNode = graph.nodes.find((node) => node.id === a.id)!;
+        expect(aNode.links_to).toEqual([b.id]);
+        expect(aNode.linked_by).toEqual([c.id]);
+        expect(Object.keys(aNode).sort()).toEqual(['id', 'linked_by', 'links_to', 'name', 'tier']);
+    });
+
+    test('should enforce cap and expose truncation metadata', async () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test');
+        for (let i = 0; i < 10; i++) {
+            await store.addMemory('test', `m-${i}`, 'content', { tier: 2 });
+        }
+
+        const graph = store.getSpaceGraph('test', { limit: 3, maxLimit: 5 });
+        expect(graph.nodes.length).toBe(3);
+        expect(graph.meta.requested_limit).toBe(3);
+        expect(graph.meta.applied_limit).toBe(3);
+        expect(graph.meta.max_limit).toBe(5);
+        expect(graph.meta.total_nodes).toBe(10);
+        expect(graph.meta.truncated).toBe(true);
+    });
+});
+
 describe('MindStore — Status', () => {
     test('should return global status', async () => {
         store = createTestStore();

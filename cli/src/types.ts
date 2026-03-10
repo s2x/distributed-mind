@@ -102,6 +102,26 @@ export interface StatusResult {
     embeddings_indexed: number;
 }
 
+export interface GraphNodeSummary {
+    id: number;
+    name: string;
+    tier: Tier;
+    links_to: number[];
+    linked_by: number[];
+}
+
+export interface SpaceGraphResult {
+    nodes: GraphNodeSummary[];
+    meta: {
+        total_nodes: number;
+        returned_nodes: number;
+        requested_limit: number;
+        applied_limit: number;
+        max_limit: number;
+        truncated: boolean;
+    };
+}
+
 /** Legacy brain.json format for migration */
 export interface LegacyBrain {
     [spaceName: string]: {

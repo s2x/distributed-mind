@@ -20,6 +20,15 @@ function parseIntParam(raw: string | null): number | undefined {
 export const memoryRoutes: RouteDefinition[] = [
     {
         method: 'GET',
+        match: regex(/^\/api\/spaces\/([^/]+)\/graph$/, ['space']),
+        handle: ({ params, url, store, json }) => {
+            const rawLimit = parseIntParam(url.searchParams.get('limit'));
+            const graph = store.getSpaceGraph(params.space!, { limit: rawLimit, maxLimit: 1000 });
+            return json(graph);
+        },
+    },
+    {
+        method: 'GET',
         match: regex(/^\/api\/memories\/query$/, []),
         handle: ({ url, store, json }) => {
             const tier = parseTier(url.searchParams.get('tier'));

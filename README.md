@@ -33,6 +33,7 @@ All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags,
 - **Optional semantic search (RAG)** with OpenAI embeddings.
 - **MCP integration** for agent workflows.
 - **Web API + UI** for visual memory management.
+- **Neural Map (MVP)** per space: read-only graph with tier rings, pan/zoom, and on-demand detail fetch.
 
 ## Installation
 
@@ -115,6 +116,23 @@ mind serve start --port 8080
 mind serve start --detached
 mind serve stop
 ```
+
+### Neural Map (Web MVP)
+
+In the web UI, each space now has a **Neural Map** view:
+
+- read-only graph per space
+- concentric rings by tier (**T1..T4**)
+- pan + zoom controls
+- node prominence based on connectivity (link degree)
+- click a node to fetch/show memory details via existing memory detail endpoint
+
+Graph API endpoint used by the SPA:
+
+- `GET /api/spaces/:space/graph?limit=<n>`
+- returns minimal payload per node: `id`, `name`, `tier`, `links_to:number[]`, `linked_by:number[]`
+- includes T4 by default
+- includes truncation metadata (`total_nodes`, `returned_nodes`, `requested_limit`, `applied_limit`, `max_limit`, `truncated`)
 
 ### MCP Server
 

@@ -29,14 +29,24 @@ Example:
 
 ### Added
 
+- Added per-space graph API endpoint `GET /api/spaces/:space/graph` with minimal node payload (`id`, `name`, `tier`, `links_to`, `linked_by`), default T4 inclusion, and guardrail truncation metadata.
+- Added Neural Map MVP view in the web SPA with concentric tier rings (T1..T4), pan/zoom controls, connectivity-based node prominence, and click-to-fetch memory details from the existing endpoint.
+- Added graph behavior tests in `cli/test/api-routes.spec.ts` and `cli/test/mind-store.spec.ts`.
 - Added MCP `memory_patch` as a bounded composite operation on one memory (`name/content`, `pinned`, bounded tier transition, tag add/remove, link add/remove) with explicit actionable validation errors and atomic all-or-nothing semantics.
 - Added MCP `memory_add` support for optional `pinned` and `links_to_ids` with atomic all-or-nothing behavior when link validation fails.
 - Added directional linked summaries to MCP `memory_read` response via `links_to` and `linked_by` fields with high-signal memory metadata (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`).
 
 ### Changed
 
+- Changed space detail UI to include a `List` / `Neural Map` toggle while preserving existing list/detail behavior.
+- Changed Neural Map interactions to use anchor-aware zoom math (wheel at pointer, buttons at map center) and clamped zoom-responsive label sizing without API changes.
+- Changed Neural Map readability for dense spaces by truncating visible node labels to 25 characters plus ellipsis (full names preserved via accessibility/tooltip), increasing max zoom ceiling, and applying deterministic bounded best-effort overlap mitigation in ring layout.
 - Changed MCP system instructions/protocol wording to explicitly require linking directly relevant memories for recovery continuity and to state atomic all-or-nothing semantics for composite memory operations.
 - Changed MCP tool schema conversion to preserve array item types (`number[]`, `boolean[]`, `string[]`) in generated JSON Schema.
+
+### Fixed
+
+- Fixed Neural Map drag UX by preventing text selection/touch scrolling while panning the graph surface.
 
 ## [1.0.0] - 2026-03-09
 

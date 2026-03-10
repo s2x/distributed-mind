@@ -40,6 +40,9 @@ let state = {
     currentMemory: null, // Memory (full)
     searchActive: false,
     searchResults: [],
+    spaceView: 'list',
+    graph: null,
+    graphTransform: { scale: 1, tx: 0, ty: 0 },
 };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -64,11 +67,22 @@ const elMemEditArea = $('mem-edit-area');
 const elMemEditInput = $('mem-edit-input');
 const elStatusSpaces = $('status-spaces');
 const elStatusTiers = $('status-tiers');
+const elTiers = $('tiers');
+const elGraphView = $('graph-view');
+const elGraphSvg = $('graph-svg');
+const elGraphMeta = $('graph-meta');
+const elBtnViewList = $('btn-view-list');
+const elBtnViewMap = $('btn-view-map');
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
 const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold', 4: '💠 T4 — Frozen' };
 const TIER_CLASS = { 1: 't1', 2: 't2', 3: 't3', 4: 't4' };
 const TIER_LIMITS = { 1: 25, 2: 50, 3: 100, 4: null }; // null = unlimited
+const GRAPH_SCALE_MIN = 0.45;
+const GRAPH_SCALE_MAX = 4.5;
+const GRAPH_LABEL_BASE = 11;
+const GRAPH_LABEL_MIN = 8;
+const GRAPH_LABEL_MAX = 16;
 
 // ── Status panel ──────────────────────────────────────────────────────────────
 
@@ -153,6 +167,203 @@ function renderSpaceDetail() {
             }
         }
     }
+
+    renderGraph();
+    setSpaceView(state.spaceView);
+}
+
+function setSpaceView(view) {
+    state.spaceView = view === 'map' ? 'map' : 'list';
+    const showMap = state.spaceView === 'map';
+
+    elTiers.classList.toggle('hidden', showMap);
+    elGraphView.classList.toggle('hidden', !showMap);
+
+    elBtnViewList.classList.toggle('is-active', !showMap);
+    elBtnViewMap.classList.toggle('is-active', showMap);
+    elBtnViewList.setAttribute('aria-pressed', String(!showMap));
+    elBtnViewMap.setAttribute('aria-pressed', String(showMap));
+}
+
+function renderGraph() {
+    const graph = state.graph;
+    elGraphSvg.innerHTML = '';
+
+    if (!graph || graph.nodes.length === 0) {
+        elGraphMeta.textContent = 'No memories to map.';
+        return;
+    }
+
+    const layout = graphMath.layoutGraph(graph.nodes);
+    const transformGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    transformGroup.setAttribute('id', 'graph-transform');
+    const layers = new Map();
+
+    for (const layerName of graphMath.buildGraphLayerOrder()) {
+        const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        layer.setAttribute('data-layer', layerName);
+        layers.set(layerName, layer);
+        transformGroup.appendChild(layer);
+    }
+
+    const rings = [
+        { tier: 1, radius: 130, color: '#ff7b72' },
+        { tier: 2, radius: 230, color: '#e3b341' },
+        { tier: 3, radius: 330, color: '#79c0ff' },
+        { tier: 4, radius: 430, color: '#8b949e' },
+    ];
+
+    for (const ring of rings) {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', '500');
+        circle.setAttribute('cy', '500');
+        circle.setAttribute('r', String(ring.radius));
+        circle.setAttribute('fill', 'none');
+        circle.setAttribute('stroke', ring.color);
+        circle.setAttribute('stroke-opacity', '0.35');
+        circle.setAttribute('stroke-width', '1');
+        layers.get('rings').appendChild(circle);
+    }
+
+    const renderedEdges = new Set();
+    for (const node of graph.nodes) {
+        for (const targetId of node.links_to) {
+            const key = `${node.id}->${targetId}`;
+            if (renderedEdges.has(key)) continue;
+            renderedEdges.add(key);
+            const sourcePos = layout.get(node.id);
+            const targetPos = layout.get(targetId);
+            if (!sourcePos || !targetPos) continue;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', String(sourcePos.x));
+            line.setAttribute('y1', String(sourcePos.y));
+            line.setAttribute('x2', String(targetPos.x));
+            line.setAttribute('y2', String(targetPos.y));
+            line.setAttribute('stroke', '#8b949e');
+            line.setAttribute('stroke-opacity', '0.35');
+            line.setAttribute('stroke-width', '1');
+            layers.get('edges').appendChild(line);
+        }
+    }
+
+    for (const node of graph.nodes) {
+        const pos = layout.get(node.id);
+        if (!pos) continue;
+
+        const degree = node.links_to.length + node.linked_by.length;
+        const radius = Math.min(24, 8 + degree * 2);
+        const tierColor = graphTierColor(node.tier);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', String(pos.x));
+        circle.setAttribute('cy', String(pos.y));
+        circle.setAttribute('r', String(radius));
+        circle.setAttribute('fill', tierColor);
+        circle.setAttribute('fill-opacity', String(Math.min(0.95, 0.45 + degree * 0.08)));
+        circle.setAttribute('stroke', '#0f1117');
+        circle.setAttribute('stroke-width', '1.5');
+        circle.setAttribute('tabindex', '0');
+        circle.setAttribute('role', 'button');
+        circle.setAttribute('aria-label', `Open memory ${node.name}`);
+        circle.style.cursor = 'pointer';
+
+        const circleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        circleTitle.textContent = node.name;
+        circle.appendChild(circleTitle);
+
+        circle.addEventListener('click', () => selectMemory(state.currentSpace.name, node.name));
+        circle.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectMemory(state.currentSpace.name, node.name);
+            }
+        });
+        layers.get('nodes').appendChild(circle);
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.textContent = graphMath.truncateGraphLabel(node.name, 25);
+        label.setAttribute('x', String(pos.x));
+        label.setAttribute('y', String(graphMath.computeLabelY(pos.y, radius)));
+        label.setAttribute('fill', '#e6edf3');
+        label.classList.add('graph-label');
+        label.setAttribute('font-size', String(GRAPH_LABEL_BASE));
+        label.setAttribute('text-anchor', 'middle');
+        label.style.pointerEvents = 'none';
+
+        const labelTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        labelTitle.textContent = node.name;
+        label.appendChild(labelTitle);
+
+        layers.get('labels').appendChild(label);
+    }
+
+    elGraphSvg.appendChild(transformGroup);
+    applyGraphTransform();
+
+    const m = graph.meta;
+    if (m.truncated) {
+        elGraphMeta.textContent = `Showing ${m.returned_nodes}/${m.total_nodes} nodes (cap ${m.applied_limit}/${m.max_limit}).`;
+    } else {
+        elGraphMeta.textContent = `Showing all ${m.returned_nodes} nodes.`;
+    }
+}
+
+function graphTierColor(tier) {
+    if (tier === 1) return '#ff7b72';
+    if (tier === 2) return '#e3b341';
+    if (tier === 3) return '#79c0ff';
+    return '#8b949e';
+}
+
+function applyGraphTransform() {
+    const transformGroup = $('graph-transform');
+    if (!transformGroup) return;
+    const { scale, tx, ty } = state.graphTransform;
+    transformGroup.setAttribute('transform', `translate(${tx} ${ty}) scale(${scale})`);
+    updateGraphLabels(scale);
+}
+
+function updateGraphLabels(scale) {
+    const labels = elGraphSvg.querySelectorAll('.graph-label');
+    const clampedLabelSize = graphMath.computeLabelFontSize(scale, GRAPH_LABEL_BASE, GRAPH_LABEL_MIN, GRAPH_LABEL_MAX);
+    const normalizedFontSize = clampedLabelSize / scale;
+    for (const label of labels) {
+        label.setAttribute('font-size', String(normalizedFontSize));
+    }
+}
+
+function getSvgAnchorFromClient(clientX, clientY) {
+    const point = elGraphSvg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+
+    const screenMatrix = elGraphSvg.getScreenCTM();
+    if (!screenMatrix) {
+        return { x: 500, y: 500 };
+    }
+
+    const svgPoint = point.matrixTransform(screenMatrix.inverse());
+    return { x: svgPoint.x, y: svgPoint.y };
+}
+
+function getSvgCenterAnchor() {
+    const viewBox = elGraphSvg.viewBox.baseVal;
+    return {
+        x: viewBox.x + viewBox.width / 2,
+        y: viewBox.y + viewBox.height / 2,
+    };
+}
+
+function zoomGraphAtAnchor(factor, anchor) {
+    state.graphTransform = graphMath.zoomTransformAtAnchor(state.graphTransform, {
+        factor,
+        anchorX: anchor.x,
+        anchorY: anchor.y,
+        minScale: GRAPH_SCALE_MIN,
+        maxScale: GRAPH_SCALE_MAX,
+    });
+    applyGraphTransform();
 }
 
 function renderMemoryItem(mem, spaceName) {
@@ -284,12 +495,15 @@ async function selectSpace(name) {
     state.currentMemory = null;
     showMemoryPanel(false);
 
-    const [spaceData, memories] = await Promise.all([
+    const [spaceData, memories, graph] = await Promise.all([
         api.get(`/api/spaces/${enc(name)}`),
         api.get(`/api/spaces/${enc(name)}/memories`),
+        api.get(`/api/spaces/${enc(name)}/graph`),
     ]);
     state.currentSpace = spaceData;
     state.memories = memories;
+    state.graph = graph;
+    state.graphTransform = { scale: 1, tx: 0, ty: 0 };
 
     showPanel('space');
     renderSpaceList();
@@ -297,14 +511,16 @@ async function selectSpace(name) {
 }
 
 async function refreshSpace(name) {
-    const [spaceData, memories] = await Promise.all([
+    const [spaceData, memories, graph] = await Promise.all([
         api.get(`/api/spaces/${enc(name)}`),
         api.get(`/api/spaces/${enc(name)}/memories`),
+        api.get(`/api/spaces/${enc(name)}/graph`),
         loadSpaces(),
         loadStatus(),
     ]);
     state.currentSpace = spaceData;
     state.memories = memories;
+    state.graph = graph;
     renderSpaceDetail();
 }
 
@@ -358,6 +574,59 @@ function makeEditable(el, onSave) {
 }
 
 // ── Event wiring ──────────────────────────────────────────────────────────────
+
+elBtnViewList.addEventListener('click', () => setSpaceView('list'));
+elBtnViewMap.addEventListener('click', () => setSpaceView('map'));
+
+$('btn-graph-zoom-in').addEventListener('click', () => {
+    zoomGraphAtAnchor(1.2, getSvgCenterAnchor());
+});
+
+$('btn-graph-zoom-out').addEventListener('click', () => {
+    zoomGraphAtAnchor(1 / 1.2, getSvgCenterAnchor());
+});
+
+$('btn-graph-reset').addEventListener('click', () => {
+    state.graphTransform = { scale: 1, tx: 0, ty: 0 };
+    applyGraphTransform();
+});
+
+let graphDragging = false;
+let dragStart = null;
+elGraphSvg.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    graphDragging = true;
+    dragStart = {
+        x: event.clientX,
+        y: event.clientY,
+        tx: state.graphTransform.tx,
+        ty: state.graphTransform.ty,
+    };
+});
+
+window.addEventListener('mousemove', (event) => {
+    if (!graphDragging || !dragStart) return;
+    event.preventDefault();
+    state.graphTransform.tx = dragStart.tx + (event.clientX - dragStart.x);
+    state.graphTransform.ty = dragStart.ty + (event.clientY - dragStart.y);
+    applyGraphTransform();
+});
+
+window.addEventListener('mouseup', () => {
+    graphDragging = false;
+    dragStart = null;
+});
+
+elGraphSvg.addEventListener(
+    'wheel',
+    (event) => {
+        event.preventDefault();
+        const direction = event.deltaY < 0 ? 1.1 : 0.9;
+        const anchor = getSvgAnchorFromClient(event.clientX, event.clientY);
+        zoomGraphAtAnchor(direction, anchor);
+    },
+    { passive: false }
+);
 
 // Space title inline edit (rename)
 makeEditable(elSpaceTitle, async (newName) => {

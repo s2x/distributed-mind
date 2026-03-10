@@ -14,6 +14,7 @@ This document describes the **mind** project: its architecture, behavior, techni
 - **Persistence:** SQLite database at `data/mind.db` (path configurable via `MIND_DATA_DIR` env var or `MIND_DB_PATH` for full path override). The legacy `brain.json` is supported as a migration source via `mind import`.
 - **RAG/Embeddings:** Optional semantic search via OpenAI `text-embedding-3-small`. Enable with `MIND_RAG=true` + `OPENAI_API_KEY`. Embeddings stored as BLOBs in SQLite; generated fire-and-forget on add/update.
 - **Layout:** **`cli/`** contains all CLI code and tests. **`web/`** contains the web server and frontend (Dockerized, `restart: unless-stopped` in docker-compose). **`scripts/`** contains E2E test scripts.
+- **Neural Map MVP:** web SPA includes a read-only per-space graph view using a minimal graph API payload and on-demand memory detail fetch, with deterministic best-effort anti-overlap placement, 25-char visible label truncation (full name retained via accessibility/tooltip), and higher zoom ceiling for dense maps.
 
 ---
 
@@ -68,6 +69,12 @@ User → ./mind <command> [args] [--flag value]
 | Protocol resources    | `cli/src/resources/protocols/*.md`    | Canonical markdown sources for OpenCode setup protocol injection and MCP `system_instructions` tool content.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Web frontend          | `web/public/*`                        | SPA for browsing and editing spaces and memories.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
+Neural Map API/UI touchpoints:
+
+- `GET /api/spaces/:space/graph?limit=<n>` (implemented in memory routes)
+- `MindStore.getSpaceGraph(space, opts)` backed by SQLite implementation
+- SPA view toggle (`List` / `Neural Map`) with concentric tier rings (T1..T4), anchored pan/zoom (higher max zoom cap), deterministic best-effort overlap mitigation, truncated visible labels (25 chars + ellipsis), and click-to-fetch details via existing memory detail endpoint
+
 ### 2.3 Data model
 
 - **Brain:** A SQLite database (`mind.db`) at `data/` in the repo root (or `MIND_DATA_DIR`).
@@ -120,7 +127,7 @@ User → ./mind <command> [args] [--flag value]
 - **Testing:** CLI tests live in `cli/test/`, use `bun:test`, and rely on:
     - **`test-store.ts`** (`cli/test/mocks/test-store.ts`): creates a temporary SQLite DB in `/tmp/` per test instance; returns `{ store, cleanup }`.
     - **`mocked-logger.ts`** (`cli/test/mocks/mocked-logger.ts`): captures `logInfo`/`logError` for assertions.
-    - Test files: `cli/test/mind-store.spec.ts` (store-level), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), `cli/test/setup-opencode.spec.ts` (OpenCode setup/instruction injection + dirty rerun hardening), `cli/test/setup-capabilities.spec.ts` (capability declarations + fallback diagnostics + managed-block/hook idempotency hardening), `cli/test/memory-protocol-renderer.spec.ts` (canonical protocol renderer snapshots per agent), `cli/test/system-tools.spec.ts` (MCP system instructions snapshot + contract stability), `cli/test/template-renderer.spec.ts` (strict template mode), and `cli/test/arg-parser.spec.ts` (arg parser).
+    - Test files: `cli/test/mind-store.spec.ts` (store-level, including graph retrieval), `cli/test/api-routes.spec.ts` (HTTP route-level graph behavior), `cli/test/neural-map-graph-math.spec.ts` (Neural Map zoom/layout/label math), `cli/test/command-executor.spec.ts` (CLI-level), `cli/test/mcp-tools.spec.ts` (MCP tools), `cli/test/setup-opencode.spec.ts` (OpenCode setup/instruction injection + dirty rerun hardening), `cli/test/setup-capabilities.spec.ts` (capability declarations + fallback diagnostics + managed-block/hook idempotency hardening), `cli/test/memory-protocol-renderer.spec.ts` (canonical protocol renderer snapshots per agent), `cli/test/system-tools.spec.ts` (MCP system instructions snapshot + contract stability), `cli/test/template-renderer.spec.ts` (strict template mode), and `cli/test/arg-parser.spec.ts` (arg parser).
     - **`scripts/test-rag.sh`**: E2E integration test for RAG. Requires `OPENAI_API_KEY`, makes real OpenAI API calls. Uses `MIND_DB_PATH` to create a temp DB. Run via `make test-rag` or directly.
 - **Docker:** `web/Dockerfile` builds the web app; `docker-compose.yml` runs it with volume `./data` (or `BRAIN_DATA_DIR`) mounted at `/data`, port 3000, and `restart: unless-stopped`.
 - **Dependencies:** Production: `bun-style`. Dev: `@types/bun`. Peer: `typescript ^5`.
