@@ -42,6 +42,7 @@ let state = {
     searchResults: [],
     spaceView: 'list',
     graph: null,
+    graphFocusNodeId: null,
     graphTransform: { scale: 1, tx: 0, ty: 0 },
 };
 
@@ -73,6 +74,7 @@ const elGraphSvg = $('graph-svg');
 const elGraphMeta = $('graph-meta');
 const elBtnViewList = $('btn-view-list');
 const elBtnViewMap = $('btn-view-map');
+const memoryPanelInteractions = globalThis.memoryPanelInteractions;
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
 const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold', 4: '💠 T4 — Frozen' };
@@ -169,10 +171,11 @@ function renderSpaceDetail() {
     }
 
     renderGraph();
-    setSpaceView(state.spaceView);
+    setSpaceView(state.spaceView, { updateUrl: false });
 }
 
-function setSpaceView(view) {
+function setSpaceView(view, options = {}) {
+    const { updateUrl = true } = options;
     state.spaceView = view === 'map' ? 'map' : 'list';
     const showMap = state.spaceView === 'map';
 
@@ -183,6 +186,10 @@ function setSpaceView(view) {
     elBtnViewMap.classList.toggle('is-active', showMap);
     elBtnViewList.setAttribute('aria-pressed', String(!showMap));
     elBtnViewMap.setAttribute('aria-pressed', String(showMap));
+
+    if (updateUrl && state.currentSpace) {
+        syncUrl();
+    }
 }
 
 function renderGraph() {
@@ -195,6 +202,7 @@ function renderGraph() {
     }
 
     const layout = graphMath.layoutGraph(graph.nodes);
+    const focus = graphMath.buildNeighborhoodFocus(graph.nodes, state.graphFocusNodeId);
     const transformGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     transformGroup.setAttribute('id', 'graph-transform');
     const layers = new Map();
@@ -241,8 +249,12 @@ function renderGraph() {
             line.setAttribute('x2', String(targetPos.x));
             line.setAttribute('y2', String(targetPos.y));
             line.setAttribute('stroke', '#8b949e');
-            line.setAttribute('stroke-opacity', '0.35');
-            line.setAttribute('stroke-width', '1');
+            const edgeKey = `${node.id}->${targetId}`;
+            const isIncident = focus.active && focus.incidentEdgeKeys.has(edgeKey);
+            const edgeOpacity = !focus.active ? 0.35 : isIncident ? 0.82 : 0.1;
+            const edgeWidth = isIncident ? 1.6 : 1;
+            line.setAttribute('stroke-opacity', String(edgeOpacity));
+            line.setAttribute('stroke-width', String(edgeWidth));
             layers.get('edges').appendChild(line);
         }
     }
@@ -252,34 +264,61 @@ function renderGraph() {
         if (!pos) continue;
 
         const degree = node.links_to.length + node.linked_by.length;
-        const radius = Math.min(24, 8 + degree * 2);
+        const radius = graphMath.computeNodeCircleRadius(degree);
         const tierColor = graphTierColor(node.tier);
+        const isFocusedNode = focus.active && node.id === focus.centerNodeId;
+        const isFocusRelated = focus.active && focus.relatedNodeIds.has(node.id);
+
+        let fillOpacity = graphMath.computeNodeFillOpacity(degree);
+        if (focus.active) {
+            fillOpacity = isFocusRelated ? fillOpacity : Math.min(fillOpacity, 0.18);
+            if (isFocusedNode) {
+                fillOpacity = Math.max(fillOpacity, 0.95);
+            }
+        }
 
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', String(pos.x));
         circle.setAttribute('cy', String(pos.y));
         circle.setAttribute('r', String(radius));
         circle.setAttribute('fill', tierColor);
-        circle.setAttribute('fill-opacity', String(Math.min(0.95, 0.45 + degree * 0.08)));
-        circle.setAttribute('stroke', '#0f1117');
-        circle.setAttribute('stroke-width', '1.5');
+        circle.setAttribute('fill-opacity', String(fillOpacity));
+        circle.setAttribute('stroke', isFocusedNode ? '#58a6ff' : '#0f1117');
+        circle.setAttribute('stroke-width', isFocusedNode ? '2.4' : '1.5');
         circle.setAttribute('tabindex', '0');
         circle.setAttribute('role', 'button');
-        circle.setAttribute('aria-label', `Open memory ${node.name}`);
+        circle.setAttribute('aria-label', `Open memory ${node.name}. Degree ${degree}`);
         circle.style.cursor = 'pointer';
 
         const circleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         circleTitle.textContent = node.name;
         circle.appendChild(circleTitle);
 
-        circle.addEventListener('click', () => selectMemory(state.currentSpace.name, node.name));
+        circle.addEventListener('click', () => {
+            state.graphFocusNodeId = node.id;
+            selectMemory(state.currentSpace.name, node.name);
+        });
         circle.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
+                state.graphFocusNodeId = node.id;
                 selectMemory(state.currentSpace.name, node.name);
             }
         });
         layers.get('nodes').appendChild(circle);
+
+        const degreeLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        degreeLabel.textContent = String(degree);
+        degreeLabel.setAttribute('x', String(pos.x));
+        degreeLabel.setAttribute('y', String(pos.y + 0.5));
+        degreeLabel.setAttribute('text-anchor', 'middle');
+        degreeLabel.setAttribute('dominant-baseline', 'middle');
+        degreeLabel.setAttribute('fill', '#0f1117');
+        degreeLabel.setAttribute('font-size', '10');
+        degreeLabel.setAttribute('font-weight', '700');
+        degreeLabel.style.pointerEvents = 'none';
+        degreeLabel.style.opacity = !focus.active || isFocusRelated ? '1' : '0.3';
+        layers.get('nodes').appendChild(degreeLabel);
 
         const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         label.textContent = graphMath.truncateGraphLabel(node.name, 25);
@@ -290,6 +329,7 @@ function renderGraph() {
         label.setAttribute('font-size', String(GRAPH_LABEL_BASE));
         label.setAttribute('text-anchor', 'middle');
         label.style.pointerEvents = 'none';
+        label.style.opacity = !focus.active || isFocusRelated ? '1' : '0.3';
 
         const labelTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         labelTitle.textContent = node.name;
@@ -483,6 +523,80 @@ function showMemoryPanel(show) {
     else elMemoryPanel.classList.add('hidden');
 }
 
+function closeCurrentMemoryPanel() {
+    state.currentMemory = null;
+    state.graphFocusNodeId = null;
+    showMemoryPanel(false);
+    renderSpaceDetail();
+    syncUrl();
+}
+
+function isMemoryPanelOpen() {
+    return !elMemoryPanel.classList.contains('hidden');
+}
+
+function isMemorySelectionTarget(target) {
+    return Boolean(target.closest('.memory-item') || target.closest('#graph-svg [role="button"]'));
+}
+
+function syncUrl(options = {}) {
+    const { replace = false } = options;
+    const nextUrl = appRouting.buildAppUrl({
+        spaceName: state.currentSpace?.name ?? null,
+        view: state.spaceView,
+        memoryName: state.currentMemory?.name ?? null,
+    });
+
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl === currentUrl) return;
+
+    const method = replace ? 'replaceState' : 'pushState';
+    window.history[method]({}, '', nextUrl);
+}
+
+function resetToHomeState() {
+    state.currentSpace = null;
+    state.currentMemory = null;
+    state.memories = [];
+    state.graph = null;
+    state.graphFocusNodeId = null;
+    showMemoryPanel(false);
+    showPanel('empty');
+    renderSpaceList();
+}
+
+async function restoreRouteFromLocation() {
+    const route = appRouting.parseAppRoute(window.location.pathname, window.location.search);
+
+    if (!route.spaceName) {
+        resetToHomeState();
+        syncUrl({ replace: true });
+        return;
+    }
+
+    const hasSpace = state.spaces.some((space) => space.name === route.spaceName);
+    if (!hasSpace) {
+        resetToHomeState();
+        syncUrl({ replace: true });
+        return;
+    }
+
+    await selectSpace(route.spaceName, { updateUrl: false, view: route.view });
+
+    if (route.memoryName) {
+        const hasMemory = state.memories.some((memory) => memory.name === route.memoryName);
+        if (hasMemory) {
+            await selectMemory(route.spaceName, route.memoryName, { updateUrl: false });
+        } else {
+            state.currentMemory = null;
+            showMemoryPanel(false);
+            renderSpaceDetail();
+        }
+    }
+
+    syncUrl({ replace: true });
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 async function loadSpaces() {
@@ -490,9 +604,11 @@ async function loadSpaces() {
     renderSpaceList();
 }
 
-async function selectSpace(name) {
+async function selectSpace(name, options = {}) {
+    const { updateUrl = true, view = state.spaceView } = options;
     state.currentSpace = state.spaces.find((s) => s.name === name) ?? { name };
     state.currentMemory = null;
+    state.graphFocusNodeId = null;
     showMemoryPanel(false);
 
     const [spaceData, memories, graph] = await Promise.all([
@@ -508,6 +624,11 @@ async function selectSpace(name) {
     showPanel('space');
     renderSpaceList();
     renderSpaceDetail();
+    setSpaceView(view, { updateUrl: false });
+
+    if (updateUrl) {
+        syncUrl();
+    }
 }
 
 async function refreshSpace(name) {
@@ -521,16 +642,22 @@ async function refreshSpace(name) {
     state.currentSpace = spaceData;
     state.memories = memories;
     state.graph = graph;
+    state.graphFocusNodeId = null;
     renderSpaceDetail();
 }
 
-async function selectMemory(spaceName, memName) {
+async function selectMemory(spaceName, memName, options = {}) {
+    const { updateUrl = true } = options;
     const memory = await api.get(`/api/spaces/${enc(spaceName)}/memories/${enc(memName)}`);
     state.currentMemory = memory;
     renderMemoryPanel(memory);
     showMemoryPanel(true);
     // Re-render memory list to show active state
     renderSpaceDetail();
+
+    if (updateUrl) {
+        syncUrl();
+    }
 }
 
 async function refreshMemory(spaceName, memName) {
@@ -578,6 +705,13 @@ function makeEditable(el, onSave) {
 elBtnViewList.addEventListener('click', () => setSpaceView('list'));
 elBtnViewMap.addEventListener('click', () => setSpaceView('map'));
 
+window.addEventListener('popstate', () => {
+    restoreRouteFromLocation().catch(() => {
+        resetToHomeState();
+        syncUrl({ replace: true });
+    });
+});
+
 $('btn-graph-zoom-in').addEventListener('click', () => {
     zoomGraphAtAnchor(1.2, getSvgCenterAnchor());
 });
@@ -593,6 +727,25 @@ $('btn-graph-reset').addEventListener('click', () => {
 
 let graphDragging = false;
 let dragStart = null;
+let panelCloseGuardPointerStart = null;
+let panelCloseGuardInteractionWasDrag = false;
+
+document.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    panelCloseGuardPointerStart = { x: event.clientX, y: event.clientY };
+    panelCloseGuardInteractionWasDrag = false;
+});
+
+document.addEventListener('mouseup', (event) => {
+    if (!panelCloseGuardPointerStart) return;
+    panelCloseGuardInteractionWasDrag = Boolean(memoryPanelInteractions?.interactionWasDrag?.({
+        start: panelCloseGuardPointerStart,
+        end: { x: event.clientX, y: event.clientY },
+        thresholdPx: memoryPanelInteractions?.DRAG_CLOSE_GUARD_THRESHOLD_PX,
+    }));
+    panelCloseGuardPointerStart = null;
+});
+
 elGraphSvg.addEventListener('mousedown', (event) => {
     event.preventDefault();
     graphDragging = true;
@@ -634,6 +787,7 @@ makeEditable(elSpaceTitle, async (newName) => {
     await api.patch(`/api/spaces/${enc(oldName)}`, { newName });
     state.currentSpace.name = newName;
     await loadSpaces();
+    syncUrl({ replace: true });
 });
 
 // Space description inline edit
@@ -672,6 +826,7 @@ $('btn-delete-space').addEventListener('click', async () => {
     state.currentMemory = null;
     showMemoryPanel(false);
     showPanel('empty');
+    syncUrl();
     await loadSpaces();
 });
 
@@ -698,9 +853,27 @@ $('modal-mem-create').addEventListener('click', async () => {
 
 // Memory panel actions
 $('btn-mem-close').addEventListener('click', () => {
-    state.currentMemory = null;
-    showMemoryPanel(false);
-    renderSpaceDetail();
+    closeCurrentMemoryPanel();
+});
+
+document.addEventListener('click', (event) => {
+    if (!isMemoryPanelOpen()) return;
+    if (!memoryPanelInteractions?.shouldCloseMemoryPanelOnClick) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const shouldClose = memoryPanelInteractions.shouldCloseMemoryPanelOnClick({
+        isPanelOpen: true,
+        targetInsidePanel: Boolean(target.closest('#memory-panel')),
+        targetIsMemorySelection: isMemorySelectionTarget(target),
+        interactionWasDrag: panelCloseGuardInteractionWasDrag,
+    });
+
+    panelCloseGuardInteractionWasDrag = false;
+
+    if (shouldClose) {
+        closeCurrentMemoryPanel();
+    }
 });
 
 $('btn-mem-edit').addEventListener('click', () => {
@@ -751,6 +924,7 @@ $('btn-mem-delete').addEventListener('click', async () => {
     state.currentMemory = null;
     showMemoryPanel(false);
     await refreshSpace(mem.space_name);
+    syncUrl();
 });
 
 // Close search
@@ -802,5 +976,12 @@ function enc(str) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-loadSpaces();
-loadStatus();
+async function boot() {
+    await loadSpaces();
+    await loadStatus();
+    await restoreRouteFromLocation();
+}
+
+boot().catch(() => {
+    resetToHomeState();
+});

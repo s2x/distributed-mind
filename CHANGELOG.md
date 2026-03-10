@@ -38,6 +38,8 @@ Example:
 
 ### Changed
 
+- Changed web SPA navigation to be URL-driven for space/view/memory (`/`, `/spaces/{space}?view=list|map&memory={memory}`), including reload restore, browser back/forward support, and safe fallback canonicalization for invalid route state.
+- Changed web SPA memory detail behavior to close the panel on outside click/tap while preserving in-panel interactions and memory selection from list/map.
 - Changed space detail UI to include a `List` / `Neural Map` toggle while preserving existing list/detail behavior.
 - Changed Neural Map interactions to use anchor-aware zoom math (wheel at pointer, buttons at map center) and clamped zoom-responsive label sizing without API changes.
 - Changed Neural Map readability for dense spaces by truncating visible node labels to 25 characters plus ellipsis (full names preserved via accessibility/tooltip), increasing max zoom ceiling, and applying deterministic bounded best-effort overlap mitigation in ring layout.

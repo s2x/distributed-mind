@@ -46,6 +46,52 @@
         return ['rings', 'edges', 'nodes', 'labels'];
     }
 
+    function computeNodeCircleRadius(_degree) {
+        return 12;
+    }
+
+    function computeNodeFillOpacity(degree) {
+        return clamp(0.45 + Math.max(0, degree) * 0.08, 0.45, 0.95);
+    }
+
+    function buildNeighborhoodFocus(nodes, selectedNodeId) {
+        const emptyFocus = {
+            active: false,
+            centerNodeId: null,
+            relatedNodeIds: new Set(),
+            incidentEdgeKeys: new Set(),
+        };
+
+        if (selectedNodeId == null) {
+            return emptyFocus;
+        }
+
+        const selectedNode = (nodes ?? []).find((node) => node.id === selectedNodeId);
+        if (!selectedNode) {
+            return emptyFocus;
+        }
+
+        const relatedNodeIds = new Set([selectedNode.id]);
+        const incidentEdgeKeys = new Set();
+
+        for (const targetId of selectedNode.links_to ?? []) {
+            relatedNodeIds.add(targetId);
+            incidentEdgeKeys.add(`${selectedNode.id}->${targetId}`);
+        }
+
+        for (const sourceId of selectedNode.linked_by ?? []) {
+            relatedNodeIds.add(sourceId);
+            incidentEdgeKeys.add(`${sourceId}->${selectedNode.id}`);
+        }
+
+        return {
+            active: true,
+            centerNodeId: selectedNode.id,
+            relatedNodeIds,
+            incidentEdgeKeys,
+        };
+    }
+
     function layoutGraph(nodes, options = {}) {
         const centerX = options.centerX ?? 500;
         const centerY = options.centerY ?? 500;
@@ -76,8 +122,7 @@
 
         for (let index = 0; index < sortedNodes.length; index++) {
             const node = sortedNodes[index];
-            const degree = (node.links_to?.length ?? 0) + (node.linked_by?.length ?? 0);
-            const nodeRadius = Math.min(24, 8 + degree * 2);
+            const nodeRadius = computeNodeCircleRadius();
 
             const laneIndex = index % laneCount;
             const laneOffset = (laneIndex - (laneCount - 1) / 2) * laneSpacing;
@@ -159,6 +204,9 @@
         zoomTransformAtAnchor,
         computeLabelFontSize,
         truncateGraphLabel,
+        computeNodeCircleRadius,
+        computeNodeFillOpacity,
+        buildNeighborhoodFocus,
         layoutGraph,
     };
 });

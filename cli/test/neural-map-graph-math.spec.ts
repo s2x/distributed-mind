@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+    buildNeighborhoodFocus,
     buildGraphLayerOrder,
+    computeNodeCircleRadius,
+    computeNodeFillOpacity,
     computeLabelY,
     computeLabelFontSize,
     layoutGraph,
@@ -73,6 +76,37 @@ describe('Neural map graph math', () => {
 
     test('keeps labels in a dedicated top render layer', () => {
         expect(buildGraphLayerOrder()).toEqual(['rings', 'edges', 'nodes', 'labels']);
+    });
+
+    test('uses fixed node circle radius independent of connectivity', () => {
+        expect(computeNodeCircleRadius(0)).toBe(12);
+        expect(computeNodeCircleRadius(3)).toBe(12);
+        expect(computeNodeCircleRadius(18)).toBe(12);
+    });
+
+    test('keeps node fill intensity encoded by connectivity', () => {
+        const low = computeNodeFillOpacity(0);
+        const high = computeNodeFillOpacity(8);
+
+        expect(low).toBeCloseTo(0.45, 6);
+        expect(high).toBeGreaterThan(low);
+        expect(computeNodeFillOpacity(999)).toBeCloseTo(0.95, 6);
+    });
+
+    test('builds neighborhood focus from direct incoming/outgoing links', () => {
+        const nodes = [
+            { id: 1, links_to: [2], linked_by: [3] },
+            { id: 2, links_to: [3], linked_by: [1] },
+            { id: 3, links_to: [1], linked_by: [2] },
+            { id: 4, links_to: [], linked_by: [] },
+        ];
+
+        const focus = buildNeighborhoodFocus(nodes, 1);
+
+        expect(focus.active).toBe(true);
+        expect(focus.centerNodeId).toBe(1);
+        expect(Array.from(focus.relatedNodeIds).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+        expect(Array.from(focus.incidentEdgeKeys).sort()).toEqual(['1->2', '3->1']);
     });
 
     test('produces deterministic best-effort spacing for dense tier layouts', () => {

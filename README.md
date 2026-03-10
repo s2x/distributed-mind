@@ -127,6 +127,15 @@ In the web UI, each space now has a **Neural Map** view:
 - node prominence based on connectivity (link degree)
 - click a node to fetch/show memory details via existing memory detail endpoint
 
+The SPA uses URL-driven client routing for reliable deep-linking and reload recovery:
+
+- `/` → spaces home
+- `/spaces/{encodedSpace}`
+- `?view=list|map`
+- optional `?memory={encodedMemory}`
+
+Navigation updates the URL (space open, list/map switch, memory selection), reload restores state, and browser back/forward is supported via History API.
+
 Graph API endpoint used by the SPA:
 
 - `GET /api/spaces/:space/graph?limit=<n>`
