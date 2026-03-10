@@ -143,13 +143,21 @@ function zodToJsonSchema(schema: any): any {
                 } else if (innerDef?.type === 'boolean') {
                     properties[key] = { type: 'boolean' };
                 } else if (innerDef?.type === 'array') {
-                    properties[key] = { type: 'array', items: { type: 'string' } };
+                    const itemType = innerDef.element?._def?.type;
+                    properties[key] = {
+                        type: 'array',
+                        items: { type: itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string' },
+                    };
                 } else {
                     properties[key] = { type: 'string' };
                 }
                 if (fieldDescription) properties[key].description = fieldDescription;
             } else if (fieldType === 'array') {
-                properties[key] = { type: 'array', items: { type: 'string' } };
+                const itemType = fieldDef.element?._def?.type;
+                properties[key] = {
+                    type: 'array',
+                    items: { type: itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string' },
+                };
                 if (fieldDescription) properties[key].description = fieldDescription;
                 required.push(key);
             } else if (fieldType === 'enum') {

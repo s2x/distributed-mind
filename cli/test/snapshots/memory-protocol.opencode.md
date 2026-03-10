@@ -8,6 +8,8 @@ Use this protocol whenever the `mind` MCP server is available.
 - Use repo-based project spaces (example: `projects/mind`).
 - Persist important context immediately (decisions, bug fixes, discoveries, config updates).
 - Keep tags consistent (`cat:decision`, `cat:bugfix`, `cat:discovery`, `type:project`).
+- Link directly relevant memories for recovery continuity (`links_to_ids`, `memory_patch add_links_to_ids`, or `link_create`).
+- Composite operations (`memory_add` with links, `memory_patch`) are atomic all-or-nothing.
 
 ## Session Continuity
 

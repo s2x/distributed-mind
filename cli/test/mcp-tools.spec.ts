@@ -14,6 +14,132 @@ afterEach(() => {
 });
 
 describe('MCP Memory Tools', () => {
+    test('memory_add should support pinned and links_to_ids', async () => {
+        store = createTestStore();
+        store.createSpace('proj', 'Project');
+        const target = await store.addMemory('proj', 'target', 'target content');
+
+        const tools = createMemoryTools(store);
+        const res = await tools.memory_add.handler({
+            space: 'proj',
+            name: 'source',
+            content: 'source content',
+            pinned: true,
+            links_to_ids: [target.id],
+        });
+
+        expect(res.memory.pinned).toBe(true);
+        const links = store.getLinks(res.memory.id);
+        expect(links.length).toBe(1);
+        expect(links[0]?.target_id).toBe(target.id);
+    });
+
+    test('memory_add should be atomic when links_to_ids contains invalid id', async () => {
+        store = createTestStore();
+        store.createSpace('proj', 'Project');
+        const tools = createMemoryTools(store);
+
+        await expect(
+            tools.memory_add.handler({
+                space: 'proj',
+                name: 'source',
+                content: 'source content',
+                links_to_ids: [99999],
+            })
+        ).rejects.toThrow('linked memory id 99999');
+
+        expect(store.getMemory('proj', 'source')).toBeNull();
+    });
+
+    test('memory_read should include linked summaries by direction', async () => {
+        store = createTestStore();
+        store.createSpace('proj', 'Project');
+        const base = await store.addMemory('proj', 'base', 'base content', { tags: ['cat:decision'] });
+        const outgoing = await store.addMemory('proj', 'outgoing', 'outgoing content', { tags: ['cat:bugfix'] });
+        const incoming = await store.addMemory('proj', 'incoming', 'incoming content', { tags: ['cat:pattern'] });
+        store.link(base.id, outgoing.id);
+        store.link(incoming.id, base.id);
+
+        const tools = createMemoryTools(store);
+        const res = await tools.memory_read.handler({ space: 'proj', name: 'base' });
+
+        expect(res.memory).not.toBeNull();
+        expect(res.memory?.pinned).toBe(false);
+        expect(res.links_to.length).toBe(1);
+        expect(res.linked_by.length).toBe(1);
+        expect(Object.keys(res.links_to[0] ?? {}).sort()).toEqual(['changed_at', 'id', 'name', 'pinned', 'tags', 'tier']);
+        expect(Object.keys(res.linked_by[0] ?? {}).sort()).toEqual([
+            'changed_at',
+            'id',
+            'name',
+            'pinned',
+            'tags',
+            'tier',
+        ]);
+    });
+
+    test('memory_patch should apply bounded composite updates atomically', async () => {
+        store = createTestStore();
+        store.createSpace('proj', 'Project');
+        const source = await store.addMemory('proj', 'source', 'old content', { tier: 2, tags: ['old'] });
+        const target = await store.addMemory('proj', 'target', 'target content');
+
+        const tools = createMemoryTools(store);
+        const res = await tools.memory_patch.handler({
+            id: source.id,
+            name: 'source-renamed',
+            content: 'new content',
+            pinned: true,
+            tier_transition: 'promote',
+            add_tags: ['new-tag'],
+            remove_tags: ['old'],
+            add_links_to_ids: [target.id],
+        });
+
+        expect(res.memory.name).toBe('source-renamed');
+        expect(res.memory.content).toBe('new content');
+        expect(res.memory.pinned).toBe(true);
+        expect(res.memory.tier).toBe(1);
+        expect(res.memory.tags).toContain('new-tag');
+        expect(res.memory.tags).not.toContain('old');
+        const links = store.getLinks(source.id);
+        expect(links.length).toBe(1);
+        expect(links[0]?.target_id).toBe(target.id);
+    });
+
+    test('memory_patch should rollback all changes on invalid link target', async () => {
+        store = createTestStore();
+        store.createSpace('proj', 'Project');
+        const source = await store.addMemory('proj', 'source', 'old content', { tags: ['old'] });
+
+        const tools = createMemoryTools(store);
+        await expect(
+            tools.memory_patch.handler({
+                id: source.id,
+                name: 'new-name',
+                add_tags: ['new-tag'],
+                add_links_to_ids: [99999],
+            })
+        ).rejects.toThrow('linked memory id 99999');
+
+        const unchanged = store.getMemoryById(source.id);
+        expect(unchanged?.name).toBe('source');
+        expect(unchanged?.tags).toContain('old');
+        expect(unchanged?.tags).not.toContain('new-tag');
+        expect(store.getLinks(source.id).length).toBe(0);
+    });
+
+    test('memory_patch should fail with actionable error when no operations are provided', async () => {
+        store = createTestStore();
+        store.createSpace('proj', 'Project');
+        const source = await store.addMemory('proj', 'source', 'old content');
+
+        const tools = createMemoryTools(store);
+        await expect(tools.memory_patch.handler({ id: source.id })).rejects.toThrow(
+            'Provide at least one operation'
+        );
+    });
+
     test('memory_query should use default pagination values', async () => {
         store = createTestStore();
         store.createSpace('Credentials', 'Secrets');

@@ -8,6 +8,8 @@ const MemoryAddSchema = z.object({
     content: z.string().min(1).describe('Memory content.'),
     tags: z.array(z.string()).optional().describe('Optional tags.'),
     tier: z.number().int().min(1).max(3).optional().describe('Optional tier: 1=hot, 2=warm, 3=cold.'),
+    pinned: z.boolean().optional().describe('Optional pinned state. true keeps memory immune to auto-promotion and LRU eviction.'),
+    links_to_ids: z.array(z.number().int()).optional().describe('Optional target memory IDs to link from this new memory.'),
 });
 
 const MemoryGetSchema = z.object({
@@ -53,6 +55,21 @@ const MemoryTagRemoveSchema = z.object({
 
 const MemoryTagsListSchema = z.object({});
 
+const MemoryPatchSchema = z.object({
+    id: z.number().int().describe('Memory ID to patch.'),
+    name: z.string().optional().describe('Optional new memory name.'),
+    content: z.string().optional().describe('Optional new memory content.'),
+    pinned: z.boolean().optional().describe('Optional pinned state update.'),
+    tier_transition: z
+        .enum(['promote', 'demote'])
+        .optional()
+        .describe('Optional bounded tier transition: promote (up one) or demote (down one).'),
+    add_tags: z.array(z.string()).optional().describe('Optional tags to add.'),
+    remove_tags: z.array(z.string()).optional().describe('Optional tags to remove.'),
+    add_links_to_ids: z.array(z.number().int()).optional().describe('Optional outgoing links to add from this memory.'),
+    remove_links_to_ids: z.array(z.number().int()).optional().describe('Optional outgoing links to remove from this memory.'),
+});
+
 const MemoryQuerySchema = z.object({
     space: z.string().optional().describe('Filter by space name.'),
     tag: z.string().optional().describe('Filter by tag.'),
@@ -75,6 +92,7 @@ const MEMORY_TOOL_DESCRIPTIONS: Record<string, string> = {
     memory_tag_remove: 'Remove a tag from a memory by ID.',
     memory_tags_list: 'List all tags in the system.',
     memory_query: 'Query memories with filters and pagination.',
+    memory_patch: 'Atomically patch one memory with bounded updates (all-or-nothing).',
 };
 
 export function createMemoryTools(store: MindStore) {
@@ -90,13 +108,15 @@ export function createMemoryTools(store: MindStore) {
                     parsed = MemoryAddSchema.parse(args);
                 } catch (e: any) {
                     throw new Error(
-                        `Invalid arguments: ${e.message}. Provide: space, name, content, tags (optional), tier (optional).`
+                        `Invalid arguments: ${e.message}. Provide: space, name, content, tags (optional), tier (optional), pinned (optional), links_to_ids (optional).`
                     );
                 }
 
                 const memory = await store.addMemory(parsed.space, parsed.name, parsed.content, {
                     tags: parsed.tags,
                     tier: parsed.tier as Tier | undefined,
+                    pinned: parsed.pinned,
+                    linksToIds: parsed.links_to_ids,
                 });
                 return {
                     content: [
@@ -215,9 +235,12 @@ export function createMemoryTools(store: MindStore) {
                 }
                 store.recordAccess(memory.id);
                 const updatedMemory = store.getMemoryById(memory.id);
+                const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
                 return {
                     content: [{ type: 'text', text: `Memory "${parsed.name}" read. Auto-promoted if applicable.` }],
                     memory: updatedMemory,
+                    links_to: linkedSummaries.links_to,
+                    linked_by: linkedSummaries.linked_by,
                 };
             },
         },
@@ -301,6 +324,46 @@ export function createMemoryTools(store: MindStore) {
                     ],
                     items: memories,
                     pagination: { limit, offset, nextOffset },
+                };
+            },
+        },
+        memory_patch: {
+            schema: MemoryPatchSchema,
+            description: MEMORY_TOOL_DESCRIPTIONS.memory_patch,
+            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+            handler: async (args: unknown) => {
+                const parsed = MemoryPatchSchema.parse(args ?? {});
+
+                const hasAnyOperation =
+                    parsed.name !== undefined ||
+                    parsed.content !== undefined ||
+                    parsed.pinned !== undefined ||
+                    parsed.tier_transition !== undefined ||
+                    (parsed.add_tags?.length ?? 0) > 0 ||
+                    (parsed.remove_tags?.length ?? 0) > 0 ||
+                    (parsed.add_links_to_ids?.length ?? 0) > 0 ||
+                    (parsed.remove_links_to_ids?.length ?? 0) > 0;
+
+                if (!hasAnyOperation) {
+                    throw new Error(
+                        'Provide at least one operation: name, content, pinned, tier_transition, add_tags, remove_tags, add_links_to_ids, or remove_links_to_ids.'
+                    );
+                }
+
+                const memory = await store.patchMemory(parsed.id, {
+                    name: parsed.name,
+                    content: parsed.content,
+                    pinned: parsed.pinned,
+                    tierTransition: parsed.tier_transition,
+                    addTags: parsed.add_tags,
+                    removeTags: parsed.remove_tags,
+                    addLinksToIds: parsed.add_links_to_ids,
+                    removeLinksToIds: parsed.remove_links_to_ids,
+                });
+
+                return {
+                    content: [{ type: 'text', text: `Memory ${parsed.id} patched successfully (atomic all-or-nothing).` }],
+                    memory,
                 };
             },
         },

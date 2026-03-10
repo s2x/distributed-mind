@@ -6,7 +6,7 @@ import { initializeDatabase } from './schema';
 import { TIER_LIMITS } from '../config';
 import { isRagEnabled, getEmbedding, semanticSearch, blobToVector, vectorToBlob } from '../helpers/rag';
 import { normalizeTag, normalizeTags } from '../helpers/tags';
-import type { MindStore } from './mind-store';
+import type { LinkedMemorySummary, MemoryPatchInput, MindStore } from './mind-store';
 import type {
     Space,
     SpaceSummary,
@@ -284,7 +284,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         space: string,
         name: string,
         content: string,
-        opts?: { tags?: string[]; tier?: Tier }
+        opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
     ): Promise<Memory> {
         requireSpace(space);
 
@@ -292,27 +292,56 @@ export function createSqliteStore(dbPath: string): MindStore {
         if (existing) throw new Error(`Memory "${name}" already exists in space "${space}"`);
 
         const tier = opts?.tier ?? 2;
+        const pinned = opts?.pinned ?? false;
+        const linksToIds = opts?.linksToIds ?? [];
 
-        // Ensure capacity at target tier (evict LRU if needed); T4 is unlimited
-        ensureCapacity(space, tier, true);
-
-        const ts = now();
-        const result = db.run(
-            `INSERT INTO memories (space_name, name, content, tier, created_at, updated_at, changed_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [space, name, content, tier, ts, ts, ts]
-        );
-
-        const id = Number(result.lastInsertRowid);
-        ftsInsert(id, name, content);
-
-        if (opts?.tags && opts.tags.length > 0) {
-            const normalizedTags = normalizeTags(opts.tags);
-            const stmt = db.prepare('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)');
-            for (const tag of normalizedTags) {
-                stmt.run(id, tag);
+        for (const targetId of linksToIds) {
+            const target = db.query('SELECT 1 FROM memories WHERE id = ?').get(targetId);
+            if (!target) {
+                throw new Error(
+                    `Cannot add memory: linked memory id ${targetId} does not exist. Use memory_list, memory_query, or search to find valid IDs.`
+                );
             }
         }
+
+        const addMemoryTransaction = db.transaction(() => {
+            // Ensure capacity at target tier (evict LRU if needed); T4 is unlimited
+            ensureCapacity(space, tier, true);
+
+            const ts = now();
+            const result = db.run(
+                `INSERT INTO memories (space_name, name, content, tier, pinned, created_at, updated_at, changed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [space, name, content, tier, pinned ? 1 : 0, ts, ts, ts]
+            );
+
+            const id = Number(result.lastInsertRowid);
+            ftsInsert(id, name, content);
+
+            if (opts?.tags && opts.tags.length > 0) {
+                const normalizedTags = normalizeTags(opts.tags);
+                const stmt = db.prepare('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)');
+                for (const tag of normalizedTags) {
+                    stmt.run(id, tag);
+                }
+            }
+
+            if (linksToIds.length > 0) {
+                const linkStmt = db.prepare(
+                    'INSERT OR REPLACE INTO links (source_id, target_id, label, created_at) VALUES (?, ?, ?, ?)'
+                );
+                for (const targetId of linksToIds) {
+                    if (targetId === id) {
+                        throw new Error('Cannot add memory: add_links_to_ids cannot include self links.');
+                    }
+                    linkStmt.run(id, targetId, 'related', ts);
+                }
+            }
+
+            return id;
+        });
+
+        const id = addMemoryTransaction();
 
         // Generate embedding if RAG is enabled (await so embedding is ready before process exits)
         if (isRagEnabled()) {
@@ -448,6 +477,174 @@ export function createSqliteStore(dbPath: string): MindStore {
         if (ok) {
             db.run('UPDATE memories SET tier = ?, updated_at = ? WHERE id = ?', [toTier, ts, id]);
         }
+    }
+
+    function getLinkedMemorySummaries(memoryId: number): { links_to: LinkedMemorySummary[]; linked_by: LinkedMemorySummary[] } {
+        requireMemory(memoryId);
+
+        const linksToRows = db
+            .query(
+                `SELECT m.id, m.name, m.changed_at, m.tier, m.pinned
+                 FROM links l
+                 JOIN memories m ON m.id = l.target_id
+                 WHERE l.source_id = ?
+                 ORDER BY m.changed_at DESC, m.id DESC`
+            )
+            .all(memoryId) as any[];
+
+        const linkedByRows = db
+            .query(
+                `SELECT m.id, m.name, m.changed_at, m.tier, m.pinned
+                 FROM links l
+                 JOIN memories m ON m.id = l.source_id
+                 WHERE l.target_id = ?
+                 ORDER BY m.changed_at DESC, m.id DESC`
+            )
+            .all(memoryId) as any[];
+
+        const toSummary = (row: any): LinkedMemorySummary => ({
+            id: row.id,
+            name: row.name,
+            changed_at: row.changed_at,
+            tier: row.tier as Tier,
+            tags: getTagsForMemory(row.id),
+            pinned: row.pinned === 1,
+        });
+
+        return {
+            links_to: linksToRows.map(toSummary),
+            linked_by: linkedByRows.map(toSummary),
+        };
+    }
+
+    async function patchMemory(id: number, patch: MemoryPatchInput): Promise<Memory> {
+        requireMemory(id);
+
+        const hasAnyOperation =
+            patch.name !== undefined ||
+            patch.content !== undefined ||
+            patch.pinned !== undefined ||
+            patch.tierTransition !== undefined ||
+            (patch.addTags?.length ?? 0) > 0 ||
+            (patch.removeTags?.length ?? 0) > 0 ||
+            (patch.addLinksToIds?.length ?? 0) > 0 ||
+            (patch.removeLinksToIds?.length ?? 0) > 0;
+
+        if (!hasAnyOperation) {
+            throw new Error(
+                'Provide at least one operation: name, content, pinned, tier_transition, add_tags, remove_tags, add_links_to_ids, or remove_links_to_ids.'
+            );
+        }
+
+        if (patch.tierTransition === 'promote') {
+            const current = requireMemory(id) as any;
+            if (current.tier <= 1) {
+                throw new Error('Cannot promote memory: already at T1.');
+            }
+        }
+
+        if (patch.tierTransition === 'demote') {
+            const current = requireMemory(id) as any;
+            if (current.tier >= 4) {
+                throw new Error('Cannot demote memory: already at T4.');
+            }
+        }
+
+        for (const targetId of patch.addLinksToIds ?? []) {
+            if (targetId === id) {
+                throw new Error('Cannot patch memory: add_links_to_ids cannot include self links.');
+            }
+            const target = db.query('SELECT 1 FROM memories WHERE id = ?').get(targetId);
+            if (!target) {
+                throw new Error(
+                    `Cannot patch memory: linked memory id ${targetId} does not exist. Use memory_list, memory_query, or search to find valid IDs.`
+                );
+            }
+        }
+
+        for (const targetId of patch.removeLinksToIds ?? []) {
+            if (targetId === id) {
+                throw new Error('Cannot patch memory: remove_links_to_ids cannot include self links.');
+            }
+            const target = db.query('SELECT 1 FROM memories WHERE id = ?').get(targetId);
+            if (!target) {
+                throw new Error(
+                    `Cannot patch memory: linked memory id ${targetId} does not exist. Use memory_list, memory_query, or search to find valid IDs.`
+                );
+            }
+        }
+
+        const patchTransaction = db.transaction(() => {
+            if (patch.name !== undefined || patch.content !== undefined) {
+                const row = requireMemory(id) as any;
+                const ts = now();
+                const sets: string[] = ['updated_at = ?', 'changed_at = ?'];
+                const params: any[] = [ts, ts];
+
+                if (patch.name !== undefined) {
+                    sets.push('name = ?');
+                    params.push(patch.name);
+                }
+                if (patch.content !== undefined) {
+                    sets.push('content = ?');
+                    params.push(patch.content);
+                }
+
+                params.push(id);
+                db.run(`UPDATE memories SET ${sets.join(', ')} WHERE id = ?`, params);
+                ftsUpdate(id, patch.name ?? row.name, patch.content ?? row.content);
+            }
+
+            if (patch.pinned !== undefined) {
+                const ts = now();
+                db.run('UPDATE memories SET pinned = ?, updated_at = ?, changed_at = ? WHERE id = ?', [
+                    patch.pinned ? 1 : 0,
+                    ts,
+                    ts,
+                    id,
+                ]);
+            }
+
+            if (patch.tierTransition === 'promote') {
+                promote(id);
+            } else if (patch.tierTransition === 'demote') {
+                demote(id);
+            }
+
+            for (const tag of patch.addTags ?? []) {
+                addMemoryTag(id, tag);
+            }
+
+            for (const tag of patch.removeTags ?? []) {
+                removeMemoryTag(id, tag);
+            }
+
+            if ((patch.addLinksToIds?.length ?? 0) > 0) {
+                const ts = now();
+                const stmt = db.prepare(
+                    'INSERT OR REPLACE INTO links (source_id, target_id, label, created_at) VALUES (?, ?, ?, ?)'
+                );
+                for (const targetId of patch.addLinksToIds ?? []) {
+                    stmt.run(id, targetId, 'related', ts);
+                }
+            }
+
+            for (const targetId of patch.removeLinksToIds ?? []) {
+                db.run('DELETE FROM links WHERE source_id = ? AND target_id = ?', [id, targetId]);
+            }
+        });
+
+        patchTransaction();
+
+        if (isRagEnabled() && (patch.name !== undefined || patch.content !== undefined)) {
+            const memory = rowToMemory(db.query('SELECT * FROM memories WHERE id = ?').get(id) as any);
+            const embedding = await getEmbedding(`${memory.name} ${memory.content}`);
+            if (embedding) {
+                db.run('UPDATE memories SET embedding = ? WHERE id = ?', [vectorToBlob(embedding), id]);
+            }
+        }
+
+        return rowToMemory(db.query('SELECT * FROM memories WHERE id = ?').get(id) as any);
     }
 
     // ── Tags ──
@@ -899,6 +1096,8 @@ export function createSqliteStore(dbPath: string): MindStore {
         deleteMemory,
         deleteMemoryByName,
         recordAccess,
+        getLinkedMemorySummaries,
+        patchMemory,
         addMemoryTag,
         removeMemoryTag,
         listAllTags,

@@ -77,6 +77,10 @@ Call `memory_add` IMMEDIATELY after:
 - User preference learned
 - Any important context you want to preserve for future sessions
 
+Also link directly relevant memories to preserve recovery continuity (`links_to_ids`, `memory_patch add_links_to_ids`, or `link_create`).
+
+Composite operations are atomic all-or-nothing: if one step fails, no partial write is persisted (`memory_add` with links, `memory_patch`).
+
 ---
 
 ## Memory Content Format (strongly recommended)

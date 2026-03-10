@@ -27,6 +27,17 @@ Example:
 
 ## [Unreleased]
 
+### Added
+
+- Added MCP `memory_patch` as a bounded composite operation on one memory (`name/content`, `pinned`, bounded tier transition, tag add/remove, link add/remove) with explicit actionable validation errors and atomic all-or-nothing semantics.
+- Added MCP `memory_add` support for optional `pinned` and `links_to_ids` with atomic all-or-nothing behavior when link validation fails.
+- Added directional linked summaries to MCP `memory_read` response via `links_to` and `linked_by` fields with high-signal memory metadata (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`).
+
+### Changed
+
+- Changed MCP system instructions/protocol wording to explicitly require linking directly relevant memories for recovery continuity and to state atomic all-or-nothing semantics for composite memory operations.
+- Changed MCP tool schema conversion to preserve array item types (`number[]`, `boolean[]`, `string[]`) in generated JSON Schema.
+
 ## [1.0.0] - 2026-03-09
 
 ### Added

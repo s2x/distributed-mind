@@ -142,6 +142,12 @@ Example MCP tool usage (for agents):
 
 `memory_query` returns structured results including `items` and pagination info (`limit`, `offset`, `nextOffset`).
 
+Memory MCP workflows also support bounded composite ergonomics while keeping atomic tools:
+
+- `memory_add` supports optional `pinned` and `links_to_ids` (atomic all-or-nothing).
+- `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`).
+- `memory_patch` applies bounded composite updates for one memory (`name/content`, `pinned`, tier transition, tag add/remove, link add/remove) with atomic all-or-nothing behavior.
+
 Checkpoint MCP tools are also available for session continuity:
 
 - `checkpoint_set`

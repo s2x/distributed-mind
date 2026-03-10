@@ -14,6 +14,26 @@ import type {
     LegacyBrain,
 } from '../types';
 
+export interface LinkedMemorySummary {
+    id: number;
+    name: string;
+    changed_at: string;
+    tier: Tier;
+    tags: string[];
+    pinned: boolean;
+}
+
+export interface MemoryPatchInput {
+    name?: string;
+    content?: string;
+    pinned?: boolean;
+    tierTransition?: 'promote' | 'demote';
+    addTags?: string[];
+    removeTags?: string[];
+    addLinksToIds?: number[];
+    removeLinksToIds?: number[];
+}
+
 export interface MindStore {
     // Spaces
     createSpace(name: string, description: string, tags?: string[]): void;
@@ -26,7 +46,12 @@ export interface MindStore {
     removeSpaceTag(space: string, tag: string): void;
 
     // Memories
-    addMemory(space: string, name: string, content: string, opts?: { tags?: string[]; tier?: Tier }): Promise<Memory>;
+    addMemory(
+        space: string,
+        name: string,
+        content: string,
+        opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
+    ): Promise<Memory>;
     getMemory(space: string, name: string): Memory | null;
     getMemoryById(id: number): Memory | null;
     /**
@@ -44,6 +69,8 @@ export interface MindStore {
      * Silently skips promotion if destination is full and all are pinned.
      */
     recordAccess(id: number): void;
+    getLinkedMemorySummaries(memoryId: number): { links_to: LinkedMemorySummary[]; linked_by: LinkedMemorySummary[] };
+    patchMemory(id: number, patch: MemoryPatchInput): Promise<Memory>;
 
     // Tags
     addMemoryTag(memoryId: number, tag: string): void;

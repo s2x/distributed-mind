@@ -12,7 +12,7 @@ export function createSystemTools() {
             handler: async () => {
                 return {
                     content: [{ type: 'text', text: FULL_INSTRUCTIONS }],
-                    instructions_version: '1.1.0',
+                    instructions_version: '1.2.0',
                 };
             },
         },
