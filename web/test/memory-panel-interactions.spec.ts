@@ -4,7 +4,7 @@ import {
     DRAG_CLOSE_GUARD_THRESHOLD_PX,
     interactionWasDrag,
     shouldCloseMemoryPanelOnClick,
-} from '../../web/public/memory-panel-interactions.js';
+} from '../src/features/memory-panel/interactions.js';
 
 describe('memory panel drag detection', () => {
     test('treats movement beyond threshold as drag', () => {

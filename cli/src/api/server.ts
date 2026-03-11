@@ -6,10 +6,19 @@ import type { MindStore } from '../store/mind-store';
 import { matchApiRoute } from './router';
 
 function resolveStaticFile(pathname: string): Response {
-    const publicDir = path.join(import.meta.dir, '..', '..', '..', 'web', 'public');
-    const candidate = path.join(publicDir, pathname === '/' ? 'index.html' : pathname);
+    const webRoot = path.join(import.meta.dir, '..', '..', '..', 'web');
+    const publicDir = path.join(webRoot, 'public');
 
-    if (!candidate.startsWith(publicDir)) {
+    if (pathname === '/') {
+        return new Response(fs.readFileSync(path.join(publicDir, 'index.html')), {
+            headers: { 'Content-Type': 'text/html' },
+        });
+    }
+
+    const relativePath = pathname.replace(/^\/+/, '');
+    const candidate = path.join(webRoot, relativePath);
+
+    if (!candidate.startsWith(webRoot)) {
         return new Response('Forbidden', { status: 403 });
     }
 

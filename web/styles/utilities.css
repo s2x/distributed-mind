@@ -1,0 +1,17 @@
+.hidden {
+    display: none !important;
+}
+
+.editable {
+    cursor: text;
+}
+
+.editable:hover {
+    background: var(--bg3);
+    border-radius: 4px;
+}
+
+.muted {
+    color: var(--muted);
+    font-size: 13px;
+}

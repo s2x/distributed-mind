@@ -300,7 +300,11 @@ cli/src/
   store/      # SQLite schema + MindStore implementation
   mind.ts     # main entrypoint used by mind
 
-web/public/   # frontend assets served by API server
+web/src/      # frontend runtime modules (ESM, no build step)
+web/styles/   # split CSS (tokens/base/layout/components/utilities)
+web/assets/   # static assets (logo, images)
+web/public/   # SPA HTML shell (index.html)
+web/test/     # web-only tests
 ```
 
 ## Testing
@@ -308,7 +312,13 @@ web/public/   # frontend assets served by API server
 Run unit tests:
 
 ```bash
-bun test cli/test
+bun test cli/test web/test
+```
+
+Run web-only tests:
+
+```bash
+bun test web/test
 ```
 
 Run RAG integration test (requires `OPENAI_API_KEY`):

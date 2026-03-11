@@ -10,7 +10,7 @@ import {
     layoutGraph,
     truncateGraphLabel,
     zoomTransformAtAnchor,
-} from '../../web/public/graph-math.js';
+} from '../src/features/graph/graph-math.js';
 
 describe('Neural map graph math', () => {
     test('keeps pointer anchor fixed when wheel-zooming', () => {

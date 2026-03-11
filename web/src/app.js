@@ -1,42 +1,44 @@
-// ── mind web UI ──────────────────────────────────────────────────────────────
+import { api } from './api/client.js';
+import {
+    buildGraphLayerOrder,
+    buildNeighborhoodFocus,
+    computeLabelFontSize,
+    computeLabelY,
+    computeNodeCircleRadius,
+    computeNodeFillOpacity,
+    layoutGraph,
+    truncateGraphLabel,
+    zoomTransformAtAnchor,
+} from './features/graph/graph-math.js';
+import {
+    beginGraphPointerGesture,
+    createGraphInteractionState,
+    currentGraphPanTransform,
+    endGraphPointerGesture,
+    handleGraphContextMenu,
+    shouldSelectGraphNodeOnClick,
+    updateGraphPointerGesture,
+} from './features/graph/interactions.js';
+import { buildAppUrl, parseAppRoute } from './features/routing/routing.js';
+import {
+    DRAG_CLOSE_GUARD_THRESHOLD_PX,
+    interactionWasDrag,
+    shouldCloseMemoryPanelOnClick,
+} from './features/memory-panel/interactions.js';
 
-// ── API ───────────────────────────────────────────────────────────────────────
-const api = {
-    async get(path) {
-        const r = await fetch(path);
-        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-        return r.json();
-    },
-    async post(path, body) {
-        const r = await fetch(path, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-        return r.json();
-    },
-    async patch(path, body) {
-        const r = await fetch(path, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-        return r.json();
-    },
-    async del(path) {
-        const r = await fetch(path, { method: 'DELETE' });
-        if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-        return r.json();
-    },
-};
+/** @typedef {{ id:number, name:string, tier:1|2|3|4, pinned:boolean, access_count:number, tags?:string[] }} MemorySummary */
+/** @typedef {{ id:number, space_name:string, name:string, content:string, tier:1|2|3|4, pinned:boolean, tags?:string[] }} Memory */
+/** @typedef {{ name:string, description?:string, tags?:string[], memory_count?:number }} Space */
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let state = {
+    /** @type {Space[]} */
     spaces: [],
+    /** @type {Space | null} */
     currentSpace: null,
+    /** @type {MemorySummary[]} */
     memories: [], // MemorySummary[]
+    /** @type {Memory | null} */
     currentMemory: null, // Memory (full)
     searchActive: false,
     searchResults: [],
@@ -74,7 +76,6 @@ const elGraphSvg = $('graph-svg');
 const elGraphMeta = $('graph-meta');
 const elBtnViewList = $('btn-view-list');
 const elBtnViewMap = $('btn-view-map');
-const memoryPanelInteractions = globalThis.memoryPanelInteractions;
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
 const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold', 4: '💠 T4 — Frozen' };
@@ -201,13 +202,13 @@ function renderGraph() {
         return;
     }
 
-    const layout = graphMath.layoutGraph(graph.nodes);
-    const focus = graphMath.buildNeighborhoodFocus(graph.nodes, state.graphFocusNodeId);
+    const layout = layoutGraph(graph.nodes);
+    const focus = buildNeighborhoodFocus(graph.nodes, state.graphFocusNodeId);
     const transformGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     transformGroup.setAttribute('id', 'graph-transform');
     const layers = new Map();
 
-    for (const layerName of graphMath.buildGraphLayerOrder()) {
+    for (const layerName of buildGraphLayerOrder()) {
         const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         layer.setAttribute('data-layer', layerName);
         layers.set(layerName, layer);
@@ -264,12 +265,12 @@ function renderGraph() {
         if (!pos) continue;
 
         const degree = node.links_to.length + node.linked_by.length;
-        const radius = graphMath.computeNodeCircleRadius(degree);
+        const radius = computeNodeCircleRadius(degree);
         const tierColor = graphTierColor(node.tier);
         const isFocusedNode = focus.active && node.id === focus.centerNodeId;
         const isFocusRelated = focus.active && focus.relatedNodeIds.has(node.id);
 
-        let fillOpacity = graphMath.computeNodeFillOpacity(degree);
+        let fillOpacity = computeNodeFillOpacity(degree);
         if (focus.active) {
             fillOpacity = isFocusRelated ? fillOpacity : Math.min(fillOpacity, 0.18);
             if (isFocusedNode) {
@@ -294,7 +295,8 @@ function renderGraph() {
         circleTitle.textContent = node.name;
         circle.appendChild(circleTitle);
 
-        circle.addEventListener('click', () => {
+        circle.addEventListener('click', (event) => {
+            if (!shouldSelectGraphNodeOnClick({ button: event.button })) return;
             state.graphFocusNodeId = node.id;
             selectMemory(state.currentSpace.name, node.name);
         });
@@ -321,9 +323,9 @@ function renderGraph() {
         layers.get('nodes').appendChild(degreeLabel);
 
         const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.textContent = graphMath.truncateGraphLabel(node.name, 25);
+        label.textContent = truncateGraphLabel(node.name, 25);
         label.setAttribute('x', String(pos.x));
-        label.setAttribute('y', String(graphMath.computeLabelY(pos.y, radius)));
+        label.setAttribute('y', String(computeLabelY(pos.y, radius)));
         label.setAttribute('fill', '#e6edf3');
         label.classList.add('graph-label');
         label.setAttribute('font-size', String(GRAPH_LABEL_BASE));
@@ -366,7 +368,7 @@ function applyGraphTransform() {
 
 function updateGraphLabels(scale) {
     const labels = elGraphSvg.querySelectorAll('.graph-label');
-    const clampedLabelSize = graphMath.computeLabelFontSize(scale, GRAPH_LABEL_BASE, GRAPH_LABEL_MIN, GRAPH_LABEL_MAX);
+    const clampedLabelSize = computeLabelFontSize(scale, GRAPH_LABEL_BASE, GRAPH_LABEL_MIN, GRAPH_LABEL_MAX);
     const normalizedFontSize = clampedLabelSize / scale;
     for (const label of labels) {
         label.setAttribute('font-size', String(normalizedFontSize));
@@ -396,7 +398,7 @@ function getSvgCenterAnchor() {
 }
 
 function zoomGraphAtAnchor(factor, anchor) {
-    state.graphTransform = graphMath.zoomTransformAtAnchor(state.graphTransform, {
+    state.graphTransform = zoomTransformAtAnchor(state.graphTransform, {
         factor,
         anchorX: anchor.x,
         anchorY: anchor.y,
@@ -468,7 +470,7 @@ function renderMemoryPanel(memory) {
         }
     );
 
-    elMemContent.innerHTML = marked.parse(memory.content || '');
+    elMemContent.innerHTML = globalThis.marked.parse(memory.content || '');
     $('btn-mem-pin').textContent = memory.pinned ? '📌 Unpin' : '📌 Pin';
 
     // Show content, hide editor
@@ -541,7 +543,7 @@ function isMemorySelectionTarget(target) {
 
 function syncUrl(options = {}) {
     const { replace = false } = options;
-    const nextUrl = appRouting.buildAppUrl({
+    const nextUrl = buildAppUrl({
         spaceName: state.currentSpace?.name ?? null,
         view: state.spaceView,
         memoryName: state.currentMemory?.name ?? null,
@@ -566,7 +568,7 @@ function resetToHomeState() {
 }
 
 async function restoreRouteFromLocation() {
-    const route = appRouting.parseAppRoute(window.location.pathname, window.location.search);
+    const route = parseAppRoute(window.location.pathname, window.location.search);
 
     if (!route.spaceName) {
         resetToHomeState();
@@ -725,8 +727,7 @@ $('btn-graph-reset').addEventListener('click', () => {
     applyGraphTransform();
 });
 
-let graphDragging = false;
-let dragStart = null;
+let graphInteraction = createGraphInteractionState();
 let panelCloseGuardPointerStart = null;
 let panelCloseGuardInteractionWasDrag = false;
 
@@ -738,36 +739,84 @@ document.addEventListener('mousedown', (event) => {
 
 document.addEventListener('mouseup', (event) => {
     if (!panelCloseGuardPointerStart) return;
-    panelCloseGuardInteractionWasDrag = Boolean(memoryPanelInteractions?.interactionWasDrag?.({
-        start: panelCloseGuardPointerStart,
-        end: { x: event.clientX, y: event.clientY },
-        thresholdPx: memoryPanelInteractions?.DRAG_CLOSE_GUARD_THRESHOLD_PX,
-    }));
+    panelCloseGuardInteractionWasDrag = Boolean(
+        interactionWasDrag({
+            start: panelCloseGuardPointerStart,
+            end: { x: event.clientX, y: event.clientY },
+            thresholdPx: DRAG_CLOSE_GUARD_THRESHOLD_PX,
+        })
+    );
     panelCloseGuardPointerStart = null;
 });
 
-elGraphSvg.addEventListener('mousedown', (event) => {
-    event.preventDefault();
-    graphDragging = true;
-    dragStart = {
-        x: event.clientX,
-        y: event.clientY,
+elGraphSvg.addEventListener('pointerdown', (event) => {
+    const nextState = beginGraphPointerGesture(graphInteraction, {
+        pointerId: event.pointerId,
+        button: event.button,
+        shiftKey: event.shiftKey,
+        clientX: event.clientX,
+        clientY: event.clientY,
         tx: state.graphTransform.tx,
         ty: state.graphTransform.ty,
-    };
+    });
+
+    graphInteraction = nextState;
+    if (graphInteraction.activePointerId !== event.pointerId) return;
+
+    elGraphSvg.setPointerCapture(event.pointerId);
+
+    if (event.button === 0 || event.button === 2) {
+        event.preventDefault();
+    }
 });
 
-window.addEventListener('mousemove', (event) => {
-    if (!graphDragging || !dragStart) return;
+elGraphSvg.addEventListener('pointermove', (event) => {
+    graphInteraction = updateGraphPointerGesture(graphInteraction, {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+    });
+
+    const nextTransform = currentGraphPanTransform(graphInteraction, {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+    });
+    if (!nextTransform) return;
+
     event.preventDefault();
-    state.graphTransform.tx = dragStart.tx + (event.clientX - dragStart.x);
-    state.graphTransform.ty = dragStart.ty + (event.clientY - dragStart.y);
+    state.graphTransform = {
+        ...state.graphTransform,
+        tx: nextTransform.tx,
+        ty: nextTransform.ty,
+    };
     applyGraphTransform();
 });
 
-window.addEventListener('mouseup', () => {
-    graphDragging = false;
-    dragStart = null;
+elGraphSvg.addEventListener('pointerup', (event) => {
+    graphInteraction = endGraphPointerGesture(graphInteraction, { pointerId: event.pointerId });
+});
+
+elGraphSvg.addEventListener('pointercancel', (event) => {
+    graphInteraction = endGraphPointerGesture(graphInteraction, { pointerId: event.pointerId });
+});
+
+elGraphSvg.addEventListener('lostpointercapture', () => {
+    if (graphInteraction.activePointerId === null) return;
+    graphInteraction = endGraphPointerGesture(graphInteraction, {
+        pointerId: graphInteraction.activePointerId,
+    });
+});
+
+elGraphSvg.addEventListener('contextmenu', (event) => {
+    const decision = handleGraphContextMenu(graphInteraction, {
+        shiftKey: event.shiftKey,
+    });
+    graphInteraction = decision.state;
+
+    if (decision.shouldPrevent) {
+        event.preventDefault();
+    }
 });
 
 elGraphSvg.addEventListener(
@@ -858,11 +907,10 @@ $('btn-mem-close').addEventListener('click', () => {
 
 document.addEventListener('click', (event) => {
     if (!isMemoryPanelOpen()) return;
-    if (!memoryPanelInteractions?.shouldCloseMemoryPanelOnClick) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
 
-    const shouldClose = memoryPanelInteractions.shouldCloseMemoryPanelOnClick({
+    const shouldClose = shouldCloseMemoryPanelOnClick({
         isPanelOpen: true,
         targetInsidePanel: Boolean(target.closest('#memory-panel')),
         targetIsMemorySelection: isMemorySelectionTarget(target),

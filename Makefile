@@ -1,4 +1,4 @@
-.PHONY: help web web-dev test test-rag install-local release-patch release-minor release-major release-simulate
+.PHONY: help web web-dev test test-web test-rag install-local release-patch release-minor release-major release-simulate
 
 help: ## Show available commands
 	@echo "mind project tasks"
@@ -12,7 +12,10 @@ web-dev: ## Run the web app locally with Bun
 	cd web && bun run dev
 
 test: ## Run unit tests
-	bun test cli/test
+	bun test cli/test web/test
+
+test-web: ## Run web-only tests
+	bun test web/test
 
 test-rag: ## Run RAG E2E integration test (requires OPENAI_API_KEY)
 	./scripts/test-rag.sh

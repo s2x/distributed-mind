@@ -5,7 +5,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "bun test cli/test"
+    "test": "bun test cli/test web/test",
+    "test:cli": "bun test cli/test",
+    "test:web": "bun test web/test"
   },
   "devDependencies": {
     "@types/bun": "latest"

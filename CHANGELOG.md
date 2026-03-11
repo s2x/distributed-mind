@@ -38,6 +38,11 @@ Example:
 
 ### Changed
 
+- Changed web architecture to a single-server layout: `mind serve` now serves SPA files from the reorganized `web/` tree (`web/src`, `web/styles`, `web/assets`, `web/public`) via canonical `cli/src/api/server.ts`.
+- Changed web frontend runtime to modular ES modules without a build pipeline, with `@ts-check` + JSDoc typing in key modules.
+- Changed web index asset/module paths to deep-route-safe root-absolute URLs (`/assets/*`, `/styles/*`, `/src/*`).
+- Changed test organization so web-only tests run from `web/test` while backend/CLI suites remain in `cli/test`.
+- Changed root test commands to include both suites by default (`bun test cli/test web/test`) and added web-only commands (`bun test web/test`, `make test-web`).
 - Changed web SPA navigation to be URL-driven for space/view/memory (`/`, `/spaces/{space}?view=list|map&memory={memory}`), including reload restore, browser back/forward support, and safe fallback canonicalization for invalid route state.
 - Changed web SPA memory detail behavior to close the panel on outside click/tap while preserving in-panel interactions and memory selection from list/map.
 - Changed space detail UI to include a `List` / `Neural Map` toggle while preserving existing list/detail behavior.
@@ -49,6 +54,11 @@ Example:
 ### Fixed
 
 - Fixed Neural Map drag UX by preventing text selection/touch scrolling while panning the graph surface.
+- Fixed Neural Map right-click behavior so right-button drag pans the graph, quick right-click keeps the browser context menu, and quick right-click no longer triggers node selection.
+
+### Removed
+
+- Removed legacy `web/server.ts`; the only supported web server path is `cli/src/api/server.ts` (invoked by `mind serve`).
 
 ## [1.0.0] - 2026-03-09
 

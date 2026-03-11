@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { buildAppUrl, parseAppRoute } from '../../web/public/routing.js';
+import { buildAppUrl, parseAppRoute } from '../src/features/routing/routing.js';
 
 describe('SPA routing contract', () => {
     test('parses home route', () => {
