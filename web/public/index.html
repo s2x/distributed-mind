@@ -32,6 +32,7 @@
                         <span id="status-spaces">—</span>
                     </div>
                     <div class="status-tiers" id="status-tiers"></div>
+                    <a href="/logs" id="nav-logs" class="nav-link">📋 Logs</a>
                 </div>
             </aside>
 
@@ -48,6 +49,42 @@
                         <button class="btn btn-sm btn-ghost" id="btn-close-search">✕ Close</button>
                     </header>
                     <ul id="search-list" class="memory-list"></ul>
+                </div>
+
+                <!-- Logs page -->
+                <div id="logs-page" class="hidden">
+                    <header class="panel-header">
+                        <h2>📋 Operation Logs</h2>
+                        <div class="logs-controls">
+                            <label class="logs-filter">
+                                <input type="checkbox" id="log-source-cli" value="cli" checked /> CLI
+                            </label>
+                            <label class="logs-filter">
+                                <input type="checkbox" id="log-source-mcp" value="mcp" checked /> MCP
+                            </label>
+                            <label class="logs-filter">
+                                <input type="checkbox" id="log-source-api" value="api" checked /> API
+                            </label>
+                            <input type="text" id="log-search" class="log-search-input" placeholder="Search logs..." />
+                            <select id="log-order" class="log-order-select">
+                                <option value="desc">Newest first</option>
+                                <option value="asc">Oldest first</option>
+                            </select>
+                            <label class="logs-live-toggle">
+                                <input type="checkbox" id="log-live" checked /> Live
+                            </label>
+                            <label class="logs-follow-toggle">
+                                <input type="checkbox" id="log-follow" checked /> Follow
+                            </label>
+                            <button id="btn-refresh-logs" class="btn btn-sm btn-ghost">Refresh</button>
+                        </div>
+                    </header>
+                    <div id="logs-connection-status" class="logs-connection-status hidden">● Live</div>
+                    <ul id="logs-list" class="logs-list"></ul>
+                    <div id="logs-pagination" class="logs-pagination">
+                        <span id="logs-count"></span>
+                        <button id="btn-load-more-logs" class="btn btn-sm btn-ghost">Load More</button>
+                    </div>
                 </div>
 
                 <!-- Space detail -->

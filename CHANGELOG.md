@@ -27,8 +27,24 @@ Example:
 
 ## [Unreleased]
 
+### Changed
+- Replaced SSE streaming with polling for real-time logs in the web UI. Logs now update every 2 seconds via `/api/logs?since={lastLogId}` instead of EventSource SSE.
+
 ### Added
 
+- Added operation logging system with SQLite storage, configurable retention (MIND_LOG_RETENTION_MINUTES, default 7 days), and automatic cleanup on startup and hourly.
+- Added CLI, MCP, and API middleware to capture all operations with source, operation, level, input/output data, error messages, duration, and caller info.
+- Added `GET /api/logs` endpoint with filtering by source, operation, level, search, date range, pagination, and ordering.
+- Added `GET /api/logs/stream` endpoint for real-time log streaming via SSE.
+- Added web UI for viewing and filtering logs in real-time (`/logs` route).
+
+### Changed
+
+- Added operation logging system capturing CLI, MCP, and API operations to SQLite `logs` table with configurable retention (default 7 days, configurable via `MIND_LOG_RETENTION_MINUTES`).
+- Added `GET /api/logs` endpoint for querying logs with filters (source, operation, search, from/to, level, limit, offset, order).
+- Added `GET /api/logs/stream` endpoint for real-time log streaming via Server-Sent Events (SSE).
+- Added Logs page in web SPA (`/logs`) with source filters, text search, time ordering, live mode toggle, and expandable log details.
+- Added automatic log cleanup on startup and hourly during operation.
 - Added per-space graph API endpoint `GET /api/spaces/:space/graph` with minimal node payload (`id`, `name`, `tier`, `links_to`, `linked_by`), default T4 inclusion, and guardrail truncation metadata.
 - Added Neural Map MVP view in the web SPA with concentric tier rings (T1..T4), pan/zoom controls, connectivity-based node prominence, and click-to-fetch memory details from the existing endpoint.
 - Added graph behavior tests in `cli/test/api-routes.spec.ts` and `cli/test/mind-store.spec.ts`.

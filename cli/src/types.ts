@@ -129,3 +129,47 @@ export interface LegacyBrain {
         memories: { name: string; description: string }[];
     };
 }
+
+// ── Log system types ──
+
+export type LogSource = 'cli' | 'mcp' | 'api';
+export type LogLevel = 'info' | 'warn' | 'error';
+
+export interface CallerInfo {
+    ip?: string;
+    userAgent?: string;
+    sessionId?: string;
+    mcpSession?: string;
+}
+
+export interface LogEntry {
+    id: number;
+    source: LogSource;
+    operation: string;
+    level: LogLevel;
+    input_data: string | null;
+    output_data: string | null;
+    error_message: string | null;
+    caller_info: string | null;
+    duration_ms: number | null;
+    timestamp: string;
+}
+
+export interface LogFilter {
+    source?: string;
+    operation?: string;
+    search?: string;
+    from?: string;
+    to?: string;
+    level?: LogLevel;
+    limit?: number;
+    offset?: number;
+    order?: 'asc' | 'desc';
+}
+
+export interface LogQueryResult {
+    logs: LogEntry[];
+    total: number;
+    limit: number;
+    offset: number;
+}

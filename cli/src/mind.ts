@@ -13,6 +13,20 @@ async function main() {
     const logger = useLogger();
     const store = createSqliteStore(CONFIG.dbPath);
 
+    // Run log cleanup on startup and every hour (fire-and-forget)
+    const runLogCleanup = () => {
+        try {
+            const deleted = store.cleanupOldLogs(CONFIG.logRetentionMinutes);
+            if (deleted > 0) {
+                logger.logInfo(`Cleaned up ${deleted} old log entries`);
+            }
+        } catch (e) {
+            // Non-blocking: don't fail startup if cleanup fails
+        }
+    };
+    runLogCleanup();
+    setInterval(runLogCleanup, 60 * 60 * 1000); // Every hour
+
     try {
         await executeCommand(args, store, logger);
     } catch (e: any) {

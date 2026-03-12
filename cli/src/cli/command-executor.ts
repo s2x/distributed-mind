@@ -1,6 +1,7 @@
 import { style } from '../helpers/style';
 import { renderCommands } from '../helpers/format';
 import type { Logger } from '../helpers/logger';
+import { createLogEntry } from '../helpers/logger';
 import type { MindStore } from '../store/mind-store';
 import { ALL_GROUPS, SERVER_GROUP_HELP } from './commands';
 
@@ -16,16 +17,50 @@ export async function executeCommand(args: string[], store: MindStore, logger: L
         return;
     }
 
+    const logEntry = createLogEntry(store);
+    let matchedCommand: any = null;
+
     for (const group of ALL_GROUPS) {
         for (const command of group.commands) {
             if (command.matches(args)) {
-                await command.execute(args, store, logger);
-                return;
+                matchedCommand = command;
+                break;
             }
         }
+        if (matchedCommand) break;
     }
 
-    throw new Error(`Unknown command "${args[0]}". Run mind help for the list of valid commands.`);
+    if (!matchedCommand) {
+        throw new Error(`Unknown command "${args[0]}". Run mind help for the list of valid commands.`);
+    }
+
+    // CLI logging middleware
+    const operation = args[0]!;
+    const startTime = Date.now();
+    let logLevel: 'info' | 'warn' | 'error' = 'info';
+    let errorMessage: string | undefined;
+    let outputData: Record<string, unknown> | undefined;
+
+    try {
+        await matchedCommand.execute(args, store, logger);
+        // Capture output if available (would need to modify command interface to return result)
+        logLevel = 'info';
+    } catch (e: any) {
+        logLevel = 'error';
+        errorMessage = e.message;
+        throw e;
+    } finally {
+        const durationMs = Date.now() - startTime;
+        logEntry({
+            source: 'cli',
+            operation,
+            level: logLevel,
+            inputData: { args },
+            outputData,
+            errorMessage,
+            durationMs,
+        });
+    }
 }
 
 function printHelp(logger: Logger): void {

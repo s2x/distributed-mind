@@ -4,6 +4,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { CallToolRequestSchema, ListToolsRequestSchema, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'node:crypto';
 import type { MindStore } from '../store/mind-store';
+import { createLogEntry } from '../helpers/logger';
 import { createCheckpointTools } from './tools/checkpoint';
 import { createLinkTools } from './tools/links';
 import { createMemoryTools } from './tools/memories';
@@ -49,6 +50,8 @@ function createMcpServer(store: MindStore): Server {
         ...createSystemTools(),
     };
 
+    const logEntry = createLogEntry(store);
+
     server.setRequestHandler(ListToolsRequestSchema, async () => {
         return {
             tools: Object.entries(allTools).map(([name, tool]) => ({
@@ -70,6 +73,12 @@ function createMcpServer(store: MindStore): Server {
             throw new Error(`Unknown tool: ${name}`);
         }
 
+        // MCP logging middleware
+        const startTime = Date.now();
+        let logLevel: 'info' | 'warn' | 'error' = 'info';
+        let errorMessage: string | undefined;
+        let outputData: Record<string, unknown> | undefined;
+
         try {
             const result = await tool.handler(args);
             const structuredContent =
@@ -80,16 +89,32 @@ function createMcpServer(store: MindStore): Server {
                       )
                     : undefined);
 
+            outputData = structuredContent;
+
             return {
                 content: result.content ?? [{ type: 'text', text: 'OK' }],
                 ...(structuredContent && Object.keys(structuredContent).length > 0 ? { structuredContent } : {}),
                 isError: false,
             };
         } catch (error: any) {
+            logLevel = 'error';
+            errorMessage = error.message;
             return {
                 content: [{ type: 'text', text: `Error: ${error.message}` }],
                 isError: true,
             };
+        } finally {
+            const durationMs = Date.now() - startTime;
+            logEntry({
+                source: 'mcp',
+                operation: name,
+                level: logLevel,
+                inputData: args,
+                outputData,
+                errorMessage,
+                durationMs,
+                callerInfo: {}, // MCP doesn't have caller info in stdio mode
+            });
         }
     });
 
@@ -146,7 +171,9 @@ function zodToJsonSchema(schema: any): any {
                     const itemType = innerDef.element?._def?.type;
                     properties[key] = {
                         type: 'array',
-                        items: { type: itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string' },
+                        items: {
+                            type: itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string',
+                        },
                     };
                 } else {
                     properties[key] = { type: 'string' };

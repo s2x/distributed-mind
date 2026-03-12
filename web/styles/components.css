@@ -706,3 +706,214 @@
     border-color: color-mix(in srgb, var(--tier4) 40%, transparent);
     color: var(--tier4);
 }
+
+/* ── Logs page ─────────────────────────────────────────────────────────────── */
+#logs-page {
+    padding: 20px;
+}
+
+.logs-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.logs-filter {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.logs-filter input {
+    cursor: pointer;
+}
+
+.log-search-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-size: 12px;
+    width: 180px;
+}
+
+.log-order-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.logs-live-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.logs-follow-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.logs-connection-status {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.logs-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: calc(100vh - 250px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.log-entry {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.log-entry:hover {
+    background: var(--bg2);
+}
+
+.log-entry.expanded {
+    background: var(--bg2);
+}
+
+.log-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.log-timestamp {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Fira Code', monospace;
+}
+
+.log-source {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.log-source.cli {
+    background: #2ea04326;
+    color: #2ea043;
+}
+
+.log-source.mcp {
+    background: #1f6feb26;
+    color: #1f6feb;
+}
+
+.log-source.api {
+    background: #d2992226;
+    color: #d29922;
+}
+
+.log-operation {
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.log-level {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.log-level.info {
+    background: var(--bg3);
+    color: var(--muted);
+}
+
+.log-level.warn {
+    background: #d2992226;
+    color: #d29922;
+}
+
+.log-level.error {
+    background: #f8514926;
+    color: #f85149;
+}
+
+.log-duration {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+}
+
+.log-entry-details {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    font-family: 'Fira Code', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow: auto;
+}
+
+.log-error-message {
+    color: #f85149;
+    margin-top: 6px;
+    font-size: 12px;
+}
+
+.logs-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+}
+
+#logs-count {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.nav-link {
+    display: block;
+    padding: 8px 12px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+}
+
+.nav-link:hover {
+    color: var(--text);
+    background: var(--bg2);
+}

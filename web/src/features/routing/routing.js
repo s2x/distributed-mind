@@ -1,8 +1,8 @@
 // @ts-check
 
 /** @typedef {'list'|'map'} SpaceView */
-/** @typedef {{ spaceName: string|null, view: SpaceView, memoryName: string|null }} AppRoute */
-/** @typedef {{ spaceName?: string|null, view?: string|null, memoryName?: string|null }} BuildAppRouteInput */
+/** @typedef {{ spaceName: string|null, view: SpaceView, memoryName: string|null, isLogsPage?: boolean }} AppRoute */
+/** @typedef {{ spaceName?: string|null, view?: string|null, memoryName?: string|null, isLogsPage?: boolean }} BuildAppRouteInput */
 
 /** @param {string|null} view @returns {SpaceView} */
 function normalizeView(view) {
@@ -22,6 +22,11 @@ function safeDecode(value) {
 function parseAppRoute(pathname, search) {
     if (pathname === '/') {
         return { spaceName: null, view: 'list', memoryName: null };
+    }
+
+    // Check for logs route
+    if (pathname === '/logs') {
+        return { spaceName: null, view: 'list', memoryName: null, isLogsPage: true };
     }
 
     const match = /^\/spaces\/([^/]+)$/.exec(pathname);
@@ -47,6 +52,10 @@ function parseAppRoute(pathname, search) {
 
 /** @param {BuildAppRouteInput} route */
 function buildAppUrl(route) {
+    if (route?.isLogsPage) {
+        return '/logs';
+    }
+
     if (!route?.spaceName) {
         return '/';
     }

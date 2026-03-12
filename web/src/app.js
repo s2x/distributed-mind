@@ -29,6 +29,7 @@ import {
 /** @typedef {{ id:number, name:string, tier:1|2|3|4, pinned:boolean, access_count:number, tags?:string[] }} MemorySummary */
 /** @typedef {{ id:number, space_name:string, name:string, content:string, tier:1|2|3|4, pinned:boolean, tags?:string[] }} Memory */
 /** @typedef {{ name:string, description?:string, tags?:string[], memory_count?:number }} Space */
+/** @typedef {{ logs: any[], total: number, limit: number, offset: number }} LogsResult */
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let state = {
@@ -46,6 +47,17 @@ let state = {
     graph: null,
     graphFocusNodeId: null,
     graphTransform: { scale: 1, tx: 0, ty: 0 },
+    // Logs state
+    logsActive: false,
+    logs: [],
+    logsTotal: 0,
+    logsOffset: 0,
+    logsLimit: 100,
+    logsLive: true,
+    logsPollingInterval: null,
+    logsLastId: 0,
+    logsExpandedId: null,
+    logsFollow: true,
 };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -76,6 +88,21 @@ const elGraphSvg = $('graph-svg');
 const elGraphMeta = $('graph-meta');
 const elBtnViewList = $('btn-view-list');
 const elBtnViewMap = $('btn-view-map');
+// Logs DOM refs
+const elLogsPage = $('logs-page');
+const elLogsList = $('logs-list');
+const elLogsControls = $('logs-pagination');
+const elLogsCount = $('logs-count');
+const elLogSourceCli = $('log-source-cli');
+const elLogSourceMcp = $('log-source-mcp');
+const elLogSourceApi = $('log-source-api');
+const elLogSearch = $('log-search');
+const elLogOrder = $('log-order');
+const elLogLive = $('log-live');
+const elLogFollow = $('log-follow');
+const elLogsConnectionStatus = $('logs-connection-status');
+const elBtnRefreshLogs = $('btn-refresh-logs');
+const elBtnLoadMoreLogs = $('btn-load-more-logs');
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
 const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold', 4: '💠 T4 — Frozen' };
@@ -514,10 +541,12 @@ function showPanel(panel) {
     elEmptyState.classList.add('hidden');
     elSpaceDetail.classList.add('hidden');
     elSearchResults.classList.add('hidden');
+    elLogsPage.classList.add('hidden');
 
     if (panel === 'empty') elEmptyState.classList.remove('hidden');
     else if (panel === 'space') elSpaceDetail.classList.remove('hidden');
     else if (panel === 'search') elSearchResults.classList.remove('hidden');
+    else if (panel === 'logs') elLogsPage.classList.remove('hidden');
 }
 
 function showMemoryPanel(show) {
@@ -547,6 +576,7 @@ function syncUrl(options = {}) {
         spaceName: state.currentSpace?.name ?? null,
         view: state.spaceView,
         memoryName: state.currentMemory?.name ?? null,
+        isLogsPage: state.logsActive,
     });
 
     const currentUrl = `${window.location.pathname}${window.location.search}`;
@@ -562,6 +592,7 @@ function resetToHomeState() {
     state.memories = [];
     state.graph = null;
     state.graphFocusNodeId = null;
+    closeLogsPage();
     showMemoryPanel(false);
     showPanel('empty');
     renderSpaceList();
@@ -569,6 +600,12 @@ function resetToHomeState() {
 
 async function restoreRouteFromLocation() {
     const route = parseAppRoute(window.location.pathname, window.location.search);
+
+    // Handle logs page
+    if (route.isLogsPage) {
+        showLogsPage();
+        return;
+    }
 
     if (!route.spaceName) {
         resetToHomeState();
@@ -1023,7 +1060,284 @@ function enc(str) {
     return encodeURIComponent(str);
 }
 
+// ── Logs ─────────────────────────────────────────────────────────────────────
+
+function getLogsFilter() {
+    const sources = [];
+    if (elLogSourceCli?.checked) sources.push('cli');
+    if (elLogSourceMcp?.checked) sources.push('mcp');
+    if (elLogSourceApi?.checked) sources.push('api');
+    
+    return {
+        source: sources.length > 0 ? sources.join(',') : undefined,
+        search: elLogSearch?.value?.trim() || undefined,
+        order: elLogOrder?.value || 'desc',
+        limit: state.logsLimit,
+        offset: state.logsOffset,
+    };
+}
+
+async function loadLogs() {
+    try {
+        const filter = getLogsFilter();
+        const result = await api.getLogs(filter);
+        
+        if (state.logsOffset === 0) {
+            state.logs = result.logs;
+        } else {
+            state.logs = [...state.logs, ...result.logs];
+        }
+        state.logsTotal = result.total;
+        
+        renderLogsList();
+    } catch (e) {
+        console.error('Failed to load logs:', e);
+    }
+}
+
+function renderLogsList() {
+    elLogsList.innerHTML = '';
+    
+    for (const log of state.logs) {
+        const li = document.createElement('li');
+        li.className = 'log-entry' + (state.logsExpandedId === log.id ? ' expanded' : '');
+        
+        const timestamp = new Date(log.timestamp.replace(' ', 'T') + 'Z').toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+        const duration = log.duration_ms ? `${log.duration_ms}ms` : '';
+        
+        li.innerHTML = '<div class="log-entry-header">' +
+            '<span class="log-timestamp">' + esc(timestamp) + '</span>' +
+            '<span class="log-source ' + log.source + '">' + log.source + '</span>' +
+            '<span class="log-operation">' + esc(log.operation) + '</span>' +
+            '<span class="log-level ' + log.level + '">' + log.level + '</span>' +
+            '<span class="log-duration">' + duration + '</span>' +
+            '</div>' +
+            (log.error_message ? '<div class="log-error-message">' + esc(log.error_message) + '</div>' : '') +
+            '<div class="log-entry-details hidden">' +
+            '<strong>Input:</strong><pre>' + (log.input_data ? esc(formatJson(log.input_data)) : 'null') + '</pre>' +
+            '<strong>Output:</strong><pre>' + (log.output_data ? esc(formatJson(log.output_data)) : 'null') + '</pre>' +
+            (log.caller_info ? '<strong>Caller:</strong><pre>' + esc(formatJson(log.caller_info)) + '</pre>' : '') +
+            '</div>';
+        
+        // Drag guard: don't toggle if text is selected
+        li.addEventListener('click', () => {
+            if (window.getSelection().toString().length > 0) {
+                return;
+            }
+            state.logsExpandedId = state.logsExpandedId === log.id ? null : log.id;
+            const details = li.querySelector('.log-entry-details');
+            if (details) {
+                details.classList.toggle('hidden', state.logsExpandedId !== log.id);
+            }
+            li.classList.toggle('expanded', state.logsExpandedId === log.id);
+        });
+        
+        elLogsList.appendChild(li);
+    }
+    
+    elLogsCount.textContent = `Showing ${state.logs.length} of ${state.logsTotal} logs`;
+}
+
+function formatJson(str) {
+    if (!str) return '';
+    try {
+        return JSON.stringify(JSON.parse(str), null, 2);
+    } catch {
+        return str;
+    }
+}
+
+function showLogsPage() {
+    state.logsActive = true;
+    state.logsOffset = 0;
+    state.logsLastId = 0;
+    state.logs = [];
+    
+    showPanel('logs');
+    loadLogs();
+    
+    // Start polling if Live is enabled by default
+    if (state.logsLive) {
+        startLogsPolling();
+    }
+}
+
+function closeLogsPage() {
+    state.logsActive = false;
+    stopLogsPolling();
+}
+
+function startLogsPolling() {
+    console.log('Starting logs polling...');
+    
+    // Stop any existing polling
+    if (state.logsPollingInterval) {
+        clearInterval(state.logsPollingInterval);
+    }
+    
+    // Do initial poll
+    pollLogs();
+    
+    // Poll every 2 seconds
+    state.logsPollingInterval = setInterval(pollLogs, 2000);
+    
+    elLogsConnectionStatus?.classList.remove('hidden');
+    elLogsConnectionStatus.textContent = '● Live (polling)';
+}
+
+function stopLogsPolling() {
+    console.log('Stopping logs polling...');
+    if (state.logsPollingInterval) {
+        clearInterval(state.logsPollingInterval);
+        state.logsPollingInterval = null;
+    }
+    elLogsConnectionStatus?.classList.add('hidden');
+}
+
+function getLogsPollingFilter() {
+    const sources = [];
+    if (elLogSourceCli?.checked) sources.push('cli');
+    if (elLogSourceMcp?.checked) sources.push('mcp');
+    if (elLogSourceApi?.checked) sources.push('api');
+    
+    return {
+        source: sources.length > 0 ? sources.join(',') : undefined,
+        search: elLogSearch?.value?.trim() || undefined,
+        order: elLogOrder?.value || 'desc',
+        limit: 50, // Get more logs for polling to ensure we don't miss any
+    };
+}
+
+
+function prependNewLogs(newLogs) {
+    // Save current scroll position
+    const scrollTop = elLogsList.scrollTop;
+    const scrollHeight = elLogsList.scrollHeight;
+    
+    // Update count
+    elLogsCount.textContent = `Showing ${state.logs.length} of ${state.logsTotal} logs`;
+    
+    // Prepend each new log to the DOM (in reverse order so they appear correctly)
+    for (let i = newLogs.length - 1; i >= 0; i--) {
+        const log = newLogs[i];
+        const li = createLogElement(log);
+        elLogsList.insertBefore(li, elLogsList.firstChild);
+    }
+    
+    // Handle scroll: if follow is enabled, scroll to top. Otherwise preserve position.
+    if (state.logsFollow) {
+        elLogsList.scrollTop = 0;
+    } else {
+        // Restore scroll position (adjust for new content height)
+        const newScrollHeight = elLogsList.scrollHeight;
+        const heightDiff = newScrollHeight - scrollHeight;
+        elLogsList.scrollTop = scrollTop + heightDiff;
+    }
+}
+
+function createLogElement(log) {
+    const li = document.createElement('li');
+    li.className = 'log-entry' + (state.logsExpandedId === log.id ? ' expanded' : '');
+    
+    const timestamp = new Date(log.timestamp.replace(' ', 'T') + 'Z').toLocaleString(undefined, {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+    const duration = log.duration_ms ? `${log.duration_ms}ms` : '';
+    
+    li.innerHTML = '<div class="log-entry-header">' +
+        '<span class="log-timestamp">' + esc(timestamp) + '</span>' +
+        '<span class="log-source ' + log.source + '">' + log.source + '</span>' +
+        '<span class="log-operation">' + esc(log.operation) + '</span>' +
+        '<span class="log-level ' + log.level + '">' + log.level + '</span>' +
+        '<span class="log-duration">' + duration + '</span>' +
+        '</div>' +
+        (log.error_message ? '<div class="log-error-message">' + esc(log.error_message) + '</div>' : '') +
+        '<div class="log-entry-details hidden">' +
+        '<strong>Input:</strong><pre>' + (log.input_data ? esc(formatJson(log.input_data)) : 'null') + '</pre>' +
+        '<strong>Output:</strong><pre>' + (log.output_data ? esc(formatJson(log.output_data)) : 'null') + '</pre>' +
+        (log.caller_info ? '<strong>Caller:</strong><pre>' + esc(formatJson(log.caller_info)) + '</pre>' : '') +
+        '</div>';
+    
+    // Drag guard: don't toggle if text is selected
+    li.addEventListener('click', () => {
+        if (window.getSelection().toString().length > 0) {
+            return;
+        }
+        state.logsExpandedId = state.logsExpandedId === log.id ? null : log.id;
+        const details = li.querySelector('.log-entry-details');
+        if (details) {
+            details.classList.toggle('hidden', state.logsExpandedId !== log.id);
+        }
+        li.classList.toggle('expanded', state.logsExpandedId === log.id);
+    });
+    
+    return li;
+}
+async function pollLogs() {
+    try {
+        const filter = getLogsPollingFilter();
+        
+        // Use since parameter to get only new logs
+        // Since we want newest first (desc), we need to track the highest ID we've seen
+        const result = await api.getLogs({ ...filter, since: state.logsLastId });
+        
+        if (result.logs.length > 0) {
+            // Update lastId to track the newest log
+            const maxId = Math.max(...result.logs.map((l) => l.id));
+            if (maxId > state.logsLastId) {
+                state.logsLastId = maxId;
+            }
+            
+            // For polling with desc order, newest are at the start
+            // Prepend new logs to the beginning of the list
+            state.logs = [...result.logs, ...state.logs].slice(0, 1000);
+            state.logsTotal = result.total;
+            prependNewLogs(result.logs);
+        }
+    } catch (e) {
+        console.error('Failed to poll logs:', e);
+    }
+}
+
+// Event handlers for logs
+elLogSourceCli?.addEventListener('change', () => { state.logsOffset = 0; state.logsLastId = 0; loadLogs(); });
+elLogSourceMcp?.addEventListener('change', () => { state.logsOffset = 0; state.logsLastId = 0; loadLogs(); });
+elLogSourceApi?.addEventListener('change', () => { state.logsOffset = 0; state.logsLastId = 0; loadLogs(); });
+elLogSearch?.addEventListener('input', () => { state.logsOffset = 0; state.logsLastId = 0; loadLogs(); });
+elLogOrder?.addEventListener('change', () => { state.logsOffset = 0; state.logsLastId = 0; loadLogs(); });
+elLogLive?.addEventListener('change', () => {
+    state.logsLive = elLogLive.checked;
+    if (state.logsLive) {
+        startLogsPolling();
+    } else {
+        stopLogsPolling();
+    }
+});
+elLogFollow?.addEventListener('change', () => {
+    state.logsFollow = elLogFollow.checked;
+});
+elBtnRefreshLogs?.addEventListener('click', () => { state.logsOffset = 0; loadLogs(); });
+elBtnLoadMoreLogs?.addEventListener('click', () => {
+    state.logsOffset += state.logsLimit;
+    loadLogs();
+});
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
+
 async function boot() {
     await loadSpaces();
     await loadStatus();

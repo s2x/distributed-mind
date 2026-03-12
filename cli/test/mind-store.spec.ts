@@ -833,3 +833,193 @@ describe('MindStore — RAG Integration', () => {
         expect(isRagEnabled()).toBe(false);
     });
 });
+
+describe('MindStore — Logs', () => {
+    test('should add a log entry', () => {
+        store = createTestStore();
+        store.createSpace('test', 'Test space');
+
+        store.addLog({
+            source: 'cli',
+            operation: 'test_operation',
+            level: 'info',
+            inputData: { arg1: 'value1' },
+            outputData: { result: 'success' },
+            durationMs: 100,
+        });
+
+        const result = store.queryLogs({});
+        expect(result.logs.length).toBe(1);
+        expect(result.logs[0]!.operation).toBe('test_operation');
+        expect(result.logs[0]!.source).toBe('cli');
+        expect(result.logs[0]!.level).toBe('info');
+        expect(result.logs[0]!.duration_ms).toBe(100);
+    });
+
+    test('should query logs with source filter', () => {
+        store = createTestStore();
+
+        store.addLog({ source: 'cli', operation: 'cmd1' });
+        store.addLog({ source: 'mcp', operation: 'tool1' });
+        store.addLog({ source: 'api', operation: 'route1' });
+
+        const cliLogs = store.queryLogs({ source: 'cli' });
+        expect(cliLogs.logs.length).toBe(1);
+        expect(cliLogs.logs[0]!.source).toBe('cli');
+
+        const mcpLogs = store.queryLogs({ source: 'mcp' });
+        expect(mcpLogs.logs.length).toBe(1);
+        expect(mcpLogs.logs[0]!.source).toBe('mcp');
+    });
+
+    test('should query logs with multiple sources', () => {
+        store = createTestStore();
+
+        store.addLog({ source: 'cli', operation: 'cmd1' });
+        store.addLog({ source: 'mcp', operation: 'tool1' });
+        store.addLog({ source: 'api', operation: 'route1' });
+
+        const cliMcpLogs = store.queryLogs({ source: 'cli,mcp' });
+        expect(cliMcpLogs.logs.length).toBe(2);
+    });
+
+    test('should query logs with operation filter', () => {
+        store = createTestStore();
+
+        store.addLog({ source: 'cli', operation: 'add' });
+        store.addLog({ source: 'cli', operation: 'list' });
+        store.addLog({ source: 'cli', operation: 'delete' });
+
+        const addLogs = store.queryLogs({ operation: 'add' });
+        expect(addLogs.logs.length).toBe(1);
+        expect(addLogs.logs[0]!.operation).toBe('add');
+    });
+
+    test('should query logs with text search', () => {
+        store = createTestStore();
+
+        store.addLog({
+            source: 'cli',
+            operation: 'memory_add',
+            inputData: { space: 'projects/test', name: 'my-memory' },
+        });
+        store.addLog({
+            source: 'cli',
+            operation: 'space_create',
+            inputData: { name: 'other-space' },
+        });
+
+        const searchResult = store.queryLogs({ search: 'memory' });
+        expect(searchResult.logs.length).toBe(1);
+        expect(searchResult.logs[0]!.operation).toBe('memory_add');
+    });
+
+    test('should query logs with level filter', () => {
+        store = createTestStore();
+
+        store.addLog({ source: 'cli', operation: 'info_op', level: 'info' });
+        store.addLog({ source: 'cli', operation: 'warn_op', level: 'warn' });
+        store.addLog({ source: 'cli', operation: 'error_op', level: 'error' });
+
+        const errorLogs = store.queryLogs({ level: 'error' });
+        expect(errorLogs.logs.length).toBe(1);
+        expect(errorLogs.logs[0]!.level).toBe('error');
+    });
+
+    test('should query logs with pagination', () => {
+        store = createTestStore();
+
+        for (let i = 0; i < 25; i++) {
+            store.addLog({ source: 'cli', operation: `op_${i}` });
+        }
+
+        const page1 = store.queryLogs({ limit: 10, offset: 0 });
+        expect(page1.logs.length).toBe(10);
+        expect(page1.total).toBe(25);
+        expect(page1.limit).toBe(10);
+        expect(page1.offset).toBe(0);
+
+        const page2 = store.queryLogs({ limit: 10, offset: 10 });
+        expect(page2.logs.length).toBe(10);
+        expect(page2.offset).toBe(10);
+
+        const page3 = store.queryLogs({ limit: 10, offset: 20 });
+        expect(page3.logs.length).toBe(5);
+        expect(page3.offset).toBe(20);
+    });
+
+    test('should query logs with order asc/desc', () => {
+        store = createTestStore();
+
+        store.addLog({ source: 'cli', operation: 'first' });
+        store.addLog({ source: 'cli', operation: 'second' });
+        store.addLog({ source: 'cli', operation: 'third' });
+
+        const desc = store.queryLogs({ order: 'desc' });
+        expect(desc.logs[0]!.operation).toBe('third');
+
+        const asc = store.queryLogs({ order: 'asc' });
+        expect(asc.logs[0]!.operation).toBe('first');
+    });
+
+    test('should truncate log fields to 64KB', () => {
+        store = createTestStore();
+
+        // Create input data larger than 64KB
+        const largeInput = 'x'.repeat(70000);
+        store.addLog({
+            source: 'cli',
+            operation: 'large_op',
+            inputData: { data: largeInput },
+        });
+
+        const result = store.queryLogs({});
+        expect(result.logs[0]!.input_data!.length).toBe(65536);
+    });
+
+    test('should log error entries', () => {
+        store = createTestStore();
+
+        store.addLog({
+            source: 'api',
+            operation: 'failed_op',
+            level: 'error',
+            errorMessage: 'Something went wrong',
+            inputData: { attempt: 1 },
+        });
+
+        const result = store.queryLogs({ level: 'error' });
+        expect(result.logs.length).toBe(1);
+        expect(result.logs[0]!.error_message).toBe('Something went wrong');
+    });
+
+    test('should cleanup old logs based on retention', () => {
+        store = createTestStore();
+
+        // Add some logs
+        store.addLog({ source: 'cli', operation: 'op1' });
+        store.addLog({ source: 'cli', operation: 'op2' });
+        store.addLog({ source: 'cli', operation: 'op3' });
+
+        let result = store.queryLogs({});
+        expect(result.total).toBe(3);
+
+        // Cleanup with -1 minute retention (cutoff is in the future, so all logs get deleted)
+        const deleted = store.cleanupOldLogs(-1);
+        expect(deleted).toBe(3);
+
+        result = store.queryLogs({});
+        expect(result.total).toBe(0);
+    });
+
+    test('should return total count in query result', () => {
+        store = createTestStore();
+
+        store.addLog({ source: 'cli', operation: 'op1' });
+        store.addLog({ source: 'cli', operation: 'op2' });
+
+        const result = store.queryLogs({ limit: 1 });
+        expect(result.total).toBe(2);
+        expect(result.logs.length).toBe(1);
+    });
+});

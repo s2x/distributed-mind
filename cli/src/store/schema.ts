@@ -1,6 +1,6 @@
-// ── SQLite schema and migrations for Mind v5 ──
+// ── SQLite schema and migrations for Mind v6 ──
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const SCHEMA_SQL = `
 -- Version tracking
@@ -71,6 +71,23 @@ CREATE INDEX IF NOT EXISTS idx_memory_tags_tag ON memory_tags(tag);
 CREATE INDEX IF NOT EXISTS idx_space_tags_tag ON space_tags(tag);
 CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_id);
 CREATE INDEX IF NOT EXISTS idx_links_target ON links(target_id);
+
+-- Logs table for operation auditing
+CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    level TEXT DEFAULT 'info',
+    input_data TEXT,
+    output_data TEXT,
+    error_message TEXT,
+    caller_info TEXT,
+    duration_ms INTEGER,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_logs_timestamp_source ON logs(timestamp, source);
+CREATE INDEX IF NOT EXISTS idx_logs_operation ON logs(operation);
 `;
 
 // ── Migration: v1 → v2 ──
@@ -138,6 +155,26 @@ ALTER TABLE spaces ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
 UPDATE meta SET value = '5' WHERE key = 'schema_version';
 `;
 
+// ── Migration: v5 → v6 ──
+// Changes: add logs table for operation auditing
+const MIGRATE_V5_TO_V6 = `
+CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    level TEXT DEFAULT 'info',
+    input_data TEXT,
+    output_data TEXT,
+    error_message TEXT,
+    caller_info TEXT,
+    duration_ms INTEGER,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_logs_timestamp_source ON logs(timestamp, source);
+CREATE INDEX IF NOT EXISTS idx_logs_operation ON logs(operation);
+UPDATE meta SET value = '6' WHERE key = 'schema_version';
+`;
+
 export function initializeDatabase(db: import('bun:sqlite').Database): void {
     db.exec('PRAGMA journal_mode = WAL;');
     db.exec('PRAGMA foreign_keys = ON;');
@@ -171,6 +208,11 @@ export function initializeDatabase(db: import('bun:sqlite').Database): void {
     if (currentVersion < 5) {
         // Migrate v4 → v5
         db.exec(MIGRATE_V4_TO_V5);
+    }
+
+    if (currentVersion < 6) {
+        // Migrate v5 → v6
+        db.exec(MIGRATE_V5_TO_V6);
     }
 
     // Future migrations: add else-if blocks here for v3→v4, etc.

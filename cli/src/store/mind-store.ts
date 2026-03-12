@@ -114,6 +114,33 @@ export interface MindStore {
     // Migration
     importFromJson(brain: LegacyBrain): void;
 
+    // Logs
+    addLog(entry: {
+        source: 'cli' | 'mcp' | 'api';
+        operation: string;
+        level?: 'info' | 'warn' | 'error';
+        inputData?: Record<string, unknown>;
+        outputData?: Record<string, unknown>;
+        errorMessage?: string;
+        callerInfo?: Record<string, unknown>;
+        durationMs?: number;
+    }): void;
+    queryLogs(filter?: {
+        source?: string;
+        operation?: string;
+        search?: string;
+        from?: string;
+        to?: string;
+        level?: 'info' | 'warn' | 'error';
+        limit?: number;
+        offset?: number;
+        order?: 'asc' | 'desc';
+        since?: number;
+    }): { logs: any[]; total: number; limit: number; offset: number };
+    cleanupOldLogs(retentionMinutes: number): number;
+    subscribeToLogs(sessionId: string, controller: any, filter?: string): void;
+    unsubscribeFromLogs(sessionId: string): void;
+
     // Lifecycle
     close(): void;
 }
