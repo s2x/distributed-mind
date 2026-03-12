@@ -27,6 +27,8 @@ Example:
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-12
+
 ### Changed
 - Replaced SSE streaming with polling for real-time logs in the web UI. Logs now update every 2 seconds via `/api/logs?since={lastLogId}` instead of EventSource SSE.
 
