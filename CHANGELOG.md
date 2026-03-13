@@ -27,6 +27,8 @@ Example:
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-03-13
+
 ### Fixed
 - Fixed Neural Map left-click drag closing memory panel and deselecting memory — drag now behaves consistently with right-click drag (no close/deselect on drag release).
 - Fixed Neural Map node click not opening side panel (regression from pointer capture).
