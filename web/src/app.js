@@ -767,6 +767,19 @@ $('btn-graph-reset').addEventListener('click', () => {
 let graphInteraction = createGraphInteractionState();
 let panelCloseGuardPointerStart = null;
 let panelCloseGuardInteractionWasDrag = false;
+let graphDragHappened = false;
+
+/**
+ * Check if the event target is a graph node (circle element with role="button")
+ * @param {EventTarget | null} target
+ * @returns {boolean}
+ */
+function isGraphNodeTarget(target) {
+    if (!target) return false;
+    if (!(target instanceof Element)) return false;
+    const tagName = target.tagName.toLowerCase();
+    return tagName === 'circle' && target.getAttribute('role') === 'button';
+}
 
 document.addEventListener('mousedown', (event) => {
     if (event.button !== 0) return;
@@ -800,7 +813,11 @@ elGraphSvg.addEventListener('pointerdown', (event) => {
     graphInteraction = nextState;
     if (graphInteraction.activePointerId !== event.pointerId) return;
 
-    elGraphSvg.setPointerCapture(event.pointerId);
+    // Only capture pointer for panning if NOT clicking on a graph node.
+    // This ensures click events on nodes (circles) fire normally.
+    if (!isGraphNodeTarget(event.target)) {
+        elGraphSvg.setPointerCapture(event.pointerId);
+    }
 
     if (event.button === 0 || event.button === 2) {
         event.preventDefault();
@@ -831,15 +848,21 @@ elGraphSvg.addEventListener('pointermove', (event) => {
 });
 
 elGraphSvg.addEventListener('pointerup', (event) => {
+    // Capture drag state before resetting
+    graphDragHappened = graphInteraction.dragMoved;
     graphInteraction = endGraphPointerGesture(graphInteraction, { pointerId: event.pointerId });
 });
 
 elGraphSvg.addEventListener('pointercancel', (event) => {
+    // Capture drag state before resetting
+    graphDragHappened = graphInteraction.dragMoved;
     graphInteraction = endGraphPointerGesture(graphInteraction, { pointerId: event.pointerId });
 });
 
 elGraphSvg.addEventListener('lostpointercapture', () => {
     if (graphInteraction.activePointerId === null) return;
+    // Capture drag state before resetting
+    graphDragHappened = graphInteraction.dragMoved;
     graphInteraction = endGraphPointerGesture(graphInteraction, {
         pointerId: graphInteraction.activePointerId,
     });
@@ -947,14 +970,18 @@ document.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
 
+    // Check both document-level drag guard AND graph-level drag state
+    const wasDrag = panelCloseGuardInteractionWasDrag || graphDragHappened;
+
     const shouldClose = shouldCloseMemoryPanelOnClick({
         isPanelOpen: true,
         targetInsidePanel: Boolean(target.closest('#memory-panel')),
         targetIsMemorySelection: isMemorySelectionTarget(target),
-        interactionWasDrag: panelCloseGuardInteractionWasDrag,
+        interactionWasDrag: wasDrag,
     });
 
     panelCloseGuardInteractionWasDrag = false;
+    graphDragHappened = false;
 
     if (shouldClose) {
         closeCurrentMemoryPanel();
