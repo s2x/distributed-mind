@@ -1,0 +1,16 @@
+version: "1.0"
+memory:
+  enabled: true
+  provider: mind
+mind_spaces:
+  project_space:
+    enabled: true
+    name: "projects/mind"
+  checkpoint_space:
+    enabled: true
+    name: "sessions/mind"
+gherkin:
+  enabled: true
+  storage_path: "specs/features"
+config_policy:
+  require_confirmation: true

@@ -25,14 +25,16 @@ async function main() {
         }
     };
     runLogCleanup();
-    setInterval(runLogCleanup, 60 * 60 * 1000); // Every hour
+    const cleanupInterval = setInterval(runLogCleanup, 60 * 60 * 1000); // Every hour
 
     try {
         await executeCommand(args, store, logger);
+        process.exit(0);
     } catch (e: any) {
         logger.logError(e.message);
         process.exit(1);
     } finally {
+        clearInterval(cleanupInterval);
         store.close();
     }
 }
