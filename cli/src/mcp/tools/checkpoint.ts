@@ -9,7 +9,10 @@ const CheckpointSetSchema = z.object({
     goal: z.string().optional().describe('Current goal or task.'),
     pending: z.string().optional().describe('What remains to be done.'),
     notes: z.string().optional().describe('Additional context or notes.'),
-    relatedMemoryIds: z.array(z.number()).optional().describe('Memory IDs to link to this checkpoint.'),
+    relatedMemoryIds: z
+        .array(z.number())
+        .optional()
+        .describe('Memory IDs relevant to current work. Links these to the checkpoint so recovery includes full context. Get IDs from memory_list or memory_query.'),
 });
 
 const CheckpointCompleteSchema = z.object({
@@ -31,10 +34,13 @@ const CheckpointListSchema = z.object({
 });
 
 const CHECKPOINT_TOOL_DESCRIPTIONS: Record<string, string> = {
-    checkpoint_set: 'Create or update a checkpoint for the current work session.',
-    checkpoint_complete: 'Mark a checkpoint as completed with a summary.',
-    checkpoint_recover: 'Recover the most recent active checkpoint.',
-    checkpoint_list: 'List all checkpoints for a space.',
+    checkpoint_set:
+        'Save or update the current work session state (goal, pending steps, notes). Creates a recoverable snapshot so work survives context resets or compaction. Keep this fresh as you make progress.',
+    checkpoint_complete:
+        'Mark a checkpoint as done with a summary of what was accomplished. Demotes it to warm tier and frees the active slot for new work.',
+    checkpoint_recover:
+        'Restore context from the most recent active checkpoint. Call this at session start or after context compaction to resume where you left off. Returns goal, pending steps, notes, and linked memories.',
+    checkpoint_list: 'List all checkpoints for a space, optionally filtered by status (active, completed, all). Use to find older sessions.',
 };
 
 function getCheckpointSpaceName(space: string): string {
@@ -144,7 +150,7 @@ export function createCheckpointTools(store: MindStore) {
                 if (!parsed.space) {
                     throw new Error('Space is required.');
                 }
-                if (!parsed.checkpointId) {
+                if (parsed.checkpointId == null) {
                     throw new Error('Checkpoint ID is required.');
                 }
 

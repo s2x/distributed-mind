@@ -3,7 +3,7 @@ import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
 
 const SearchSchema = z.object({
-    query: z.string().min(1).describe('Search query using FTS5 syntax.'),
+    query: z.string().min(1).describe('Search query using FTS5 syntax. Supports: quoted phrases ("exact match"), AND/OR/NOT operators, prefix matching (bug*).'),
     space: z.string().optional().describe('Limit search to a specific space.'),
     tag: z.string().optional().describe('Filter by tag.'),
     tier: z.number().int().min(1).max(4).optional().describe('Filter by tier: 1, 2, 3, 4.'),
@@ -14,8 +14,8 @@ const StatusSchema = z.object({
 });
 
 const SEARCH_TOOL_DESCRIPTIONS: Record<string, string> = {
-    search: 'Full-text search across all memories.',
-    status: 'Get storage status: global or per-space.',
+    search: 'Full-text search across all memories including T4 frozen ones. Use FTS5 syntax (e.g., "auth AND jwt", "bug*"). This is the only way to find T4 archived memories.',
+    status: 'Get storage status: memory counts per tier, space usage, and link totals. Use to understand current storage state before cleanup or reorganization.',
 };
 
 export function createSearchTools(store: MindStore) {

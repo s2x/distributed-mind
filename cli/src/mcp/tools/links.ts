@@ -2,9 +2,12 @@ import { z } from 'zod';
 import type { MindStore } from '../../store/mind-store';
 
 const LinkCreateSchema = z.object({
-    sourceId: z.number().describe('Source memory ID.'),
-    targetId: z.number().describe('Target memory ID.'),
-    label: z.string().optional().describe('Optional relationship label.'),
+    sourceId: z.number().describe('Source memory ID (the memory that references another).'),
+    targetId: z.number().describe('Target memory ID (the memory being referenced).'),
+    label: z
+        .string()
+        .optional()
+        .describe('Relationship label describing the link (e.g., "depends_on", "caused_by", "extends", "contradicts").'),
 });
 
 const LinkDeleteSchema = z.object({
@@ -13,13 +16,15 @@ const LinkDeleteSchema = z.object({
 });
 
 const LinksListSchema = z.object({
-    memoryId: z.number().describe('Memory ID to list links for.'),
+    memoryId: z.number().describe('Memory ID to list links for. Returns both outgoing (this → other) and incoming (other → this) links.'),
 });
 
 const LINK_TOOL_DESCRIPTIONS: Record<string, string> = {
-    link_create: 'Create a directional link between two memories.',
-    link_delete: 'Remove a link between two memories.',
-    links_list: 'List all links for a memory.',
+    link_create:
+        'Create a directional link between two memories so future agents can trace related decisions without searching. Use when a memory depends on, extends, or contradicts another (e.g., a bugfix caused by a prior decision, a discovery that updates a pattern). Requires source and target memory IDs.',
+    link_delete: 'Remove a directional link between two memories. The memories themselves are not affected.',
+    links_list:
+        'List all incoming and outgoing links for a memory. Use to discover related context before making decisions or to verify link structure.',
 };
 
 export function createLinkTools(store: MindStore) {

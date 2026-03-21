@@ -77,7 +77,13 @@ Call `memory_add` IMMEDIATELY after:
 - User preference learned
 - Any important context you want to preserve for future sessions
 
-Also link directly relevant memories to preserve recovery continuity (`links_to_ids`, `memory_patch add_links_to_ids`, or `link_create`).
+**When to link memories**: When adding a memory that depends on, extends, or contradicts another existing memory, pass `links_to_ids` with the related memory IDs. This lets future agents trace related decisions without searching. Common cases:
+- A bugfix that relates to a prior decision
+- A discovery that updates a previous pattern
+- A config change driven by an earlier finding
+- Two memories about the same feature or subsystem
+
+Get memory IDs from `memory_list` or `memory_query`, then pass them to `links_to_ids` in `memory_add`, `add_links_to_ids` in `memory_patch`, or use `link_create` for existing memories.
 
 Composite operations are atomic all-or-nothing: if one step fails, no partial write is persisted (`memory_add` with links, `memory_patch`).
 
@@ -177,17 +183,33 @@ memory_add {
   content: "**What**: Switched from sessions to JWT...\n**Why**: Scale across instances...",
   tags: ["cat:decision"]
 }
+# → returns id: 1
 
-# 3. Later, query for decisions
+# 3. Add a related discovery, linked to the decision
+memory_add {
+  space: "projects/mind",
+  name: "Refresh token rotation needed",
+  content: "**What**: JWT requires refresh token rotation logic...\n**Why**: Caused by JWT decision...",
+  tags: ["cat:discovery"],
+  links_to_ids: [1]  # <-- links to the JWT decision
+}
+# → returns id: 2
+
+# 4. Later, query for decisions (returns IDs you can use for linking)
 memory_query { space: "projects/mind", tag: "cat:decision" }
 
-# 4. Search across all spaces
+# 5. Read a memory to see its linked context
+memory_read { space: "projects/mind", name: "JWT over sessions for auth" }
+# → returns content + links_to + linked_by
+
+# 6. Search across all spaces (including T4 frozen)
 search { query: "authentication" }
 
-# 5. End of session: summarize (use repo name!)
+# 7. End of session: summarize (use repo name!)
 memory_add {
   space: "sessions/mind",  # <-- repo name
   name: "session-2026-03-07",
   content: "## Goal: Implement MCP improvements\n## Discoveries: - Protocol instructions can be centralized\n## Accomplished: - Improved error messages\n## Relevant Files: - cli/src/mcp/server.ts",
-  tags: ["type:session", "cat:summary"]
+  tags: ["type:session", "cat:summary"],
+  links_to_ids: [1, 2]  # <-- link session summary to memories worked on
 }

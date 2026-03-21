@@ -18,10 +18,13 @@ const MemoryUnpinSchema = z.object({
 });
 
 const TIER_TOOL_DESCRIPTIONS: Record<string, string> = {
-    memory_promote: 'Promote a memory one tier up.',
-    memory_demote: 'Demote a memory one tier down.',
-    memory_pin: 'Pin a memory to prevent auto-promotion and LRU eviction.',
-    memory_unpin: 'Unpin a memory to restore normal tier behavior.',
+    memory_promote:
+        'Promote a memory one tier up (T4→T3→T2→T1). Use when a memory becomes more relevant than its current tier suggests. Note: memory_read auto-promotes on access.',
+    memory_demote:
+        'Demote a memory one tier down (T1→T2→T3→T4). Use to archive outdated context or free space in higher tiers. T4 memories are only findable via search.',
+    memory_pin:
+        'Pin a memory to freeze it at its current tier. Pinned memories are immune to auto-promotion (from memory_read) and LRU eviction. Use for stable reference info that should not move.',
+    memory_unpin: 'Unpin a memory to restore normal tier behavior (auto-promotion on read, LRU eviction when tier is full).',
 };
 
 export function createTierTools(store: MindStore) {

@@ -9,7 +9,12 @@ const MemoryAddSchema = z.object({
     tags: z.array(z.string()).optional().describe('Optional tags.'),
     tier: z.number().int().min(1).max(3).optional().describe('Optional tier: 1=hot, 2=warm, 3=cold.'),
     pinned: z.boolean().optional().describe('Optional pinned state. true keeps memory immune to auto-promotion and LRU eviction.'),
-    links_to_ids: z.array(z.number().int()).optional().describe('Optional target memory IDs to link from this new memory.'),
+    links_to_ids: z
+        .array(z.number().int())
+        .optional()
+        .describe(
+            'IDs of existing memories this one relates to. Creates directional links (new → target). Use when this memory depends on, extends, or is caused by another. Get IDs from memory_list or memory_query.'
+        ),
 });
 
 const MemoryGetSchema = z.object({
@@ -66,8 +71,14 @@ const MemoryPatchSchema = z.object({
         .describe('Optional bounded tier transition: promote (up one) or demote (down one).'),
     add_tags: z.array(z.string()).optional().describe('Optional tags to add.'),
     remove_tags: z.array(z.string()).optional().describe('Optional tags to remove.'),
-    add_links_to_ids: z.array(z.number().int()).optional().describe('Optional outgoing links to add from this memory.'),
-    remove_links_to_ids: z.array(z.number().int()).optional().describe('Optional outgoing links to remove from this memory.'),
+    add_links_to_ids: z
+        .array(z.number().int())
+        .optional()
+        .describe('IDs of memories to link TO from this memory. Use when you discover a new relationship between existing memories.'),
+    remove_links_to_ids: z
+        .array(z.number().int())
+        .optional()
+        .describe('IDs of memories to unlink FROM this memory. Removes outgoing links only.'),
 });
 
 const MemoryQuerySchema = z.object({
@@ -81,18 +92,23 @@ const MemoryQuerySchema = z.object({
 });
 
 const MEMORY_TOOL_DESCRIPTIONS: Record<string, string> = {
-    memory_add: 'Add a new memory to a space.',
-    memory_get: 'Get a memory by space name and memory name.',
-    memory_get_by_id: 'Get a memory by its numeric ID.',
-    memory_list: 'List memories in a space, optionally filtered by tier or tag.',
-    memory_update: 'Update a memory name or content by ID.',
-    memory_delete: 'Delete a memory permanently by space and name.',
-    memory_read: 'Read a memory (returns content + auto-promotes tier).',
-    memory_tag_add: 'Add a tag to a memory by ID.',
+    memory_add:
+        'Add a new memory to a space. Use immediately after important events: decisions, bug fixes, discoveries, config changes. Supports creating links to related memories via links_to_ids — always link when the new memory depends on or extends an existing one.',
+    memory_get: 'Get a memory by space name and memory name. Returns metadata only, does not affect tier. Use memory_read instead to also get linked memories and trigger auto-promotion.',
+    memory_get_by_id: 'Get a memory by its numeric ID. Returns metadata only, does not affect tier.',
+    memory_list:
+        'List memories in a space, optionally filtered by tier or tag. Returns summaries with IDs (useful for linking). Does not include T4 frozen memories — use search for those.',
+    memory_update: 'Update a memory name or content by ID. Use memory_patch instead if you also need to change tags, links, or tier in one atomic operation.',
+    memory_delete: 'Delete a memory permanently by space and name. Also removes all links to/from this memory.',
+    memory_read:
+        'Read a memory and its linked context. Returns content, auto-promotes the tier (T4→T3→T2→T1), and includes linked memory summaries (links_to + linked_by). Prefer this over memory_get when you need full context.',
+    memory_tag_add: 'Add a tag to a memory by ID. Use consistent tag conventions: cat:decision, cat:bugfix, cat:discovery, cat:pattern, cat:preference.',
     memory_tag_remove: 'Remove a tag from a memory by ID.',
-    memory_tags_list: 'List all tags in the system.',
-    memory_query: 'Query memories with filters and pagination.',
-    memory_patch: 'Atomically patch one memory with bounded updates (all-or-nothing).',
+    memory_tags_list: 'List all tags in the system. Check this before creating new tags to avoid duplicates.',
+    memory_query:
+        'Query memories across spaces with filters (space, tag, tier, date range) and pagination. Returns summaries with IDs. Does not include T4 frozen memories — use search for those.',
+    memory_patch:
+        'Atomically update a memory in one call: rename, edit content, change tier, add/remove tags, and add/remove links — all-or-nothing. Prefer this over separate calls when making multiple changes to the same memory.',
 };
 
 export function createMemoryTools(store: MindStore) {

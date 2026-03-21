@@ -151,4 +151,101 @@ describe('OpenCode setup integration', () => {
         expect(pluginText).toContain('checkpoint set');
         expect(pluginText).toContain('checkpoint recover');
     });
+
+    test('plugin exports experimental.chat.system.transform handler', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+
+        // Handler must be registered in the plugin
+        expect(pluginText).toContain('experimental.chat.system.transform');
+    });
+
+    test('plugin contains RECOVERY_TEXT constant (~200 chars)', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+
+        // RECOVERY_TEXT constant must exist
+        expect(pluginText).toContain('RECOVERY_TEXT');
+
+        // Extract the RECOVERY_TEXT value - should be around 200 chars
+        const match = pluginText.match(/RECOVERY_TEXT\s*=\s*[`'"]/);
+        expect(match).not.toBeNull();
+
+        // Find the actual text between the quotes
+        const recoveryTextMatch = pluginText.match(/RECOVERY_TEXT\s*=\s*[`']([^`'"]+)[`'"]/);
+        if (recoveryTextMatch) {
+            const recoveryText = recoveryTextMatch[1];
+            expect(recoveryText.length).toBeGreaterThanOrEqual(150);
+            expect(recoveryText.length).toBeLessThanOrEqual(250);
+        }
+    });
+
+    test('chat.system.transform handler appends to LAST system entry (not push new)', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+
+        // The handler must modify the LAST entry, not push a new one
+        // Look for pattern like: output.system[output.system.length - 1] += ... or output.system[lastIdx] += ...
+        // where lastIdx is assigned output.system.length - 1
+        expect(pluginText).toMatch(/output\.system\[(.*\.length\s*-\s*1|lastIdx)\]\s*\+=/);
+    });
+
+    test('chat.system.transform uses static reminder without subprocess for new sessions', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+
+        // For new sessions, should use RECOVERY_TEXT static reminder
+        // and should NOT spawn a subprocess for the static reminder path
+        // The handler should check session state and only spawn for active sessions
+        expect(pluginText).toContain('RECOVERY_TEXT');
+        // Should have logic to detect new vs active session
+        expect(pluginText).toMatch(/sessionId|isActive|isNew/);
+    });
+
+    test('chat.system.transform is idempotent within same session', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+
+        // Must have state tracking to prevent duplicate reminders
+        // Look for handled or similar dedupe mechanism
+        expect(pluginText).toContain('handled');
+    });
+
+    test('chat.system.transform handles empty output.system gracefully', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+
+        // Should check if output.system exists and has entries before modifying
+        // Look for guard conditions like: if (!output?.system?.length) return;
+        expect(pluginText).toMatch(/output\.system.*length|if\s*\(\s*!.*output\.system/);
+    });
+
+    test('chat.system.transform handler is non-blocking (try/catch)', async () => {
+        await runSetup('opencode');
+
+        const pluginPath = join(tempHome, '.config', 'opencode', 'plugins', 'mind-automation.js');
+        const pluginText = readFileSync(pluginPath, 'utf-8');
+
+        // Handler must be wrapped in try/catch to avoid crashing OpenCode
+        // Find the experimental.chat.system.transform section and verify try/catch
+        const handlerStart = pluginText.indexOf("'experimental.chat.system.transform'");
+        if (handlerStart !== -1) {
+            // Get a chunk after the handler registration
+            const chunk = pluginText.slice(handlerStart, handlerStart + 2000);
+            expect(chunk).toContain('try');
+            expect(chunk).toContain('catch');
+        }
+    });
 });

@@ -43,13 +43,14 @@ const SpaceTagRemoveSchema = z.object({
 });
 
 const SPACE_TOOL_DESCRIPTIONS: Record<string, string> = {
-    space_create: 'Create a new space with hierarchical naming.',
-    space_list: 'List all spaces, optionally filtered by tag.',
-    space_get: 'Get details of a specific space by name.',
+    space_create:
+        'Create a new space. Required before adding memories. Use hierarchical names based on the repo/directory: projects/<repo-name>, user/preferences, sessions/<repo-name>.',
+    space_list: 'List all spaces, optionally filtered by tag. Use at session start to discover existing project spaces.',
+    space_get: 'Get details of a specific space by name, including description, tags, and memory count.',
     space_update: 'Update a space description.',
-    space_rename: 'Rename a space. All memories move to the new name.',
-    space_delete: 'Delete a space and all its memories permanently.',
-    space_tag_add: 'Add a tag to a space.',
+    space_rename: 'Rename a space. All memories and links are preserved under the new name.',
+    space_delete: 'Delete a space and ALL its memories, links, and checkpoints permanently. Cannot be undone.',
+    space_tag_add: 'Add a tag to a space. Use type: prefixed tags (type:project, type:user, type:session).',
     space_tag_remove: 'Remove a tag from a space.',
 };
 

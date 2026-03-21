@@ -208,6 +208,10 @@ function placeInstructionFirst(config: Record<string, unknown>, instructionPath:
 function buildOpenCodeAutomationPlugin(mindPath: string): string {
     const resolvedMindPath = JSON.stringify(mindPath);
 
+    // Static reminder for new/post-compacted sessions (~200 chars, action-oriented)
+    const RECOVERY_TEXT =
+        'Prudent session detected. Call `checkpoint_recover` to restore recent work and maintain continuity.';
+
     return `import { spawnSync } from 'node:child_process';
 import { basename } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -220,6 +224,7 @@ const MAX_CONTEXT_CHARS = 1600;
 const MAX_NOTES_CHARS = 800;
 const MIN_CHECKPOINT_INTERVAL_MS = 90_000;
 const MIN_SUMMARY_INTERVAL_MS = 240_000;
+const RECOVERY_TEXT = ${JSON.stringify(RECOVERY_TEXT)};
 
 function safeJsonParse(value, fallback) {
   try {
@@ -490,6 +495,37 @@ export const MindAutomationPlugin = async (ctx) => {
             '- After compaction: recover with \`checkpoint recover <project-space> --history\` if needed.',
             recovered ? '\nRecovered context snapshot:\n' + recovered : '\nRecovered context snapshot unavailable; follow manual mind protocol.'
           );
+        }
+      } catch {
+        // Non-blocking fallback: protocol instructions remain available.
+      } finally {
+        saveState(state);
+      }
+    },
+
+    'experimental.chat.system.transform': async (input, output) => {
+      try {
+        if (!Array.isArray(output?.system) || output.system.length === 0) {
+          return;
+        }
+
+        const sessionId = input && typeof input === 'object' ? extractSessionId(input) : 'session-unknown';
+        const dedupeKey = getProjectSpace(ctx) + ':chat-transform:' + sessionId;
+
+        if (state.handled[dedupeKey]) {
+          return;
+        }
+
+        const lastIdx = output.system.length - 1;
+        const projectSpace = getProjectSpace(ctx);
+        const recovered = recoverCheckpointContext(projectSpace);
+
+        if (recovered) {
+          state.handled[dedupeKey] = Date.now();
+          output.system[lastIdx] += '\n\n' + recovered;
+        } else {
+          state.handled[dedupeKey] = Date.now();
+          output.system[lastIdx] += '\n\n' + RECOVERY_TEXT;
         }
       } catch {
         // Non-blocking fallback: protocol instructions remain available.

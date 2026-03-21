@@ -8,7 +8,7 @@ Use this protocol when Codex is connected to the `mind` MCP server.
 - Use repo-based project spaces (example: `projects/mind`).
 - Persist important context immediately (decisions, bug fixes, discoveries, config updates).
 - Keep tags consistent (`cat:decision`, `cat:bugfix`, `cat:discovery`, `type:project`).
-- Link directly relevant memories for recovery continuity (`links_to_ids`, `memory_patch add_links_to_ids`, or `link_create`).
+- Link related memories so future agents can trace connections: pass `links_to_ids` when adding a memory that depends on or extends another, use `memory_patch add_links_to_ids` for existing memories, or `link_create` for labeled relationships. Get IDs from `memory_list` or `memory_query`.
 - Composite operations (`memory_add` with links, `memory_patch`) are atomic all-or-nothing.
 
 ## Session Continuity
