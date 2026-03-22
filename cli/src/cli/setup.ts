@@ -210,7 +210,7 @@ function buildOpenCodeAutomationPlugin(mindPath: string): string {
 
     // Static reminder for new/post-compacted sessions (~200 chars, action-oriented)
     const RECOVERY_TEXT =
-        'Prudent session detected. Call `checkpoint_recover` to restore recent work and maintain continuity.';
+        'Prudent session detected. Call `checkpoint_load` to restore recent work and maintain continuity.';
 
     return `import { spawnSync } from 'node:child_process';
 import { basename } from 'node:path';
@@ -994,11 +994,33 @@ export async function runSetup(agent: SupportedAgent): Promise<void> {
                 const message = error instanceof Error ? error.message : String(error);
                 console.log(`- OpenCode prudent automation plugin setup failed safely: ${message}`);
             }
+
+            // Install mind-management skill
+            try {
+                const skillPath = ensureOpenCodeMindManagementSkill();
+                if (skillPath) {
+                    console.log(`- mind-management skill available in OpenCode`);
+                }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                console.log(`- mind-management skill setup failed safely: ${message}`);
+            }
         }
 
         if (agent === 'claude-code') {
             const instructionsPath = ensureClaudeInstructionPath();
             ensureClaudeManagedInstructions(instructionsPath);
+
+            // Install mind-management skill
+            try {
+                const skillPath = ensureClaudeMindManagementSkill();
+                if (skillPath) {
+                    console.log(`- mind-management skill available in Claude Code`);
+                }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                console.log(`- mind-management skill setup failed safely: ${message}`);
+            }
 
             if (shouldEnableClaudeHooks()) {
                 try {
@@ -1056,4 +1078,45 @@ export function listAgents(): void {
         console.log(`    ${formatCapabilityLine('L2_INSTRUCTIONS', capabilities.L2_INSTRUCTIONS)}`);
         console.log(`    ${formatCapabilityLine('L3_HOOKS', capabilities.L3_HOOKS)}`);
     }
+}
+
+// Skill management — single source file for all providers
+const SKILL_MIND_MANAGEMENT_SOURCE = path.resolve(__dirname, '..', 'resources', 'skill-mind-management.md');
+
+function ensureOpenCodeMindManagementSkill(): string | null {
+    const skillFile = SKILL_MIND_MANAGEMENT_SOURCE;
+
+    if (!fs.existsSync(skillFile)) {
+        console.log(`- mind-management skill not found in bundle (${skillFile}), skipping skill installation`);
+        return null;
+    }
+
+    const skillsDir = path.join(getHomeDir(), '.config', 'opencode', 'skills', 'mind-management');
+    const destPath = path.join(skillsDir, 'SKILL.md');
+
+    ensureDir(skillsDir);
+    const skillContent = fs.readFileSync(skillFile, 'utf-8');
+    fs.writeFileSync(destPath, skillContent);
+
+    console.log(`- mind-management skill installed: ${destPath}`);
+    return destPath;
+}
+
+function ensureClaudeMindManagementSkill(): string | null {
+    const skillFile = SKILL_MIND_MANAGEMENT_SOURCE;
+
+    if (!fs.existsSync(skillFile)) {
+        console.log(`- mind-management skill not found in bundle (${skillFile}), skipping skill installation`);
+        return null;
+    }
+
+    const skillsDir = path.join(getHomeDir(), '.claude', 'skills', 'mind-management');
+    const destPath = path.join(skillsDir, 'SKILL.md');
+
+    ensureDir(skillsDir);
+    const skillContent = fs.readFileSync(skillFile, 'utf-8');
+    fs.writeFileSync(destPath, skillContent);
+
+    console.log(`- mind-management skill installed: ${destPath}`);
+    return destPath;
 }

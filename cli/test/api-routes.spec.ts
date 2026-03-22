@@ -19,11 +19,11 @@ async function requestJson(path: string): Promise<any> {
 describe('API Routes — Space Graph', () => {
     test('returns minimal graph payload including T4 memories', async () => {
         store = createTestStore();
-        store.createSpace('proj', 'Project');
+        store.createSpace('proj', 'Project', ['test']);
 
-        const t1 = await store.addMemory('proj', 'hot', 'h', { tier: 1 });
-        const t2 = await store.addMemory('proj', 'warm', 'w', { tier: 2 });
-        const t4 = await store.addMemory('proj', 'frozen', 'f', { tier: 3 });
+        const t1 = await store.addMemory('proj', 'hot', 'h', { tier: 1, tags: ['test'] });
+        const t2 = await store.addMemory('proj', 'warm', 'w', { tier: 2, tags: ['test'] });
+        const t4 = await store.addMemory('proj', 'frozen', 'f', { tier: 3, tags: ['test'] });
         store.demote(t4.id); // T3 -> T4
 
         store.link(t1.id, t2.id);
@@ -43,10 +43,10 @@ describe('API Routes — Space Graph', () => {
 
     test('applies guardrail cap and returns truncation metadata', async () => {
         store = createTestStore();
-        store.createSpace('proj', 'Project');
+        store.createSpace('proj', 'Project', ['test']);
 
         for (let i = 0; i < 6; i++) {
-            await store.addMemory('proj', `m-${i}`, `content-${i}`, { tier: 3 });
+            await store.addMemory('proj', `m-${i}`, `content-${i}`, { tier: 3, tags: ['test'] });
         }
 
         const payload = await requestJson('/api/spaces/proj/graph?limit=2');

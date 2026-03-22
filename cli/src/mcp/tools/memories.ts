@@ -2,40 +2,36 @@ import { z } from 'zod';
 import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
 
+// =============================================================================
+// Schemas — Phase 2.2 Redesign
+// =============================================================================
+
 const MemoryAddSchema = z.object({
     space: z.string().min(1).describe('Space to add memory to. Must exist first.'),
     name: z.string().min(1).describe('Memory name/title.'),
     content: z.string().min(1).describe('Memory content.'),
-    tags: z.array(z.string()).optional().describe('Optional tags.'),
+    tags: z.array(z.string()).min(1).describe('Tags (at least 1 required).'),
     tier: z.number().int().min(1).max(3).optional().describe('Optional tier: 1=hot, 2=warm, 3=cold.'),
     pinned: z.boolean().optional().describe('Optional pinned state. true keeps memory immune to auto-promotion and LRU eviction.'),
     links_to_ids: z
         .array(z.number().int())
         .optional()
         .describe(
-            'IDs of existing memories this one relates to. Creates directional links (new → target). Use when this memory depends on, extends, or is caused by another. Get IDs from memory_list or memory_query.'
+            'IDs of existing memories this one relates to. Creates directional links (new → target). Use when this memory depends on, extends, or is caused by another. Get IDs from memory_query or search.'
         ),
 });
 
-const MemoryGetSchema = z.object({
+const MemoryReadSchema = z.object({
     space: z.string().min(1).describe('Space containing the memory.'),
-    name: z.string().min(1).describe('Memory name to retrieve.'),
-});
-
-const MemoryGetByIdSchema = z.object({
-    id: z.number().describe('Memory ID (numeric).'),
-});
-
-const MemoryListSchema = z.object({
-    space: z.string().min(1).describe('Space to list memories from.'),
-    tier: z.number().int().min(1).max(4).optional().describe('Filter by tier: 1, 2, 3, 4.'),
-    tag: z.string().optional().describe('Filter by tag.'),
+    name: z.string().min(1).describe('Memory name to read.'),
+    noPromote: z.boolean().optional().default(false).describe('If true, inspect the memory without side effects: no access count bump, no tier promotion. Use when browsing or checking content without intending to "use" the memory.'),
 });
 
 const MemoryUpdateSchema = z.object({
     id: z.number().describe('Memory ID to update.'),
     name: z.string().optional().describe('New memory name.'),
     content: z.string().optional().describe('New content.'),
+    tags: z.array(z.string()).optional().describe('New tags array (replaces existing). Omit to keep existing tags.'),
 });
 
 const MemoryDeleteSchema = z.object({
@@ -43,73 +39,28 @@ const MemoryDeleteSchema = z.object({
     name: z.string().min(1).describe('Memory name to delete.'),
 });
 
-const MemoryReadSchema = z.object({
-    space: z.string().min(1).describe('Space containing the memory.'),
-    name: z.string().min(1).describe('Memory name to read.'),
-});
-
-const MemoryTagAddSchema = z.object({
-    memoryId: z.number().describe('Memory ID to tag.'),
-    tag: z.string().min(1).describe('Tag to add.'),
-});
-
-const MemoryTagRemoveSchema = z.object({
-    memoryId: z.number().describe('Memory ID to untag.'),
-    tag: z.string().min(1).describe('Tag to remove.'),
-});
-
-const MemoryTagsListSchema = z.object({});
-
-const MemoryPatchSchema = z.object({
-    id: z.number().int().describe('Memory ID to patch.'),
-    name: z.string().optional().describe('Optional new memory name.'),
-    content: z.string().optional().describe('Optional new memory content.'),
-    pinned: z.boolean().optional().describe('Optional pinned state update.'),
-    tier_transition: z
-        .enum(['promote', 'demote'])
-        .optional()
-        .describe('Optional bounded tier transition: promote (up one) or demote (down one).'),
-    add_tags: z.array(z.string()).optional().describe('Optional tags to add.'),
-    remove_tags: z.array(z.string()).optional().describe('Optional tags to remove.'),
-    add_links_to_ids: z
-        .array(z.number().int())
-        .optional()
-        .describe('IDs of memories to link TO from this memory. Use when you discover a new relationship between existing memories.'),
-    remove_links_to_ids: z
-        .array(z.number().int())
-        .optional()
-        .describe('IDs of memories to unlink FROM this memory. Removes outgoing links only.'),
-});
-
-const MemoryQuerySchema = z.object({
-    space: z.string().optional().describe('Filter by space name.'),
-    tag: z.string().optional().describe('Filter by tag.'),
-    tier: z.number().int().min(1).max(4).optional().describe('Filter by tier.'),
-    from: z.string().optional().describe('Changed date lower bound. Format: YYYY-MM-DD.'),
-    to: z.string().optional().describe('Changed date upper bound.'),
-    limit: z.number().int().min(1).max(500).optional().describe('Page size. Default: 25.'),
-    offset: z.number().int().min(0).optional().describe('Zero-based offset. Default: 0.'),
-});
-
 const MEMORY_TOOL_DESCRIPTIONS: Record<string, string> = {
     memory_add:
         'Add a new memory to a space. Use immediately after important events: decisions, bug fixes, discoveries, config changes. Supports creating links to related memories via links_to_ids — always link when the new memory depends on or extends an existing one.',
-    memory_get: 'Get a memory by space name and memory name. Returns metadata only, does not affect tier. Use memory_read instead to also get linked memories and trigger auto-promotion.',
-    memory_get_by_id: 'Get a memory by its numeric ID. Returns metadata only, does not affect tier.',
-    memory_list:
-        'List memories in a space, optionally filtered by tier or tag. Returns summaries with IDs (useful for linking). Does not include T4 frozen memories — use search for those.',
-    memory_update: 'Update a memory name or content by ID. Use memory_patch instead if you also need to change tags, links, or tier in one atomic operation.',
+    memory_update: 'Update a memory name, content, or tags by ID. If tags is provided, it replaces the entire existing tags array.',
     memory_delete: 'Delete a memory permanently by space and name. Also removes all links to/from this memory.',
     memory_read:
-        'Read a memory and its linked context. Returns content, auto-promotes the tier (T4→T3→T2→T1), and includes linked memory summaries (links_to + linked_by). Prefer this over memory_get when you need full context.',
-    memory_tag_add: 'Add a tag to a memory by ID. Use consistent tag conventions: cat:decision, cat:bugfix, cat:discovery, cat:pattern, cat:preference.',
-    memory_tag_remove: 'Remove a tag from a memory by ID.',
-    memory_tags_list: 'List all tags in the system. Check this before creating new tags to avoid duplicates.',
-    memory_query:
-        'Query memories across spaces with filters (space, tag, tier, date range) and pagination. Returns summaries with IDs. Does not include T4 frozen memories — use search for those.',
-    memory_patch:
-        'Atomically update a memory in one call: rename, edit content, change tier, add/remove tags, and add/remove links — all-or-nothing. Prefer this over separate calls when making multiple changes to the same memory.',
+        'Read a memory with its content and linked context (links_to + linked_by). By default, records access and auto-promotes the tier (T4→T3→T2→T1) — use this when actively working with a memory. Pass noPromote:true to inspect without side effects (no access count bump, no tier change).',
 };
+
+// =============================================================================
+// TierChange type (for memory.read tier_change response)
+// =============================================================================
+
+interface TierChange {
+    from: Tier;
+    to: Tier;
+    reason: string;
+}
+
+// =============================================================================
+// Tool Handlers
+// =============================================================================
 
 export function createMemoryTools(store: MindStore) {
     return {
@@ -123,8 +74,13 @@ export function createMemoryTools(store: MindStore) {
                 try {
                     parsed = MemoryAddSchema.parse(args);
                 } catch (e: any) {
+                    // Improve error message for tags
+                    const msg = e.message || '';
+                    if (parsed === undefined && msg.includes('tags')) {
+                        throw new Error('tags is required and must be a non-empty array');
+                    }
                     throw new Error(
-                        `Invalid arguments: ${e.message}. Provide: space, name, content, tags (optional), tier (optional), pinned (optional), links_to_ids (optional).`
+                        `Invalid arguments: ${e.message}. Provide: space, name, content, tags (required, min 1), tier (optional), pinned (optional), links_to_ids (optional).`
                     );
                 }
 
@@ -145,65 +101,7 @@ export function createMemoryTools(store: MindStore) {
                 };
             },
         },
-        memory_get: {
-            schema: MemoryGetSchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_get,
-            annotations: { readOnlyHint: true },
-            handler: async (args: unknown) => {
-                const parsed = MemoryGetSchema.parse(args ?? {});
-                if (!parsed.space || !parsed.name) {
-                    throw new Error('Both space and memory name are required.');
-                }
-                const memory = store.getMemory(parsed.space, parsed.name);
-                if (!memory) {
-                    throw new Error(`Memory "${parsed.name}" not found in space "${parsed.space}".`);
-                }
-                return {
-                    content: [{ type: 'text', text: `Memory: ${memory.name} (T${memory.tier})` }],
-                    memory,
-                };
-            },
-        },
-        memory_get_by_id: {
-            schema: MemoryGetByIdSchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_get_by_id,
-            annotations: { readOnlyHint: true },
-            handler: async (args: unknown) => {
-                const parsed = MemoryGetByIdSchema.parse(args ?? {});
-                if (!parsed.id) {
-                    throw new Error('Memory ID is required.');
-                }
-                const memory = store.getMemoryById(parsed.id);
-                if (!memory) {
-                    throw new Error(`Memory with ID ${parsed.id} not found.`);
-                }
-                return {
-                    content: [{ type: 'text', text: `Memory: ${memory.name} (T${memory.tier})` }],
-                    memory,
-                };
-            },
-        },
-        memory_list: {
-            schema: MemoryListSchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_list,
-            annotations: { readOnlyHint: true },
-            handler: async (args: unknown) => {
-                const parsed = MemoryListSchema.parse(args ?? {});
-                if (!parsed.space) {
-                    throw new Error('Space is required.');
-                }
-                const memories = store.listMemories(parsed.space, {
-                    tier: parsed.tier as Tier | undefined,
-                    tag: parsed.tag,
-                });
-                return {
-                    content: [
-                        { type: 'text', text: `Found ${memories.length} memory/memories in space "${parsed.space}".` },
-                    ],
-                    memories,
-                };
-            },
-        },
+
         memory_update: {
             schema: MemoryUpdateSchema,
             description: MEMORY_TOOL_DESCRIPTIONS.memory_update,
@@ -213,7 +111,26 @@ export function createMemoryTools(store: MindStore) {
                 if (!parsed.id) {
                     throw new Error('Memory ID is required.');
                 }
-                await store.updateMemory(parsed.id, { name: parsed.name, content: parsed.content });
+
+                // Validate memory exists
+                const existing = store.getMemoryById(parsed.id);
+                if (!existing) {
+                    throw new Error(`Memory with ID ${parsed.id} not found.`);
+                }
+
+                // Update name and/or content if provided
+                if (parsed.name !== undefined || parsed.content !== undefined) {
+                    await store.updateMemory(parsed.id, {
+                        name: parsed.name,
+                        content: parsed.content,
+                    });
+                }
+
+                // Replace tags if provided (per task: tags replaces entire array)
+                if (parsed.tags !== undefined) {
+                    store.setMemoryTags(parsed.id, parsed.tags);
+                }
+
                 const memory = store.getMemoryById(parsed.id);
                 return {
                     content: [{ type: 'text', text: `Memory updated successfully.` }],
@@ -221,6 +138,7 @@ export function createMemoryTools(store: MindStore) {
                 };
             },
         },
+
         memory_delete: {
             schema: MemoryDeleteSchema,
             description: MEMORY_TOOL_DESCRIPTIONS.memory_delete,
@@ -236,6 +154,7 @@ export function createMemoryTools(store: MindStore) {
                 };
             },
         },
+
         memory_read: {
             schema: MemoryReadSchema,
             description: MEMORY_TOOL_DESCRIPTIONS.memory_read,
@@ -249,139 +168,119 @@ export function createMemoryTools(store: MindStore) {
                 if (!memory) {
                     throw new Error(`Memory "${parsed.name}" not found in space "${parsed.space}".`);
                 }
+
+                // noPromote: true means read without side effects (like the old memory_get)
+                if (parsed.noPromote) {
+                    // Get linked memory summaries
+                    const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
+
+                    const links_to = linkedSummaries.links_to.map((l) => ({
+                        id: l.id,
+                        name: l.name,
+                        space: l.space_name,
+                        tier: l.tier,
+                        tags: l.tags,
+                        pinned: l.pinned,
+                        changed_at: l.changed_at,
+                    }));
+
+                    const linked_by = linkedSummaries.linked_by.map((l) => ({
+                        id: l.id,
+                        name: l.name,
+                        space: l.space_name,
+                        tier: l.tier,
+                        tags: l.tags,
+                        pinned: l.pinned,
+                        changed_at: l.changed_at,
+                    }));
+
+                    return {
+                        content: [{ type: 'text', text: `Memory "${parsed.name}" read (no promotion).` }],
+                        memory,
+                        links_to,
+                        linked_by,
+                        tier_change: null,
+                    };
+                }
+
+                // Capture tier BEFORE recordAccess for tier_change calculation
+                const fromTier = memory.tier;
+                const wasPinned = memory.pinned;
+
+                // Record access (bumps count, updates last_accessed_at, auto-promotes if not pinned)
                 store.recordAccess(memory.id);
+
+                // Get updated memory after recordAccess
                 const updatedMemory = store.getMemoryById(memory.id);
+                const toTier = updatedMemory?.tier ?? fromTier;
+
+                // Calculate tier_change
+                let tier_change: TierChange;
+                if (wasPinned) {
+                    tier_change = {
+                        from: fromTier,
+                        to: fromTier,
+                        reason: 'pinned - promotion skipped',
+                    };
+                } else if (fromTier === 1) {
+                    tier_change = {
+                        from: 1,
+                        to: 1,
+                        reason: 'already at T1',
+                    };
+                } else if (fromTier === toTier) {
+                    // Tier didn't change (maybe destination was full and all pinned)
+                    tier_change = {
+                        from: fromTier,
+                        to: toTier,
+                        reason: 'destination full - promotion skipped',
+                    };
+                } else {
+                    tier_change = {
+                        from: fromTier,
+                        to: toTier,
+                        reason: 'auto-promote on read',
+                    };
+                }
+
+                // Get linked memory summaries
                 const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
+
+                const links_to = linkedSummaries.links_to.map((l) => ({
+                    id: l.id,
+                    name: l.name,
+                    space: l.space_name,
+                    tier: l.tier,
+                    tags: l.tags,
+                    pinned: l.pinned,
+                    changed_at: l.changed_at,
+                }));
+
+                const linked_by = linkedSummaries.linked_by.map((l) => ({
+                    id: l.id,
+                    name: l.name,
+                    space: l.space_name,
+                    tier: l.tier,
+                    tags: l.tags,
+                    pinned: l.pinned,
+                    changed_at: l.changed_at,
+                }));
+
                 return {
                     content: [{ type: 'text', text: `Memory "${parsed.name}" read. Auto-promoted if applicable.` }],
                     memory: updatedMemory,
-                    links_to: linkedSummaries.links_to,
-                    linked_by: linkedSummaries.linked_by,
+                    links_to,
+                    linked_by,
+                    tier_change,
                 };
             },
         },
-        memory_tag_add: {
-            schema: MemoryTagAddSchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_tag_add,
-            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-            handler: async (args: unknown) => {
-                const parsed = MemoryTagAddSchema.parse(args ?? {});
-                if (!parsed.memoryId || !parsed.tag) {
-                    throw new Error('Both memoryId and tag are required.');
-                }
-                store.addMemoryTag(parsed.memoryId, parsed.tag);
-                const memory = store.getMemoryById(parsed.memoryId);
-                return {
-                    content: [{ type: 'text', text: `Tag "${parsed.tag}" added to memory.` }],
-                    memory,
-                };
-            },
-        },
-        memory_tag_remove: {
-            schema: MemoryTagRemoveSchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_tag_remove,
-            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-            handler: async (args: unknown) => {
-                const parsed = MemoryTagRemoveSchema.parse(args ?? {});
-                if (!parsed.memoryId || !parsed.tag) {
-                    throw new Error('Both memoryId and tag are required.');
-                }
-                store.removeMemoryTag(parsed.memoryId, parsed.tag);
-                const memory = store.getMemoryById(parsed.memoryId);
-                return {
-                    content: [{ type: 'text', text: `Tag "${parsed.tag}" removed from memory.` }],
-                    memory,
-                };
-            },
-        },
-        memory_tags_list: {
-            schema: MemoryTagsListSchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_tags_list,
-            annotations: { readOnlyHint: true },
-            handler: async () => {
-                const tags = store.listAllTags();
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: `Found ${tags.spaces.length} space tags and ${tags.memories.length} memory tags.`,
-                        },
-                    ],
-                    tags,
-                };
-            },
-        },
-        memory_query: {
-            schema: MemoryQuerySchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_query,
-            annotations: { readOnlyHint: true },
-            handler: async (args: unknown) => {
-                const parsed = MemoryQuerySchema.parse(args ?? {});
-                const limit = parsed.limit ?? 25;
-                const offset = parsed.offset ?? 0;
-                const memories = store.queryMemories({
-                    space: parsed.space,
-                    tag: parsed.tag,
-                    tier: parsed.tier as Tier | undefined,
-                    from: parsed.from,
-                    to: parsed.to,
-                    limit,
-                    offset,
-                });
 
-                const nextOffset = memories.length === limit ? offset + limit : null;
-
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: `Found ${memories.length} memory result(s). Pagination: limit=${limit}, offset=${offset}, next_offset=${nextOffset ?? 'N/A'}.`,
-                        },
-                    ],
-                    items: memories,
-                    pagination: { limit, offset, nextOffset },
-                };
-            },
-        },
-        memory_patch: {
-            schema: MemoryPatchSchema,
-            description: MEMORY_TOOL_DESCRIPTIONS.memory_patch,
-            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-            handler: async (args: unknown) => {
-                const parsed = MemoryPatchSchema.parse(args ?? {});
-
-                const hasAnyOperation =
-                    parsed.name !== undefined ||
-                    parsed.content !== undefined ||
-                    parsed.pinned !== undefined ||
-                    parsed.tier_transition !== undefined ||
-                    (parsed.add_tags?.length ?? 0) > 0 ||
-                    (parsed.remove_tags?.length ?? 0) > 0 ||
-                    (parsed.add_links_to_ids?.length ?? 0) > 0 ||
-                    (parsed.remove_links_to_ids?.length ?? 0) > 0;
-
-                if (!hasAnyOperation) {
-                    throw new Error(
-                        'Provide at least one operation: name, content, pinned, tier_transition, add_tags, remove_tags, add_links_to_ids, or remove_links_to_ids.'
-                    );
-                }
-
-                const memory = await store.patchMemory(parsed.id, {
-                    name: parsed.name,
-                    content: parsed.content,
-                    pinned: parsed.pinned,
-                    tierTransition: parsed.tier_transition,
-                    addTags: parsed.add_tags,
-                    removeTags: parsed.remove_tags,
-                    addLinksToIds: parsed.add_links_to_ids,
-                    removeLinksToIds: parsed.remove_links_to_ids,
-                });
-
-                return {
-                    content: [{ type: 'text', text: `Memory ${parsed.id} patched successfully (atomic all-or-nothing).` }],
-                    memory,
-                };
-            },
-        },
     };
 }
+
+// =============================================================================
+// Re-export types for convenience (used by MCP server)
+// =============================================================================
+
+export type { TierChange };

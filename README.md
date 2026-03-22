@@ -172,17 +172,16 @@ Example MCP tool usage (for agents):
 Memory MCP workflows also support bounded composite ergonomics while keeping atomic tools:
 
 - `memory_add` supports optional `pinned` and `links_to_ids` (atomic all-or-nothing).
-- `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`).
-- `memory_patch` applies bounded composite updates for one memory (`name/content`, `pinned`, tier transition, tag add/remove, link add/remove) with atomic all-or-nothing behavior.
+- `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`). Use `noPromote:true` to read without side effects.
 
 Checkpoint MCP tools are also available for session continuity:
 
-- `checkpoint_set`
-- `checkpoint_complete`
-- `checkpoint_recover`
+- `checkpoint_save`
+- `checkpoint_done`
+- `checkpoint_load`
 - `checkpoint_list`
 
-`checkpoint_recover` now supports `format` (`text|md|json`) and optional `agent` profile selection, and returns a Recovery Pack payload with checkpoint state, recent context hits, and capability-aware fallback guidance.
+`checkpoint_load` supports `format` (`text|md|json`) and optional `agent` profile selection, and returns a Recovery Pack payload with checkpoint state, recent context hits, and capability-aware fallback guidance.
 
 ### Agent Setup
 

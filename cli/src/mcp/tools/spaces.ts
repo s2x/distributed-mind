@@ -7,7 +7,7 @@ const SpaceCreateSchema = z.object({
         .min(1)
         .describe('Space name. Use hierarchical format: projects/project-name, user/preferences, global/config.'),
     description: z.string().min(1).describe('Description of the space purpose.'),
-    tags: z.array(z.string()).optional().describe('Optional tags.'),
+    tags: z.array(z.string()).min(1).describe('Tags for the space. At least 1 tag required.'),
 });
 
 const SpaceListSchema = z.object({
@@ -21,37 +21,20 @@ const SpaceGetSchema = z.object({
 const SpaceUpdateSchema = z.object({
     name: z.string().min(1).describe('Space name to update.'),
     description: z.string().optional().describe('New description.'),
-});
-
-const SpaceRenameSchema = z.object({
-    oldName: z.string().min(1).describe('Current space name.'),
-    newName: z.string().min(1).describe('New space name.'),
+    tags: z.array(z.string()).optional().describe('New tags array. Replaces all existing tags if provided.'),
 });
 
 const SpaceDeleteSchema = z.object({
     name: z.string().min(1).describe('Space name to delete.'),
 });
 
-const SpaceTagAddSchema = z.object({
-    space: z.string().min(1).describe('Space to tag.'),
-    tag: z.string().min(1).describe('Tag to add.'),
-});
-
-const SpaceTagRemoveSchema = z.object({
-    space: z.string().min(1).describe('Space to untag.'),
-    tag: z.string().min(1).describe('Tag to remove.'),
-});
-
 const SPACE_TOOL_DESCRIPTIONS: Record<string, string> = {
     space_create:
-        'Create a new space. Required before adding memories. Use hierarchical names based on the repo/directory: projects/<repo-name>, user/preferences, sessions/<repo-name>.',
+        'Create a new space with required tags. Use hierarchical names: projects/<repo-name>, user/preferences, sessions/<repo-name>.',
     space_list: 'List all spaces, optionally filtered by tag. Use at session start to discover existing project spaces.',
-    space_get: 'Get details of a specific space by name, including description, tags, and memory count.',
-    space_update: 'Update a space description.',
-    space_rename: 'Rename a space. All memories and links are preserved under the new name.',
+    space_get: 'Get space details including description, tags, and hot (T1+T2) memories preview.',
+    space_update: 'Update space description and/or tags. Tags array replaces existing tags if provided.',
     space_delete: 'Delete a space and ALL its memories, links, and checkpoints permanently. Cannot be undone.',
-    space_tag_add: 'Add a tag to a space. Use type: prefixed tags (type:project, type:user, type:session).',
-    space_tag_remove: 'Remove a tag from a space.',
 };
 
 export function createSpaceTools(store: MindStore) {
@@ -66,7 +49,15 @@ export function createSpaceTools(store: MindStore) {
                 try {
                     parsed = SpaceCreateSchema.parse(args);
                 } catch (e: any) {
-                    throw new Error(`Invalid arguments: ${e.message}. Provide: name, description, tags (optional).`);
+                    // Zod errors are in e.message as JSON string
+                    const msg = e.message ?? '';
+                    if (msg.includes('"code":"invalid_type"') || msg.includes('"invalid_type"')) {
+                        throw new Error('tags is required');
+                    }
+                    if (msg.includes('"code":"too_small"') || msg.includes('"too_small"')) {
+                        throw new Error('at least 1 tag');
+                    }
+                    throw new Error(`Invalid arguments: ${msg}`);
                 }
 
                 store.createSpace(parsed.name, parsed.description, parsed.tags);
@@ -103,9 +94,11 @@ export function createSpaceTools(store: MindStore) {
                 if (!space) {
                     throw new Error(`Space "${parsed.name}" does not exist.`);
                 }
+                const hot_memories = store.getHotMemories(parsed.name);
                 return {
                     content: [{ type: 'text', text: `Space: ${space.name}` }],
                     space,
+                    hot_memories,
                 };
             },
         },
@@ -118,27 +111,37 @@ export function createSpaceTools(store: MindStore) {
                 if (!parsed.name) {
                     throw new Error('Space name is required.');
                 }
-                store.updateSpace(parsed.name, { description: parsed.description });
+
+                // Build updates object for description/hidden
+                const updates: { description?: string; hidden?: boolean } = {};
+                if (parsed.description !== undefined) {
+                    updates.description = parsed.description;
+                }
+                store.updateSpace(parsed.name, updates);
+
+                // Handle tags replacement if provided
+                if (parsed.tags !== undefined) {
+                    const currentSpace = store.getSpace(parsed.name);
+                    const currentTags = currentSpace?.tags ?? [];
+
+                    // Remove tags that are not in the new array
+                    for (const tag of currentTags) {
+                        if (!parsed.tags.includes(tag)) {
+                            store.removeSpaceTag(parsed.name, tag);
+                        }
+                    }
+
+                    // Add tags that are not in the current array
+                    for (const tag of parsed.tags) {
+                        if (!currentTags.includes(tag)) {
+                            store.addSpaceTag(parsed.name, tag);
+                        }
+                    }
+                }
+
                 const space = store.getSpace(parsed.name);
                 return {
                     content: [{ type: 'text', text: `Space "${parsed.name}" updated.` }],
-                    space,
-                };
-            },
-        },
-        space_rename: {
-            schema: SpaceRenameSchema,
-            description: SPACE_TOOL_DESCRIPTIONS.space_rename,
-            annotations: { readOnlyHint: false, destructiveHint: false },
-            handler: async (args: unknown) => {
-                const parsed = SpaceRenameSchema.parse(args ?? {});
-                if (!parsed.oldName || !parsed.newName) {
-                    throw new Error('Both oldName and newName are required.');
-                }
-                store.renameSpace(parsed.oldName, parsed.newName);
-                const space = store.getSpace(parsed.newName);
-                return {
-                    content: [{ type: 'text', text: `Space renamed from "${parsed.oldName}" to "${parsed.newName}".` }],
                     space,
                 };
             },
@@ -155,36 +158,6 @@ export function createSpaceTools(store: MindStore) {
                 store.deleteSpace(parsed.name);
                 return {
                     content: [{ type: 'text', text: `Space "${parsed.name}" deleted.` }],
-                };
-            },
-        },
-        space_tag_add: {
-            schema: SpaceTagAddSchema,
-            description: SPACE_TOOL_DESCRIPTIONS.space_tag_add,
-            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-            handler: async (args: unknown) => {
-                const parsed = SpaceTagAddSchema.parse(args ?? {});
-                if (!parsed.space || !parsed.tag) {
-                    throw new Error('Both space and tag are required.');
-                }
-                store.addSpaceTag(parsed.space, parsed.tag);
-                return {
-                    content: [{ type: 'text', text: `Tag "${parsed.tag}" added to space "${parsed.space}".` }],
-                };
-            },
-        },
-        space_tag_remove: {
-            schema: SpaceTagRemoveSchema,
-            description: SPACE_TOOL_DESCRIPTIONS.space_tag_remove,
-            annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-            handler: async (args: unknown) => {
-                const parsed = SpaceTagRemoveSchema.parse(args ?? {});
-                if (!parsed.space || !parsed.tag) {
-                    throw new Error('Both space and tag are required.');
-                }
-                store.removeSpaceTag(parsed.space, parsed.tag);
-                return {
-                    content: [{ type: 'text', text: `Tag "${parsed.tag}" removed from space "${parsed.space}".` }],
                 };
             },
         },

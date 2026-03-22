@@ -59,6 +59,21 @@ export interface Link {
 
 export type Tier = 1 | 2 | 3 | 4;
 
+export interface TierChange {
+    from: Tier;
+    to: Tier;
+    reason: 'promote' | 'demote' | 'auto_promote';
+}
+
+export interface HotMemorySummary {
+    id: number;
+    name: string;
+    tier: Tier;
+    tags: string[];
+    pinned: boolean;
+    updated_at: string;
+}
+
 export interface SearchFilter {
     space?: string;
     tag?: string;

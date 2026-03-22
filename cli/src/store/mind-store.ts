@@ -13,11 +13,13 @@ import type {
     StatusResult,
     SpaceGraphResult,
     LegacyBrain,
+    HotMemorySummary,
 } from '../types';
 
 export interface LinkedMemorySummary {
     id: number;
     name: string;
+    space_name: string;
     changed_at: string;
     tier: Tier;
     tags: string[];
@@ -61,6 +63,11 @@ export interface MindStore {
      * T4 is never returned by list — use search to find frozen memories.
      */
     listMemories(space: string, filter?: { tier?: Tier; tag?: string }): MemorySummary[];
+    /**
+     * Get hot (T1 + T2) memories as summaries for a space.
+     * Used by MCP tools to provide a fast overview without full content.
+     */
+    getHotMemories(space: string): HotMemorySummary[];
     updateMemory(id: number, updates: { name?: string; content?: string }): Promise<void>;
     deleteMemory(id: number): void;
     deleteMemoryByName(space: string, name: string): void;
@@ -76,6 +83,7 @@ export interface MindStore {
     // Tags
     addMemoryTag(memoryId: number, tag: string): void;
     removeMemoryTag(memoryId: number, tag: string): void;
+    setMemoryTags(memoryId: number, tags: string[]): void;
     listAllTags(): { spaces: { tag: string; count: number }[]; memories: { tag: string; count: number }[] };
 
     // Tiers
@@ -102,6 +110,9 @@ export interface MindStore {
     // When RAG is enabled, returns FTS results merged with semantic similarity scores
     search(query: string, filter?: SearchFilter): Promise<SearchResult[]>;
 
+    // Search with fallback chain: FTS5 → LIKE → embeddings; returns results + search_method
+    searchFallback(query: string, filter?: SearchFilter): Promise<{ results: SearchResult[]; search_method: string }>;
+
     // Query memories by metadata/date with pagination
     queryMemories(filter?: MemoryQueryFilter): MemorySummary[];
 
@@ -113,6 +124,11 @@ export interface MindStore {
 
     // Migration
     importFromJson(brain: LegacyBrain): void;
+    /**
+     * Parse a memory reference string "space:name" into its components.
+     * Returns null if the format is invalid (no colon, empty space, or empty name).
+     */
+    resolveMemoryRef(ref: string): { space: string; name: string } | null;
 
     // Logs
     addLog(entry: {

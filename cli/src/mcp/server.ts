@@ -11,7 +11,6 @@ import { createMemoryTools } from './tools/memories';
 import { createSearchTools } from './tools/search';
 import { createSpaceTools } from './tools/spaces';
 import { createSystemTools } from './tools/system';
-import { createTierTools } from './tools/tiers';
 
 type ToolAnnotations = {
     readOnlyHint?: boolean;
@@ -43,7 +42,6 @@ function createMcpServer(store: MindStore): Server {
     const allTools: Record<string, ToolDefinition> = {
         ...createSpaceTools(store),
         ...createMemoryTools(store),
-        ...createTierTools(store),
         ...createLinkTools(store),
         ...createSearchTools(store),
         ...createCheckpointTools(store),

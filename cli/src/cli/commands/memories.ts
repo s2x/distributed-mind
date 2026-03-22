@@ -57,7 +57,7 @@ export const memoriesGroup: CommandGroup = {
                     ? String(flags.tags)
                           .split(',')
                           .map((t) => t.trim())
-                    : undefined;
+                    : ['untagged'];
                 const tier = flags.tier ? (parseInt(String(flags.tier)) as Tier) : undefined;
                 if (tier !== undefined && (tier < 1 || tier > 3)) {
                     throw new Error(

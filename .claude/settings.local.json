@@ -6,7 +6,9 @@
       "Bash(bun test:*)",
       "Bash(bun -e \":*)",
       "Bash(bun -e \"const { renderMemoryProtocol } = require\\(''./cli/src/cli/memory-protocol''\\); process.stdout.write\\(renderMemoryProtocol\\(''claude-code''\\)\\);\")",
-      "Bash(bun -e \"const { renderMemoryProtocol } = require\\(''./cli/src/cli/memory-protocol''\\); process.stdout.write\\(renderMemoryProtocol\\(''codex''\\)\\);\")"
+      "Bash(bun -e \"const { renderMemoryProtocol } = require\\(''./cli/src/cli/memory-protocol''\\); process.stdout.write\\(renderMemoryProtocol\\(''codex''\\)\\);\")",
+      "Bash(bun -e \"const { renderSystemInstructions } = require\\(''./cli/src/cli/system-instructions''\\); process.stdout.write\\(renderSystemInstructions\\(\\)\\);\")",
+      "Bash(bun -e \"const { renderMemoryProtocol } = require\\(''./cli/src/cli/memory-protocol''\\); process.stdout.write\\(renderMemoryProtocol\\(''opencode''\\)\\);\")"
     ]
   }
 }

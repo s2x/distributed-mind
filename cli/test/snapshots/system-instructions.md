@@ -51,7 +51,7 @@ This is VITAL for future agents to find your knowledge. If you use arbitrary nam
 - `cat:config` — specific configuration
 - `cat:summary` — session summary (use with type:session)
 
-Before creating a new tag, ALWAYS list existing tags first (`memory_tags_list` or `space_list --tags`) to check for duplicates.
+Before creating a new tag, search existing memories first (`search` or `memory_query`) to check for duplicate conventions.
 
 ---
 
@@ -83,9 +83,9 @@ Call `memory_add` IMMEDIATELY after:
 - A config change driven by an earlier finding
 - Two memories about the same feature or subsystem
 
-Get memory IDs from `memory_list` or `memory_query`, then pass them to `links_to_ids` in `memory_add`, `add_links_to_ids` in `memory_patch`, or use `link_create` for existing memories.
+Get memory IDs from `memory_query` or `search`, then pass them to `links_to_ids` in `memory_add`, or use `link_create` for existing memories.
 
-Composite operations are atomic all-or-nothing: if one step fails, no partial write is persisted (`memory_add` with links, `memory_patch`).
+Composite operations are atomic all-or-nothing: if one step fails, no partial write is persisted (`memory_add` with `links_to_ids`).
 
 ---
 
@@ -119,9 +119,9 @@ Tiers help manage memory priority and auto-eviction:
 
 ### Behaviors:
 - **Auto-promote**: Reading a memory (`memory_read`) moves it up one tier (T4→T3→T2→T1)
-- **Pin**: Use `memory_pin` to make a memory immune to auto-promotion AND LRU eviction
+- **Pin**: Set `pinned: true` on `memory_add` to make a memory immune to auto-promotion AND LRU eviction
 - **LRU eviction**: When a tier is full, the least-recently-used non-pinned memory moves down one tier
-- **T4 is special**: Only accessible via `search`. Never returned by `memory_list` or `memory_query`.
+- **T4 is special**: Only accessible via `search`. Not returned by `memory_query`.
 
 ---
 
@@ -129,18 +129,17 @@ Tiers help manage memory priority and auto-eviction:
 
 | Category | Tools |
 |----------|-------|
-| Spaces | space_create, space_list, space_get, space_update, space_rename, space_delete, space_tag_add, space_tag_remove |
-| Memories | memory_add, memory_get, memory_get_by_id, memory_list, memory_query, memory_update, memory_delete, memory_read, memory_tag_add, memory_tag_remove, memory_tags_list |
-| Tiers | memory_promote, memory_demote, memory_pin, memory_unpin |
-| Links | link_create, link_delete, links_list |
-| Search | search, status |
-| Checkpoint | checkpoint_set, checkpoint_complete, checkpoint_recover, checkpoint_list |
+| Spaces | space_create, space_list, space_get, space_update, space_delete |
+| Memories | memory_add, memory_update, memory_delete, memory_read |
+| Links | link_create, link_delete |
+| Search | search, memory_query, status |
+| Checkpoint | checkpoint_save, checkpoint_done, checkpoint_load, checkpoint_list |
 
 ---
 
 ## Pagination
 
-For tools that return lists (`memory_query`, `memory_list`, `search`), results are paginated:
+For tools that return lists (`memory_query`, `search`), results are paginated:
 - `limit`: Number of results (default 25, max 500)
 - `offset`: Zero-based index (default 0)
 - Use `offset + limit` for next page
@@ -152,18 +151,18 @@ Response includes `pagination` object with `nextOffset` when more results exist.
 ## Common Errors
 
 - "Space X does not exist": Create the space first with `space_create`
-- "Memory with id X does not exist": Use `memory_list`, `memory_query`, or `search` to get valid IDs
-- "T1 is full": Either promote memories to make room, or unpin some memories to allow LRU eviction
+- "Memory with id X does not exist": Use `memory_query` or `search` to get valid IDs
+- "T1 is full": Unpin some memories to allow LRU eviction, or let the system auto-evict
 
 ---
 
 ## Session Workflow
 
-1. **Start**: Create/check space: `space_create` (use repo name!) or `space_list`
-2. **Work**: Add memories as you go: `memory_add` (important decisions, bugs, patterns)
-3. **Query**: Find context later: `memory_query`, `search`, `memory_list`
-4. **Checkpoint** (optional): Save work progress: `checkpoint_set`
-5. **Close**: Summarize session: `memory_add` to `sessions/<REPO_NAME>` with `type:session, cat:summary`
+1. **Start**: Recover context: `checkpoint_load`, then `space_get` (use repo name!)
+2. **Work**: Add memories as you go: `memory_add` with tags and `links_to_ids`
+3. **Query**: Find context: `memory_query`, `search`
+4. **Checkpoint**: Save work progress: `checkpoint_save` (keep fresh as you go)
+5. **Close**: Complete checkpoint: `checkpoint_done`, then session summary via `memory_add` to `sessions/<REPO_NAME>`
 
 ---
 

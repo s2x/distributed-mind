@@ -3,8 +3,8 @@ import { createTestStore } from './mocks/test-store';
 import { createMemoryTools } from '../src/mcp/tools/memories';
 import { createCheckpointTools } from '../src/mcp/tools/checkpoint';
 import { createSpaceTools } from '../src/mcp/tools/spaces';
-import { createTierTools } from '../src/mcp/tools/tiers';
 import { createLinkTools } from '../src/mcp/tools/links';
+import { createSearchTools } from '../src/mcp/tools/search';
 import type { MindStore } from '../src/store/mind-store';
 
 let store: MindStore & { cleanup: () => void };
@@ -16,14 +16,15 @@ afterEach(() => {
 describe('MCP Memory Tools', () => {
     test('memory_add should support pinned and links_to_ids', async () => {
         store = createTestStore();
-        store.createSpace('proj', 'Project');
-        const target = await store.addMemory('proj', 'target', 'target content');
+        store.createSpace('proj', 'Project', ['test']);
+        const target = await store.addMemory('proj', 'target', 'target content', { tags: ['test'] });
 
         const tools = createMemoryTools(store);
         const res = await tools.memory_add.handler({
             space: 'proj',
             name: 'source',
             content: 'source content',
+            tags: ['cat:decision'],
             pinned: true,
             links_to_ids: [target.id],
         });
@@ -36,7 +37,7 @@ describe('MCP Memory Tools', () => {
 
     test('memory_add should be atomic when links_to_ids contains invalid id', async () => {
         store = createTestStore();
-        store.createSpace('proj', 'Project');
+        store.createSpace('proj', 'Project', ['test']);
         const tools = createMemoryTools(store);
 
         await expect(
@@ -44,6 +45,7 @@ describe('MCP Memory Tools', () => {
                 space: 'proj',
                 name: 'source',
                 content: 'source content',
+                tags: ['test'],
                 links_to_ids: [99999],
             })
         ).rejects.toThrow('linked memory id 99999');
@@ -53,7 +55,7 @@ describe('MCP Memory Tools', () => {
 
     test('memory_read should include linked summaries by direction', async () => {
         store = createTestStore();
-        store.createSpace('proj', 'Project');
+        store.createSpace('proj', 'Project', ['test']);
         const base = await store.addMemory('proj', 'base', 'base content', { tags: ['cat:decision'] });
         const outgoing = await store.addMemory('proj', 'outgoing', 'outgoing content', { tags: ['cat:bugfix'] });
         const incoming = await store.addMemory('proj', 'incoming', 'incoming content', { tags: ['cat:pattern'] });
@@ -67,126 +69,64 @@ describe('MCP Memory Tools', () => {
         expect(res.memory?.pinned).toBe(false);
         expect(res.links_to.length).toBe(1);
         expect(res.linked_by.length).toBe(1);
-        expect(Object.keys(res.links_to[0] ?? {}).sort()).toEqual(['changed_at', 'id', 'name', 'pinned', 'tags', 'tier']);
-        expect(Object.keys(res.linked_by[0] ?? {}).sort()).toEqual([
-            'changed_at',
-            'id',
-            'name',
-            'pinned',
-            'tags',
-            'tier',
-        ]);
-    });
-
-    test('memory_patch should apply bounded composite updates atomically', async () => {
-        store = createTestStore();
-        store.createSpace('proj', 'Project');
-        const source = await store.addMemory('proj', 'source', 'old content', { tier: 2, tags: ['old'] });
-        const target = await store.addMemory('proj', 'target', 'target content');
-
-        const tools = createMemoryTools(store);
-        const res = await tools.memory_patch.handler({
-            id: source.id,
-            name: 'source-renamed',
-            content: 'new content',
-            pinned: true,
-            tier_transition: 'promote',
-            add_tags: ['new-tag'],
-            remove_tags: ['old'],
-            add_links_to_ids: [target.id],
-        });
-
-        expect(res.memory.name).toBe('source-renamed');
-        expect(res.memory.content).toBe('new content');
-        expect(res.memory.pinned).toBe(true);
-        expect(res.memory.tier).toBe(1);
-        expect(res.memory.tags).toContain('new-tag');
-        expect(res.memory.tags).not.toContain('old');
-        const links = store.getLinks(source.id);
-        expect(links.length).toBe(1);
-        expect(links[0]?.target_id).toBe(target.id);
-    });
-
-    test('memory_patch should rollback all changes on invalid link target', async () => {
-        store = createTestStore();
-        store.createSpace('proj', 'Project');
-        const source = await store.addMemory('proj', 'source', 'old content', { tags: ['old'] });
-
-        const tools = createMemoryTools(store);
-        await expect(
-            tools.memory_patch.handler({
-                id: source.id,
-                name: 'new-name',
-                add_tags: ['new-tag'],
-                add_links_to_ids: [99999],
-            })
-        ).rejects.toThrow('linked memory id 99999');
-
-        const unchanged = store.getMemoryById(source.id);
-        expect(unchanged?.name).toBe('source');
-        expect(unchanged?.tags).toContain('old');
-        expect(unchanged?.tags).not.toContain('new-tag');
-        expect(store.getLinks(source.id).length).toBe(0);
-    });
-
-    test('memory_patch should fail with actionable error when no operations are provided', async () => {
-        store = createTestStore();
-        store.createSpace('proj', 'Project');
-        const source = await store.addMemory('proj', 'source', 'old content');
-
-        const tools = createMemoryTools(store);
-        await expect(tools.memory_patch.handler({ id: source.id })).rejects.toThrow(
-            'Provide at least one operation'
+        // Phase 2.2: links_to/linked_by include 'space' field
+        expect(Object.keys(res.links_to[0] ?? {}).sort()).toEqual(
+            ['changed_at', 'id', 'name', 'pinned', 'space', 'tags', 'tier'].sort()
+        );
+        expect(Object.keys(res.linked_by[0] ?? {}).sort()).toEqual(
+            ['changed_at', 'id', 'name', 'pinned', 'space', 'tags', 'tier'].sort()
         );
     });
 
     test('memory_query should use default pagination values', async () => {
         store = createTestStore();
-        store.createSpace('Credentials', 'Secrets');
-        await store.addMemory('Credentials', 'a', 'content');
+        store.createSpace('Credentials', 'Secrets', ['test']);
+        await store.addMemory('Credentials', 'a', 'content', { tags: ['test'] });
 
-        const tools = createMemoryTools(store);
-        const res = await tools.memory_query.handler({});
+        const tools = createSearchTools(store);
+        const res = await tools.memory_query.handler({ space: 'Credentials' });
 
-        expect(res.pagination.limit).toBe(25);
-        expect(res.pagination.offset).toBe(0);
-        expect(Array.isArray(res.items)).toBe(true);
-        expect(res.items.length).toBe(1);
+        expect(res.limit).toBe(25);
+        expect(res.offset).toBe(0);
+        expect(Array.isArray(res.memories)).toBe(true);
+        expect(res.memories.length).toBe(1);
     });
 
-    test('memory_query should return nextOffset when page is full', async () => {
+    test('memory_query should respect limit and offset', async () => {
         store = createTestStore();
-        store.createSpace('Credentials', 'Secrets');
-        await store.addMemory('Credentials', 'a', 'content');
-        await store.addMemory('Credentials', 'b', 'content');
+        store.createSpace('Credentials', 'Secrets', ['test']);
+        await store.addMemory('Credentials', 'a', 'content', { tags: ['test'] });
+        await store.addMemory('Credentials', 'b', 'content', { tags: ['test'] });
 
-        const tools = createMemoryTools(store);
+        const tools = createSearchTools(store);
         const res = await tools.memory_query.handler({ space: 'Credentials', limit: 1, offset: 0 });
 
-        expect(res.items.length).toBe(1);
-        expect(res.pagination.nextOffset).toBe(1);
+        expect(res.memories.length).toBe(1);
+        expect(res.limit).toBe(1);
+        expect(res.offset).toBe(0);
+        expect(res.total).toBe(2);
     });
 
-    test('memory_query should return null nextOffset when page is exhausted', async () => {
+    test('memory_query should return all memories when page covers all', async () => {
         store = createTestStore();
-        store.createSpace('Credentials', 'Secrets');
-        await store.addMemory('Credentials', 'a', 'content');
+        store.createSpace('Credentials', 'Secrets', ['test']);
+        await store.addMemory('Credentials', 'a', 'content', { tags: ['test'] });
 
-        const tools = createMemoryTools(store);
+        const tools = createSearchTools(store);
         const res = await tools.memory_query.handler({ space: 'Credentials', limit: 25, offset: 0 });
 
-        expect(res.items.length).toBe(1);
-        expect(res.pagination.nextOffset).toBeNull();
+        expect(res.memories.length).toBe(1);
+        expect(res.total).toBe(1);
     });
 });
 
 describe('MCP Checkpoint Tools', () => {
-    test('checkpoint_set should create checkpoint in hidden space', async () => {
+    test('checkpoint_save should create checkpoint in hidden space', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         const tools = createCheckpointTools(store);
-        const res = await tools.checkpoint_set.handler({
+        const res = await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Implement auth',
             pending: 'Fix login bug',
@@ -206,21 +146,21 @@ describe('MCP Checkpoint Tools', () => {
         expect(space?.hidden).toBe(true);
     });
 
-    test('checkpoint_set should update existing active checkpoint', async () => {
+    test('checkpoint_save should update existing active checkpoint', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         const tools = createCheckpointTools(store);
 
         // Create first checkpoint
-        await tools.checkpoint_set.handler({
+        await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'First goal',
             pending: 'First pending',
         });
 
         // Update it
-        const res = await tools.checkpoint_set.handler({
+        const res = await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Updated goal',
             pending: 'Updated pending',
@@ -240,20 +180,20 @@ describe('MCP Checkpoint Tools', () => {
         expect(content.goal).toBe('Updated goal');
     });
 
-    test('checkpoint_recover should return active checkpoint', async () => {
+    test('checkpoint_load should return active checkpoint', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         const tools = createCheckpointTools(store);
 
-        await tools.checkpoint_set.handler({
+        await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'My goal',
             pending: 'My pending',
             notes: 'Some context',
         });
 
-        const res = await tools.checkpoint_recover.handler({
+        const res = await tools.checkpoint_load.handler({
             space: 'myproject',
         });
 
@@ -265,25 +205,25 @@ describe('MCP Checkpoint Tools', () => {
         expect(checkpoint?.content.notes).toBe('Some context');
     });
 
-    test('checkpoint_recover should return null when no checkpoint', async () => {
+    test('checkpoint_load should return null when no checkpoint', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         const tools = createCheckpointTools(store);
-        const res = await tools.checkpoint_recover.handler({
+        const res = await tools.checkpoint_load.handler({
             space: 'myproject',
         });
 
         expect(res.checkpoint).toBeNull();
     });
 
-    test('checkpoint_complete should mark as completed and demote', async () => {
+    test('checkpoint_done should mark as completed and demote', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         const tools = createCheckpointTools(store);
 
-        await tools.checkpoint_set.handler({
+        await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Goal',
             pending: 'Pending',
@@ -294,10 +234,10 @@ describe('MCP Checkpoint Tools', () => {
         expect(firstMem).toBeDefined();
         const checkpointId = firstMem!.id;
 
-        const res = await tools.checkpoint_complete.handler({
+        const res = await tools.checkpoint_done.handler({
             space: 'myproject',
             checkpointId,
-            whatWasDone: 'Fixed the bug',
+            summary: 'Fixed the bug',
         });
 
         expect(res.content[0]?.text).toContain('completed');
@@ -311,11 +251,11 @@ describe('MCP Checkpoint Tools', () => {
 
     test('checkpoint_list should list all checkpoints', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         const tools = createCheckpointTools(store);
 
-        await tools.checkpoint_set.handler({
+        await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Goal',
             pending: 'Pending',
@@ -326,10 +266,10 @@ describe('MCP Checkpoint Tools', () => {
         expect(firstMem).toBeDefined();
         const checkpointId = firstMem!.id;
 
-        await tools.checkpoint_complete.handler({
+        await tools.checkpoint_done.handler({
             space: 'myproject',
             checkpointId,
-            whatWasDone: 'Done',
+            summary: 'Done',
         });
 
         const res = await tools.checkpoint_list.handler({
@@ -342,17 +282,17 @@ describe('MCP Checkpoint Tools', () => {
         expect(firstCheckpoint?.tags).toContain('completed');
     });
 
-    test('checkpoint_set with related memories should create links', async () => {
+    test('checkpoint_save with related memories should create links', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
-        const mem = await store.addMemory('myproject', 'auth', 'JWT auth');
+        store.createSpace('myproject', 'A project', ['test']);
+        const mem = await store.addMemory('myproject', 'auth', 'JWT auth', { tags: ['test'] });
 
         const tools = createCheckpointTools(store);
-        const res = await tools.checkpoint_set.handler({
+        const res = await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Fix auth',
             pending: 'Debug issue',
-            relatedMemoryIds: [mem.id],
+            relatedRefs: [mem.id],
         });
 
         expect(res.checkpoint).toBeDefined();
@@ -365,29 +305,29 @@ describe('MCP Checkpoint Tools', () => {
         expect(firstLink?.target_id).toBe(mem.id);
     });
 
-    test('checkpoint_recover should support text|md|json formats with coherent content', async () => {
+    test('checkpoint_load should support text|md|json formats with coherent content', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
-        await store.addMemory('myproject', 'auth', 'JWT auth flow');
+        store.createSpace('myproject', 'A project', ['test']);
+        await store.addMemory('myproject', 'auth', 'JWT auth flow', { tags: ['test'] });
 
         const tools = createCheckpointTools(store);
-        await tools.checkpoint_set.handler({
+        await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Stabilize auth',
             pending: 'Fix token refresh edge cases',
         });
 
-        const textRes = await tools.checkpoint_recover.handler({
+        const textRes = await tools.checkpoint_load.handler({
             space: 'myproject',
             format: 'text',
             agent: 'opencode',
         });
-        const mdRes = await tools.checkpoint_recover.handler({
+        const mdRes = await tools.checkpoint_load.handler({
             space: 'myproject',
             format: 'md',
             agent: 'opencode',
         });
-        const jsonRes = await tools.checkpoint_recover.handler({
+        const jsonRes = await tools.checkpoint_load.handler({
             space: 'myproject',
             format: 'json',
             agent: 'opencode',
@@ -404,12 +344,12 @@ describe('MCP Checkpoint Tools', () => {
         expect(jsonRes.recoveryPack?.capability_profile?.L3_HOOKS?.evidence).toBeDefined();
     });
 
-    test('checkpoint_recover should return useful guidance when no active checkpoint exists', async () => {
+    test('checkpoint_load should return useful guidance when no active checkpoint exists', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         const tools = createCheckpointTools(store);
-        const res = await tools.checkpoint_recover.handler({
+        const res = await tools.checkpoint_load.handler({
             space: 'myproject',
             format: 'json',
             agent: 'codex',
@@ -441,8 +381,8 @@ describe('MCP Spaces Tools', () => {
 
     test('space_list should list spaces', async () => {
         store = createTestStore();
-        store.createSpace('proj1', 'Project 1');
-        store.createSpace('proj2', 'Project 2');
+        store.createSpace('proj1', 'Project 1', ['test']);
+        store.createSpace('proj2', 'Project 2', ['test']);
 
         const tools = createSpaceTools(store);
         const res = await tools.space_list.handler({});
@@ -452,7 +392,7 @@ describe('MCP Spaces Tools', () => {
 
     test('space_get should return space details', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'My project');
+        store.createSpace('myproject', 'My project', ['test']);
 
         const tools = createSpaceTools(store);
         const res = await tools.space_get.handler({ name: 'myproject' });
@@ -463,7 +403,7 @@ describe('MCP Spaces Tools', () => {
 
     test('space_update should update description', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'Old desc');
+        store.createSpace('myproject', 'Old desc', ['test']);
 
         const tools = createSpaceTools(store);
         const res = await tools.space_update.handler({
@@ -476,21 +416,9 @@ describe('MCP Spaces Tools', () => {
         expect(space?.description).toBe('New desc');
     });
 
-    test('space_rename should rename a space', async () => {
-        store = createTestStore();
-        store.createSpace('old', 'Old name');
-
-        const tools = createSpaceTools(store);
-        const res = await tools.space_rename.handler({ oldName: 'old', newName: 'new' });
-
-        expect(res.content[0]?.text).toContain('renamed');
-        expect(store.getSpace('new')).toBeDefined();
-        expect(store.getSpace('old')).toBeNull();
-    });
-
     test('space_delete should delete a space', async () => {
         store = createTestStore();
-        store.createSpace('myproject', 'To delete');
+        store.createSpace('myproject', 'To delete', ['test']);
 
         const tools = createSpaceTools(store);
         const res = await tools.space_delete.handler({ name: 'myproject' });
@@ -498,95 +426,19 @@ describe('MCP Spaces Tools', () => {
         expect(res.content[0]?.text).toContain('deleted');
         expect(store.getSpace('myproject')).toBeNull();
     });
-
-    test('space_tag_add should add tag', async () => {
-        store = createTestStore();
-        store.createSpace('myproject', 'Project');
-
-        const tools = createSpaceTools(store);
-        const res = await tools.space_tag_add.handler({ space: 'myproject', tag: 'important' });
-
-        expect(res.content[0]?.text).toContain('added');
-        const space = store.getSpace('myproject');
-        expect(space?.tags).toContain('important');
-    });
-
-    test('space_tag_remove should remove tag', async () => {
-        store = createTestStore();
-        store.createSpace('myproject', 'Project');
-        store.addSpaceTag('myproject', 'important');
-
-        const tools = createSpaceTools(store);
-        const res = await tools.space_tag_remove.handler({ space: 'myproject', tag: 'important' });
-
-        expect(res.content[0]?.text).toContain('removed');
-        const space = store.getSpace('myproject');
-        expect(space?.tags).not.toContain('important');
-    });
-});
-
-describe('MCP Tiers Tools', () => {
-    test('memory_promote should promote memory', async () => {
-        store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem', 'content', { tier: 2 });
-
-        const tools = createTierTools(store);
-        await tools.memory_promote.handler({ id: mem.id });
-
-        const updated = store.getMemoryById(mem.id);
-        expect(updated?.tier).toBe(1);
-    });
-
-    test('memory_demote should demote memory', async () => {
-        store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem', 'content', { tier: 1 });
-
-        const tools = createTierTools(store);
-        await tools.memory_demote.handler({ id: mem.id });
-
-        const updated = store.getMemoryById(mem.id);
-        expect(updated?.tier).toBe(2);
-    });
-
-    test('memory_pin should pin memory', async () => {
-        store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem', 'content');
-
-        const tools = createTierTools(store);
-        await tools.memory_pin.handler({ id: mem.id });
-
-        const updated = store.getMemoryById(mem.id);
-        expect(updated?.pinned).toBe(true);
-    });
-
-    test('memory_unpin should unpin memory', async () => {
-        store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem', 'content');
-        store.pin(mem.id);
-
-        const tools = createTierTools(store);
-        await tools.memory_unpin.handler({ id: mem.id });
-
-        const updated = store.getMemoryById(mem.id);
-        expect(updated?.pinned).toBe(false);
-    });
 });
 
 describe('MCP Links Tools', () => {
     test('link_create should create link', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem1 = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        const mem2 = await store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
 
         const tools = createLinkTools(store);
         const res = await tools.link_create.handler({
-            sourceId: mem1.id,
-            targetId: mem2.id,
+            sourceRef: 'test:mem1',
+            targetRef: 'test:mem2',
             label: 'depends-on',
         });
 
@@ -601,34 +453,20 @@ describe('MCP Links Tools', () => {
 
     test('link_delete should delete link', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem1 = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        const mem2 = await store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
         store.link(mem1.id, mem2.id);
 
         const tools = createLinkTools(store);
         await tools.link_delete.handler({
-            sourceId: mem1.id,
-            targetId: mem2.id,
+            sourceRef: 'test:mem1',
+            targetRef: 'test:mem2',
         });
 
         const links = store.getLinks(mem1.id);
         expect(links.length).toBe(0);
     });
 
-    test('links_list should list memory links', async () => {
-        store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
-        store.link(mem1.id, mem2.id);
-
-        const tools = createLinkTools(store);
-        const res = await tools.links_list.handler({ memoryId: mem1.id });
-
-        expect(res.links.length).toBe(1);
-        const firstLink = res.links[0];
-        expect(firstLink).toBeDefined();
-        expect(firstLink?.target_id).toBe(mem2.id);
-    });
+    // links_list has been removed - use memory_read instead (it now includes linked memory summaries)
 });

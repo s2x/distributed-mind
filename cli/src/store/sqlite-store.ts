@@ -14,6 +14,7 @@ import type {
     MemorySummary,
     Link,
     Tier,
+    HotMemorySummary,
     SearchFilter,
     MemoryQueryFilter,
     SearchResult,
@@ -94,7 +95,7 @@ export function createSqliteStore(dbPath: string): MindStore {
 
     function requireMemory(id: number): any {
         const row = db.query('SELECT * FROM memories WHERE id = ?').get(id);
-        if (!row) throw new Error(`Memory with id ${id} does not exist. Use memory_list to find valid IDs.`);
+        if (!row) throw new Error(`Memory with id ${id} does not exist. Use memory_query or search to find valid IDs.`);
         return row;
     }
 
@@ -163,6 +164,10 @@ export function createSqliteStore(dbPath: string): MindStore {
     // ── Spaces ──
 
     function createSpace(name: string, description: string, tags?: string[]): void {
+        if (!tags || tags.length === 0) {
+            throw new Error('Tags are required and cannot be empty');
+        }
+
         const existing = db.query('SELECT 1 FROM spaces WHERE name = ?').get(name);
         if (existing) throw new Error(`Space "${name}" already exists`);
 
@@ -289,6 +294,10 @@ export function createSqliteStore(dbPath: string): MindStore {
     ): Promise<Memory> {
         requireSpace(space);
 
+        if (!opts?.tags || opts.tags.length === 0) {
+            throw new Error('Tags are required and cannot be empty');
+        }
+
         const existing = db.query('SELECT 1 FROM memories WHERE space_name = ? AND name = ?').get(space, name);
         if (existing) throw new Error(`Memory "${name}" already exists in space "${space}"`);
 
@@ -300,7 +309,7 @@ export function createSqliteStore(dbPath: string): MindStore {
             const target = db.query('SELECT 1 FROM memories WHERE id = ?').get(targetId);
             if (!target) {
                 throw new Error(
-                    `Cannot add memory: linked memory id ${targetId} does not exist. Use memory_list, memory_query, or search to find valid IDs.`
+                    `Cannot add memory: linked memory id ${targetId} does not exist. Use memory_query or search to find valid IDs.`
                 );
             }
         }
@@ -413,6 +422,35 @@ export function createSqliteStore(dbPath: string): MindStore {
         }));
     }
 
+    function getHotMemories(space: string): HotMemorySummary[] {
+        const rows = db
+            .query(
+                `SELECT id, name, tier, pinned, updated_at
+                 FROM memories
+                 WHERE space_name = ? AND tier IN (1, 2)
+                 ORDER BY tier ASC, name ASC`
+            )
+            .all(space) as { id: number; name: string; tier: Tier; pinned: number; updated_at: string }[];
+
+        return rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            tier: r.tier,
+            tags: getTagsForMemory(r.id),
+            pinned: r.pinned === 1,
+            updated_at: r.updated_at,
+        }));
+    }
+
+    function resolveMemoryRef(ref: string): { space: string; name: string } | null {
+        const idx = ref.indexOf(':');
+        if (idx <= 0) return null;
+        const space = ref.slice(0, idx);
+        const name = ref.slice(idx + 1);
+        if (!space || !name) return null;
+        return { space, name };
+    }
+
     async function updateMemory(id: number, updates: { name?: string; content?: string }): Promise<void> {
         const row = requireMemory(id) as any;
         const ts = now();
@@ -488,7 +526,7 @@ export function createSqliteStore(dbPath: string): MindStore {
 
         const linksToRows = db
             .query(
-                `SELECT m.id, m.name, m.changed_at, m.tier, m.pinned
+                `SELECT m.id, m.name, m.space_name, m.changed_at, m.tier, m.pinned
                  FROM links l
                  JOIN memories m ON m.id = l.target_id
                  WHERE l.source_id = ?
@@ -498,7 +536,7 @@ export function createSqliteStore(dbPath: string): MindStore {
 
         const linkedByRows = db
             .query(
-                `SELECT m.id, m.name, m.changed_at, m.tier, m.pinned
+                `SELECT m.id, m.name, m.space_name, m.changed_at, m.tier, m.pinned
                  FROM links l
                  JOIN memories m ON m.id = l.source_id
                  WHERE l.target_id = ?
@@ -509,6 +547,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         const toSummary = (row: any): LinkedMemorySummary => ({
             id: row.id,
             name: row.name,
+            space_name: row.space_name,
             changed_at: row.changed_at,
             tier: row.tier as Tier,
             tags: getTagsForMemory(row.id),
@@ -561,7 +600,7 @@ export function createSqliteStore(dbPath: string): MindStore {
             const target = db.query('SELECT 1 FROM memories WHERE id = ?').get(targetId);
             if (!target) {
                 throw new Error(
-                    `Cannot patch memory: linked memory id ${targetId} does not exist. Use memory_list, memory_query, or search to find valid IDs.`
+                    `Cannot patch memory: linked memory id ${targetId} does not exist. Use memory_query or search to find valid IDs.`
                 );
             }
         }
@@ -573,7 +612,7 @@ export function createSqliteStore(dbPath: string): MindStore {
             const target = db.query('SELECT 1 FROM memories WHERE id = ?').get(targetId);
             if (!target) {
                 throw new Error(
-                    `Cannot patch memory: linked memory id ${targetId} does not exist. Use memory_list, memory_query, or search to find valid IDs.`
+                    `Cannot patch memory: linked memory id ${targetId} does not exist. Use memory_query or search to find valid IDs.`
                 );
             }
         }
@@ -666,6 +705,25 @@ export function createSqliteStore(dbPath: string): MindStore {
         const normalized = normalizeTag(tag);
         db.run('DELETE FROM memory_tags WHERE memory_id = ? AND tag = ?', [memoryId, normalized]);
         const ts = now();
+        db.run('UPDATE memories SET updated_at = ?, changed_at = ? WHERE id = ?', [ts, ts, memoryId]);
+    }
+
+    function setMemoryTags(memoryId: number, tags: string[]): void {
+        requireMemory(memoryId);
+        const ts = now();
+        const transaction = db.transaction(() => {
+            // Clear existing tags
+            db.run('DELETE FROM memory_tags WHERE memory_id = ?', [memoryId]);
+            // Add new tags
+            if (tags.length > 0) {
+                const normalizedTags = normalizeTags(tags);
+                const stmt = db.prepare('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)');
+                for (const tag of normalizedTags) {
+                    stmt.run(memoryId, tag);
+                }
+            }
+        });
+        transaction();
         db.run('UPDATE memories SET updated_at = ?, changed_at = ? WHERE id = ?', [ts, ts, memoryId]);
     }
 
@@ -927,6 +985,200 @@ export function createSqliteStore(dbPath: string): MindStore {
             updated_at: r.updated_at,
             changed_at: r.changed_at,
         }));
+    }
+
+    // ── Search with fallback chain: FTS5 → LIKE → embeddings ──
+    async function searchFallback(
+        query: string,
+        filter?: SearchFilter
+    ): Promise<{ results: SearchResult[]; search_method: string }> {
+        // Step 1: Try FTS5
+        let ftsResults = await searchFts5(query, filter);
+        if (ftsResults.length > 0) {
+            return { results: ftsResults, search_method: 'fts5' };
+        }
+
+        // Step 2: FTS returned nothing — try LIKE fallback
+        let likeResults = searchLike(query, filter);
+        if (likeResults.length > 0) {
+            return { results: likeResults, search_method: 'like' };
+        }
+
+        // Step 3: If RAG enabled, try embeddings fallback
+        if (isRagEnabled()) {
+            const semanticResults = await searchSemantic(query, filter);
+            if (semanticResults.length > 0) {
+                return { results: semanticResults, search_method: 'embeddings' };
+            }
+        }
+
+        return { results: [], search_method: 'fts5' };
+    }
+
+    async function searchFts5(query: string, filter?: SearchFilter): Promise<SearchResult[]> {
+        // Sanitize FTS5 query: support trailing * for prefix match, wrap each term in quotes
+        const sanitized = query
+            .replace(/'/g, '')
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((term) => {
+                const trailing = term.endsWith('*');
+                const clean = term.replace(/\*/g, '');
+                if (!clean) return null;
+                return trailing ? `"${clean}"*` : `"${clean}"`;
+            })
+            .filter(Boolean)
+            .join(' ');
+
+        if (!sanitized) return [];
+
+        let sql = `
+            SELECT m.id, m.space_name, m.name, m.content, m.tier, m.pinned,
+                   m.created_at, m.updated_at, m.changed_at, fts.rank
+            FROM memories_fts fts
+            JOIN memories m ON m.id = fts.rowid
+            WHERE memories_fts MATCH ?
+        `;
+        const params: any[] = [sanitized];
+
+        if (filter?.space) {
+            sql += ' AND m.space_name = ?';
+            params.push(filter.space);
+        }
+        if (filter?.tier) {
+            sql += ' AND m.tier = ?';
+            params.push(filter.tier);
+        }
+
+        sql += ' ORDER BY fts.rank';
+
+        let rows = db.query(sql).all(...params) as any[];
+
+        // Post-filter by tag
+        if (filter?.tag) {
+            const normalizedTag = normalizeTag(filter.tag);
+            rows = rows.filter((r) => {
+                const tags = getTagsForMemory(r.id);
+                return tags.includes(normalizedTag);
+            });
+        }
+
+        return rows.map((r) => ({
+            id: r.id,
+            space_name: r.space_name,
+            name: r.name,
+            content: r.content,
+            tier: r.tier as Tier,
+            pinned: r.pinned === 1,
+            tags: getTagsForMemory(r.id),
+            rank: r.rank,
+            similarity: undefined,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+            changed_at: r.changed_at,
+        }));
+    }
+
+    function searchLike(query: string, filter?: SearchFilter): SearchResult[] {
+        // Simple LIKE-based search as fallback when FTS5 returns nothing
+        const likePattern = `%${query}%`;
+
+        let sql = `
+            SELECT m.id, m.space_name, m.name, m.content, m.tier, m.pinned,
+                   m.created_at, m.updated_at, m.changed_at
+            FROM memories m
+            WHERE (m.name LIKE ? OR m.content LIKE ?)
+        `;
+        const params: any[] = [likePattern, likePattern];
+
+        if (filter?.space) {
+            sql += ' AND m.space_name = ?';
+            params.push(filter.space);
+        }
+        if (filter?.tier) {
+            sql += ' AND m.tier = ?';
+            params.push(filter.tier);
+        }
+
+        sql += ' ORDER BY m.changed_at DESC, m.id DESC';
+
+        let rows = db.query(sql).all(...params) as any[];
+
+        // Post-filter by tag
+        if (filter?.tag) {
+            const normalizedTag = normalizeTag(filter.tag);
+            rows = rows.filter((r) => {
+                const tags = getTagsForMemory(r.id);
+                return tags.includes(normalizedTag);
+            });
+        }
+
+        return rows.map((r) => ({
+            id: r.id,
+            space_name: r.space_name,
+            name: r.name,
+            content: r.content,
+            tier: r.tier as Tier,
+            pinned: r.pinned === 1,
+            tags: getTagsForMemory(r.id),
+            rank: 0,
+            similarity: undefined,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+            changed_at: r.changed_at,
+        }));
+    }
+
+    async function searchSemantic(query: string, filter?: SearchFilter): Promise<SearchResult[]> {
+        if (!isRagEnabled()) return [];
+
+        const SEMANTIC_FALLBACK_THRESHOLD = 0.3;
+
+        let candSql =
+            'SELECT id, space_name, name, content, tier, pinned, created_at, updated_at, changed_at FROM memories WHERE 1=1';
+        const candParams: any[] = [];
+        if (filter?.space) {
+            candSql += ' AND space_name = ?';
+            candParams.push(filter.space);
+        }
+        if (filter?.tier) {
+            candSql += ' AND tier = ?';
+            candParams.push(filter.tier);
+        }
+        let candidates = db.query(candSql).all(...candParams) as any[];
+        if (filter?.tag) {
+            const normalizedTag = normalizeTag(filter.tag);
+            candidates = candidates.filter((r) => getTagsForMemory(r.id).includes(normalizedTag));
+        }
+
+        const getEmbeddingForId = (id: number): Float32Array | null => {
+            const row = db.query('SELECT embedding FROM memories WHERE id = ?').get(id) as any;
+            return row?.embedding ? blobToVector(row.embedding) : null;
+        };
+
+        const allIds = candidates.map((r: any) => r.id);
+        const semanticResults = await semanticSearch(query, getEmbeddingForId, allIds);
+        const goodResults = semanticResults.filter((sr) => sr.score >= SEMANTIC_FALLBACK_THRESHOLD);
+        if (goodResults.length === 0) return [];
+
+        const idToMem = new Map(candidates.map((r: any) => [r.id, r]));
+        return goodResults.map((sr) => {
+            const r = idToMem.get(sr.id)!;
+            return {
+                id: r.id,
+                space_name: r.space_name,
+                name: r.name,
+                content: r.content,
+                tier: r.tier as Tier,
+                pinned: r.pinned === 1,
+                tags: getTagsForMemory(r.id),
+                rank: 0,
+                similarity: sr.score,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+                changed_at: r.changed_at,
+            };
+        });
     }
 
     function queryMemories(filter?: MemoryQueryFilter): MemorySummary[] {
@@ -1319,6 +1571,8 @@ export function createSqliteStore(dbPath: string): MindStore {
         getMemory,
         getMemoryById,
         listMemories,
+        getHotMemories,
+        resolveMemoryRef,
         updateMemory,
         deleteMemory,
         deleteMemoryByName,
@@ -1327,6 +1581,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         patchMemory,
         addMemoryTag,
         removeMemoryTag,
+        setMemoryTags,
         listAllTags,
         promote,
         demote,
@@ -1336,6 +1591,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         unlink: unlinkMemories,
         getLinks,
         search: searchMemories,
+        searchFallback,
         queryMemories,
         getSpaceGraph,
         getStatus,

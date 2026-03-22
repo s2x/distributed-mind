@@ -64,8 +64,8 @@ describe('Command Executor — Spaces', () => {
     test('should list spaces', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('space1', 'Space 1');
-        store.createSpace('space2', 'Space 2');
+        store.createSpace('space1', 'Space 1', ['test']);
+        store.createSpace('space2', 'Space 2', ['test']);
 
         executeCommand(['list'], store, logger);
         const logs = logger.getLogs();
@@ -76,7 +76,7 @@ describe('Command Executor — Spaces', () => {
     test('should delete a space', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         executeCommand(['delete', 'test'], store, logger);
         expect(store.getSpace('test')).toBeNull();
     });
@@ -84,7 +84,7 @@ describe('Command Executor — Spaces', () => {
     test('should rename a space', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('old', 'Old');
+        store.createSpace('old', 'Old', ['test']);
         executeCommand(['rename', 'old', 'new'], store, logger);
         expect(store.getSpace('old')).toBeNull();
         expect(store.getSpace('new')).not.toBeNull();
@@ -93,7 +93,7 @@ describe('Command Executor — Spaces', () => {
     test('should describe a space', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Old desc');
+        store.createSpace('test', 'Old desc', ['test']);
         executeCommand(['describe', 'test', 'New desc'], store, logger);
         expect(store.getSpace('test')!.description).toBe('New desc');
     });
@@ -101,7 +101,7 @@ describe('Command Executor — Spaces', () => {
     test('should tag and untag a space', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         executeCommand(['tag', 'test', 'project'], store, logger);
         expect(store.getSpace('test')!.tags).toContain('project');
@@ -113,7 +113,7 @@ describe('Command Executor — Spaces', () => {
     test('should update space to hidden', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         executeCommand(['update', 'test', '--hidden'], store, logger);
 
@@ -132,7 +132,7 @@ describe('Command Executor — Spaces', () => {
     test('should update hidden space to visible', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         store.updateSpace('test', { hidden: true });
 
         executeCommand(['update', 'test', '--no-hidden'], store, logger);
@@ -148,8 +148,8 @@ describe('Command Executor — Spaces', () => {
     test('should list hidden spaces with --hidden flag', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('visible', 'Visible');
-        store.createSpace('hidden', 'Hidden');
+        store.createSpace('visible', 'Visible', ['test']);
+        store.createSpace('hidden', 'Hidden', ['test']);
         store.updateSpace('hidden', { hidden: true });
 
         executeCommand(['list', '--hidden'], store, logger);
@@ -164,7 +164,7 @@ describe('Command Executor — Memories', () => {
     test('should add a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         executeCommand(['add', 'test', 'auth', 'JWT auth flow'], store, logger);
 
         const mem = store.getMemory('test', 'auth');
@@ -175,7 +175,7 @@ describe('Command Executor — Memories', () => {
     test('should add a memory with tags and tier', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         executeCommand(['add', 'test', 'auth', 'JWT auth', '--tags', 'backend,security', '--tier', '1'], store, logger);
 
         const mem = store.getMemory('test', 'auth');
@@ -186,8 +186,8 @@ describe('Command Executor — Memories', () => {
     test('should read a memory and record access', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'JWT auth');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'JWT auth', { tags: ['test'] });
 
         executeCommand(['read', 'test', 'auth'], store, logger);
 
@@ -199,8 +199,8 @@ describe('Command Executor — Memories', () => {
     test('should edit a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'Old content');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'Old content', { tags: ['test'] });
 
         executeCommand(['edit', 'test', 'auth', 'New content'], store, logger);
         expect(store.getMemory('test', 'auth')!.content).toBe('New content');
@@ -209,8 +209,8 @@ describe('Command Executor — Memories', () => {
     test('should remove a memory by name', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'content', { tags: ['test'] });
 
         executeCommand(['remove', 'test', 'auth'], store, logger);
         expect(store.getMemory('test', 'auth')).toBeNull();
@@ -219,9 +219,9 @@ describe('Command Executor — Memories', () => {
     test('should list memories of a space', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'mem1', 'content', { tier: 1 });
-        store.addMemory('test', 'mem2', 'content', { tier: 2 });
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'mem1', 'content', { tier: 1, tags: ['test'] });
+        store.addMemory('test', 'mem2', 'content', { tier: 2, tags: ['test'] });
 
         executeCommand(['list', 'test'], store, logger);
         const logs = logger.getLogs();
@@ -232,8 +232,8 @@ describe('Command Executor — Memories', () => {
     test('should tag and untag a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'content', { tags: ['test'] });
 
         executeCommand(['tag', 'test', 'auth', 'important'], store, logger);
         expect(store.getMemory('test', 'auth')!.tags).toContain('important');
@@ -247,8 +247,8 @@ describe('Command Executor — Tiers', () => {
     test('should promote a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'mem', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'mem', 'content', { tier: 3, tags: ['test'] });
 
         executeCommand(['promote', 'test', 'mem'], store, logger);
         expect(store.getMemory('test', 'mem')!.tier).toBe(2);
@@ -257,8 +257,8 @@ describe('Command Executor — Tiers', () => {
     test('should demote a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'mem', 'content', { tier: 1 });
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'mem', 'content', { tier: 1, tags: ['test'] });
 
         executeCommand(['demote', 'test', 'mem'], store, logger);
         expect(store.getMemory('test', 'mem')!.tier).toBe(2);
@@ -267,8 +267,8 @@ describe('Command Executor — Tiers', () => {
     test('should pin a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'mem', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'mem', 'content', { tags: ['test'] });
 
         executeCommand(['pin', 'test', 'mem'], store, logger);
         expect(store.getMemory('test', 'mem')!.pinned).toBe(true);
@@ -277,8 +277,8 @@ describe('Command Executor — Tiers', () => {
     test('should unpin a memory', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem', 'content', { tags: ['test'] });
         store.pin(mem.id);
 
         executeCommand(['unpin', 'test', 'mem'], store, logger);
@@ -290,9 +290,9 @@ describe('Command Executor — Links', () => {
     test('should link two memories', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'mem1', 'content');
-        store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
 
         executeCommand(['link', 'test/mem1', 'test/mem2', '--label', 'depends-on'], store, logger);
 
@@ -305,9 +305,9 @@ describe('Command Executor — Links', () => {
     test('should show links', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem1 = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        const mem2 = await store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
         store.link(mem1.id, mem2.id, 'related');
 
         executeCommand(['links', 'test', 'mem1'], store, logger);
@@ -318,9 +318,9 @@ describe('Command Executor — Links', () => {
     test('should unlink memories', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem1 = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        const mem2 = await store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
         store.link(mem1.id, mem2.id);
 
         executeCommand(['unlink', 'test/mem1', 'test/mem2'], store, logger);
@@ -333,9 +333,9 @@ describe('Command Executor — Search', () => {
     test('should search memories', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
-        store.addMemory('test', 'db', 'PostgreSQL database schema');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens', { tags: ['test'] });
+        store.addMemory('test', 'db', 'PostgreSQL database schema', { tags: ['test'] });
 
         await executeCommand(['search', 'authentication'], store, logger);
         const logs = logger.getLogs();
@@ -346,8 +346,8 @@ describe('Command Executor — Search', () => {
     test('should not show content by default', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens', { tags: ['test'] });
 
         await executeCommand(['search', 'authentication'], store, logger);
         const logs = logger.getLogs();
@@ -357,8 +357,8 @@ describe('Command Executor — Search', () => {
     test('should show content with --detail', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens', { tags: ['test'] });
 
         await executeCommand(['search', 'authentication', '--detail'], store, logger);
         const logs = logger.getLogs();
@@ -368,8 +368,8 @@ describe('Command Executor — Search', () => {
     test('should support prefix wildcard search', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'auth', 'JWT authentication with refresh tokens', { tags: ['test'] });
 
         await executeCommand(['search', 'auth*'], store, logger);
         const logs = logger.getLogs();
@@ -379,10 +379,10 @@ describe('Command Executor — Search', () => {
     test('should search with space filter', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('proj-a', 'A');
-        store.createSpace('proj-b', 'B');
-        store.addMemory('proj-a', 'auth', 'authentication');
-        store.addMemory('proj-b', 'auth', 'authentication');
+        store.createSpace('proj-a', 'A', ['test']);
+        store.createSpace('proj-b', 'B', ['test']);
+        store.addMemory('proj-a', 'auth', 'authentication', { tags: ['test'] });
+        store.addMemory('proj-b', 'auth', 'authentication', { tags: ['test'] });
 
         await executeCommand(['search', 'authentication', '--space', 'proj-a'], store, logger);
         const logs = logger.getLogs();
@@ -392,8 +392,8 @@ describe('Command Executor — Search', () => {
     test('should query memories with metadata filters', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('proj-a', 'A');
-        store.createSpace('proj-b', 'B');
+        store.createSpace('proj-a', 'A', ['test']);
+        store.createSpace('proj-b', 'B', ['test']);
         await store.addMemory('proj-a', 'auth', 'authentication', { tags: ['backend'], tier: 1 });
         await store.addMemory('proj-b', 'auth', 'authentication', { tags: ['backend'], tier: 1 });
 
@@ -406,9 +406,9 @@ describe('Command Executor — Search', () => {
     test('should show pagination with next offset in query output', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'a', 'content');
-        await store.addMemory('test', 'b', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'a', 'content', { tags: ['test'] });
+        await store.addMemory('test', 'b', 'content', { tags: ['test'] });
 
         await executeCommand(['query', '--space', 'test', '--limit', '1', '--offset', '0'], store, logger);
         const logs = logger.getLogs();
@@ -418,8 +418,8 @@ describe('Command Executor — Search', () => {
     test('should show N/A next offset when query page is exhausted', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'a', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'a', 'content', { tags: ['test'] });
 
         await executeCommand(['query', '--space', 'test'], store, logger);
         const logs = logger.getLogs();
@@ -451,8 +451,8 @@ describe('Command Executor — Status', () => {
     test('should run global status', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'mem', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'mem', 'content', { tags: ['test'] });
 
         executeCommand(['status'], store, logger);
         const logs = logger.getLogs();
@@ -464,8 +464,8 @@ describe('Command Executor — Status', () => {
     test('should run space-scoped status', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
-        store.addMemory('test', 'mem', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        store.addMemory('test', 'mem', 'content', { tags: ['test'] });
 
         executeCommand(['status', 'test'], store, logger);
         const logs = logger.getLogs();
@@ -475,7 +475,7 @@ describe('Command Executor — Status', () => {
     test('should reject --tier 4 when adding a memory', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         expect(() => executeCommand(['add', 'test', 'frozen', 'content', '--tier', '4'], store, logger)).toThrow('T4');
     });
@@ -485,7 +485,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should create a checkpoint', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         await executeCommand(['checkpoint', 'set', 'myproject', 'Implement auth', 'Fix login bug'], store, logger);
 
@@ -509,7 +509,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should update existing active checkpoint', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         // Create first checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'First goal', 'First pending'], store, logger);
@@ -536,7 +536,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should recover active checkpoint', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         // Create checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'My goal', 'My pending'], store, logger);
@@ -553,7 +553,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should recover checkpoint in markdown format', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         await executeCommand(['checkpoint', 'set', 'myproject', 'Ship feature', 'Close pending qa'], store, logger);
         await executeCommand(['checkpoint', 'recover', 'myproject', '--format', 'md', '--agent', 'opencode'], store, logger);
@@ -566,7 +566,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should recover checkpoint in json format with capability profile', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         await executeCommand(['checkpoint', 'set', 'myproject', 'Ship feature', 'Close pending qa'], store, logger);
         await executeCommand(['checkpoint', 'recover', 'myproject', '--format', 'json', '--agent', 'codex'], store, logger);
@@ -584,7 +584,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should return empty when no checkpoint to recover', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         await executeCommand(['checkpoint', 'recover', 'myproject'], store, logger);
 
@@ -595,7 +595,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should complete a checkpoint', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         // Create checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
@@ -622,7 +622,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should list checkpoints', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         // Create checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
@@ -642,7 +642,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should create hidden checkpoint space', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
 
@@ -658,7 +658,7 @@ describe('Command Executor — Checkpoint', () => {
     test('should create checkpoint with notes', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('myproject', 'A project');
+        store.createSpace('myproject', 'A project', ['test']);
 
         await executeCommand(
             ['checkpoint', 'set', 'myproject', 'Goal', 'Pending', '--notes', 'Important context'],
@@ -678,7 +678,7 @@ describe('Command Executor — Tags', () => {
     test('should list all tags', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         store.addSpaceTag('test', 'project');
         store.addSpaceTag('test', 'important');
 
@@ -692,7 +692,7 @@ describe('Command Executor — Tags', () => {
     test('should list only space tags', () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         store.addSpaceTag('test', 'project');
 
         executeCommand(['tags', '--spaces'], store, logger);
@@ -704,9 +704,9 @@ describe('Command Executor — Tags', () => {
     test('should list only memory tags', async () => {
         store = createTestStore();
         const logger = mockedLogger();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         store.addSpaceTag('test', 'space-tag');
-        const mem = await store.addMemory('test', 'mem', 'content');
+        const mem = await store.addMemory('test', 'mem', 'content', { tags: ['test'] });
         store.addMemoryTag(mem.id, 'memory-tag');
 
         executeCommand(['tags', '--memories'], store, logger);

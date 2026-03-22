@@ -24,14 +24,14 @@ describe('MindStore — Spaces', () => {
 
     test('should throw when creating duplicate space', () => {
         store = createTestStore();
-        store.createSpace('test', 'A test space');
-        expect(() => store.createSpace('test', 'Another')).toThrow('already exists');
+        store.createSpace('test', 'A test space', ['test']);
+        expect(() => store.createSpace('test', 'Another', ['test'])).toThrow('already exists');
     });
 
     test('should list spaces', () => {
         store = createTestStore();
-        store.createSpace('alpha', 'First');
-        store.createSpace('beta', 'Second');
+        store.createSpace('alpha', 'First', ['test']);
+        store.createSpace('beta', 'Second', ['test']);
 
         const spaces = store.listSpaces();
         expect(spaces.length).toBe(2);
@@ -51,8 +51,8 @@ describe('MindStore — Spaces', () => {
 
     test('should delete a space and all its memories', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
         store.deleteSpace('test');
 
         expect(store.getSpace('test')).toBeNull();
@@ -60,8 +60,8 @@ describe('MindStore — Spaces', () => {
 
     test('should rename a space', async () => {
         store = createTestStore();
-        store.createSpace('old', 'Old space');
-        await store.addMemory('old', 'mem1', 'content');
+        store.createSpace('old', 'Old space', ['test']);
+        await store.addMemory('old', 'mem1', 'content', { tags: ['test'] });
         store.renameSpace('old', 'new');
 
         expect(store.getSpace('old')).toBeNull();
@@ -72,7 +72,7 @@ describe('MindStore — Spaces', () => {
 
     test('should update space description', () => {
         store = createTestStore();
-        store.createSpace('test', 'Old description');
+        store.createSpace('test', 'Old description', ['test']);
         store.updateSpace('test', { description: 'New description' });
 
         const space = store.getSpace('test');
@@ -81,7 +81,7 @@ describe('MindStore — Spaces', () => {
 
     test('should add and remove space tags', () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         store.addSpaceTag('test', 'project');
         store.addSpaceTag('test', 'active');
 
@@ -99,7 +99,7 @@ describe('MindStore — Spaces', () => {
 describe('MindStore — Memories', () => {
     test('should add and retrieve a memory', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         const mem = await store.addMemory('test', 'auth-flow', 'JWT auth', { tags: ['backend', 'security'], tier: 1 });
 
         expect(mem.name).toBe('auth-flow');
@@ -116,8 +116,8 @@ describe('MindStore — Memories', () => {
 
     test('should not update changed_at on read access', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
         const before = store.getMemoryById(mem.id)!;
 
         await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -130,8 +130,8 @@ describe('MindStore — Memories', () => {
 
     test('should update changed_at on semantic memory changes', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
         const before = store.getMemoryById(mem.id)!;
 
         await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -143,17 +143,17 @@ describe('MindStore — Memories', () => {
 
     test('should default to tier 2', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
         expect(mem.tier).toBe(2);
     });
 
     test('should list memories — default returns T1+T2 only', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'hot', 'content', { tier: 1 });
-        await store.addMemory('test', 'warm', 'content', { tier: 2 });
-        await store.addMemory('test', 'cold', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'hot', 'content', { tier: 1, tags: ['test'] });
+        await store.addMemory('test', 'warm', 'content', { tier: 2, tags: ['test'] });
+        await store.addMemory('test', 'cold', 'content', { tier: 3, tags: ['test'] });
 
         const active = store.listMemories('test');
         expect(active.length).toBe(2);
@@ -165,38 +165,38 @@ describe('MindStore — Memories', () => {
 
     test('should list memories — explicit tier 3 returns cold', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'hot', 'content', { tier: 1 });
-        await store.addMemory('test', 'cold', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'hot', 'content', { tier: 1, tags: ['test'] });
+        await store.addMemory('test', 'cold', 'content', { tier: 3, tags: ['test'] });
 
-        const cold = store.listMemories('test', { tier: 3 });
+        const cold = store.listMemories('test', { tier: 3, tags: ['test'] });
         expect(cold.length).toBe(1);
         expect(cold[0]!.name).toBe('cold');
     });
 
     test('should list memories — tier 4 returns empty', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'mem', 'content', { tier: 2 });
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'mem', 'content', { tier: 2, tags: ['test'] });
 
-        const t4 = store.listMemories('test', { tier: 4 });
+        const t4 = store.listMemories('test', { tier: 4, tags: ['test'] });
         expect(t4.length).toBe(0);
     });
 
     test('should filter memories by tier', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'hot', 'content', { tier: 1 });
-        await store.addMemory('test', 'warm', 'content', { tier: 2 });
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'hot', 'content', { tier: 1, tags: ['test'] });
+        await store.addMemory('test', 'warm', 'content', { tier: 2, tags: ['test'] });
 
-        const tier1 = store.listMemories('test', { tier: 1 });
+        const tier1 = store.listMemories('test', { tier: 1, tags: ['test'] });
         expect(tier1.length).toBe(1);
         expect(tier1[0]!.name).toBe('hot');
     });
 
     test('should filter memories by tag', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         await store.addMemory('test', 'mem1', 'content', { tags: ['backend'] });
         await store.addMemory('test', 'mem2', 'content', { tags: ['frontend'] });
 
@@ -207,8 +207,8 @@ describe('MindStore — Memories', () => {
 
     test('should update memory content', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'old content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'old content', { tags: ['test'] });
         await store.updateMemory(mem.id, { content: 'new content' });
 
         const updated = store.getMemoryById(mem.id);
@@ -217,16 +217,16 @@ describe('MindStore — Memories', () => {
 
     test('should delete memory by name', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
         store.deleteMemoryByName('test', 'mem1');
         expect(store.getMemory('test', 'mem1')).toBeNull();
     });
 
     test('should add and remove memory tags', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
 
         store.addMemoryTag(mem.id, 'important');
         let retrieved = store.getMemoryById(mem.id);
@@ -241,8 +241,8 @@ describe('MindStore — Memories', () => {
 describe('MindStore — Tiers', () => {
     test('should promote a memory', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
 
         store.promote(mem.id);
         expect(store.getMemoryById(mem.id)!.tier).toBe(2);
@@ -253,15 +253,15 @@ describe('MindStore — Tiers', () => {
 
     test('should not promote beyond tier 1', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 1 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 1, tags: ['test'] });
         expect(() => store.promote(mem.id)).toThrow('highest tier');
     });
 
     test('should demote a memory', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 1 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 1, tags: ['test'] });
 
         store.demote(mem.id);
         expect(store.getMemoryById(mem.id)!.tier).toBe(2);
@@ -272,25 +272,25 @@ describe('MindStore — Tiers', () => {
 
     test('should demote from T3 to T4', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
         store.demote(mem.id);
         expect(store.getMemoryById(mem.id)!.tier).toBe(4);
     });
 
     test('should not demote beyond tier 4', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         // Add at T3 then demote to T4 manually via demote
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
         store.demote(mem.id); // T3 → T4
         expect(() => store.demote(mem.id)).toThrow('lowest tier');
     });
 
     test('should pin and unpin', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
 
         store.pin(mem.id);
         expect(store.getMemoryById(mem.id)!.pinned).toBe(true);
@@ -301,8 +301,8 @@ describe('MindStore — Tiers', () => {
 
     test('should auto-promote tier 3 to 2 on read', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
 
         store.recordAccess(mem.id);
         expect(store.getMemoryById(mem.id)!.tier).toBe(2);
@@ -310,8 +310,8 @@ describe('MindStore — Tiers', () => {
 
     test('should auto-promote tier 4 to 3 on read', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
         store.demote(mem.id); // T3 → T4
 
         store.recordAccess(mem.id);
@@ -320,8 +320,8 @@ describe('MindStore — Tiers', () => {
 
     test('should not auto-promote pinned memory on read', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
         store.pin(mem.id);
 
         store.recordAccess(mem.id);
@@ -331,8 +331,8 @@ describe('MindStore — Tiers', () => {
 
     test('should bump access count on read', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
 
         store.recordAccess(mem.id);
         store.recordAccess(mem.id);
@@ -347,17 +347,17 @@ describe('MindStore — Tiers', () => {
 describe('MindStore — LRU Eviction', () => {
     test('should evict LRU non-pinned memory when tier is full', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         // Fill T1 to limit (25)
         const { TIER_LIMITS } = require('../src/config');
         const limit: number = TIER_LIMITS[1];
         for (let i = 0; i < limit; i++) {
-            await store.addMemory('test', `mem-${i}`, 'content', { tier: 1 });
+            await store.addMemory('test', `mem-${i}`, 'content', { tier: 1, tags: ['test'] });
         }
 
         // Adding one more to T1 should evict the LRU (mem-0) to T2
-        await store.addMemory('test', 'overflow', 'content', { tier: 1 });
+        await store.addMemory('test', 'overflow', 'content', { tier: 1, tags: ['test'] });
 
         // overflow was added to T1
         expect(store.getMemory('test', 'overflow')!.tier).toBe(1);
@@ -369,35 +369,35 @@ describe('MindStore — LRU Eviction', () => {
 
     test('should throw when tier is full and all memories are pinned', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         const { TIER_LIMITS } = require('../src/config');
         const limit: number = TIER_LIMITS[1];
 
         // Fill T1 with pinned memories
         for (let i = 0; i < limit; i++) {
-            const m = await store.addMemory('test', `pinned-${i}`, 'content', { tier: 1 });
+            const m = await store.addMemory('test', `pinned-${i}`, 'content', { tier: 1, tags: ['test'] });
             store.pin(m.id);
         }
 
         // Should throw — all T1 pinned
-        await expect(store.addMemory('test', 'overflow', 'content', { tier: 1 })).rejects.toThrow('pinned');
+        await expect(store.addMemory('test', 'overflow', 'content', { tier: 1, tags: ['test'] })).rejects.toThrow('pinned');
     });
 
     test('should evict LRU from T3 to T4 when T3 is full', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         const { TIER_LIMITS } = require('../src/config');
         const limit: number = TIER_LIMITS[3];
 
         // Fill T3 to limit
         for (let i = 0; i < limit; i++) {
-            await store.addMemory('test', `cold-${i}`, 'content', { tier: 3 });
+            await store.addMemory('test', `cold-${i}`, 'content', { tier: 3, tags: ['test'] });
         }
 
         // Adding one more to T3 should evict LRU (cold-0) to T4
-        await store.addMemory('test', 'overflow', 'content', { tier: 3 });
+        await store.addMemory('test', 'overflow', 'content', { tier: 3, tags: ['test'] });
 
         expect(store.getMemory('test', 'overflow')!.tier).toBe(3);
         expect(store.getMemory('test', 'cold-0')!.tier).toBe(4);
@@ -405,20 +405,20 @@ describe('MindStore — LRU Eviction', () => {
 
     test('pinned memories should not be LRU-evicted', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         const { TIER_LIMITS } = require('../src/config');
         const limit: number = TIER_LIMITS[1];
 
         // Fill T1: first is pinned, rest are not
-        const first = await store.addMemory('test', 'pinned-first', 'content', { tier: 1 });
+        const first = await store.addMemory('test', 'pinned-first', 'content', { tier: 1, tags: ['test'] });
         store.pin(first.id);
         for (let i = 1; i < limit; i++) {
-            await store.addMemory('test', `mem-${i}`, 'content', { tier: 1 });
+            await store.addMemory('test', `mem-${i}`, 'content', { tier: 1, tags: ['test'] });
         }
 
         // Add overflow → should evict mem-1 (LRU non-pinned), NOT pinned-first
-        await store.addMemory('test', 'overflow', 'content', { tier: 1 });
+        await store.addMemory('test', 'overflow', 'content', { tier: 1, tags: ['test'] });
 
         expect(store.getMemory('test', 'pinned-first')!.tier).toBe(1); // still T1
         expect(store.getMemory('test', 'mem-1')!.tier).toBe(2); // evicted to T2
@@ -426,19 +426,19 @@ describe('MindStore — LRU Eviction', () => {
 
     test('recordAccess promotion should silently skip if destination full and all pinned', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         const { TIER_LIMITS } = require('../src/config');
         const limit: number = TIER_LIMITS[1];
 
         // Fill T1 with pinned memories
         for (let i = 0; i < limit; i++) {
-            const m = await store.addMemory('test', `pinned-${i}`, 'content', { tier: 1 });
+            const m = await store.addMemory('test', `pinned-${i}`, 'content', { tier: 1, tags: ['test'] });
             store.pin(m.id);
         }
 
         // Add a T2 memory and access it — promotion to T1 should silently fail
-        const t2mem = await store.addMemory('test', 'warm', 'content', { tier: 2 });
+        const t2mem = await store.addMemory('test', 'warm', 'content', { tier: 2, tags: ['test'] });
         store.recordAccess(t2mem.id);
 
         // Should remain at T2 (not throw)
@@ -451,10 +451,10 @@ describe('MindStore — LRU Eviction', () => {
 describe('MindStore — Space Graph', () => {
     test('should return graph nodes with minimal payload including T4 and directed links', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const a = await store.addMemory('test', 'A', 'content', { tier: 1 });
-        const b = await store.addMemory('test', 'B', 'content', { tier: 2 });
-        const c = await store.addMemory('test', 'C', 'content', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const a = await store.addMemory('test', 'A', 'content', { tier: 1, tags: ['test'] });
+        const b = await store.addMemory('test', 'B', 'content', { tier: 2, tags: ['test'] });
+        const c = await store.addMemory('test', 'C', 'content', { tier: 3, tags: ['test'] });
         store.demote(c.id); // T4
 
         store.link(a.id, b.id);
@@ -477,9 +477,9 @@ describe('MindStore — Space Graph', () => {
 
     test('should enforce cap and expose truncation metadata', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
         for (let i = 0; i < 10; i++) {
-            await store.addMemory('test', `m-${i}`, 'content', { tier: 2 });
+            await store.addMemory('test', `m-${i}`, 'content', { tier: 2, tags: ['test'] });
         }
 
         const graph = store.getSpaceGraph('test', { limit: 3, maxLimit: 5 });
@@ -495,11 +495,11 @@ describe('MindStore — Space Graph', () => {
 describe('MindStore — Status', () => {
     test('should return global status', async () => {
         store = createTestStore();
-        store.createSpace('space1', 'Space 1');
-        store.createSpace('space2', 'Space 2');
-        await store.addMemory('space1', 'mem1', 'content', { tier: 1 });
-        await store.addMemory('space1', 'mem2', 'content', { tier: 2 });
-        await store.addMemory('space2', 'mem3', 'content', { tier: 3 });
+        store.createSpace('space1', 'Space 1', ['test']);
+        store.createSpace('space2', 'Space 2', ['test']);
+        await store.addMemory('space1', 'mem1', 'content', { tier: 1, tags: ['test'] });
+        await store.addMemory('space1', 'mem2', 'content', { tier: 2, tags: ['test'] });
+        await store.addMemory('space2', 'mem3', 'content', { tier: 3, tags: ['test'] });
 
         const status = store.getStatus();
         expect(status.total_spaces).toBe(2);
@@ -515,10 +515,10 @@ describe('MindStore — Status', () => {
 
     test('should return space-scoped status', async () => {
         store = createTestStore();
-        store.createSpace('space1', 'Space 1');
-        store.createSpace('space2', 'Space 2');
-        await store.addMemory('space1', 'mem1', 'content', { tier: 1 });
-        await store.addMemory('space2', 'mem2', 'content', { tier: 2 });
+        store.createSpace('space1', 'Space 1', ['test']);
+        store.createSpace('space2', 'Space 2', ['test']);
+        await store.addMemory('space1', 'mem1', 'content', { tier: 1, tags: ['test'] });
+        await store.addMemory('space2', 'mem2', 'content', { tier: 2, tags: ['test'] });
 
         const status = store.getStatus('space1');
         expect(status.total_spaces).toBe(1);
@@ -529,9 +529,9 @@ describe('MindStore — Status', () => {
 
     test('should show pinned count in status', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const m1 = await store.addMemory('test', 'mem1', 'content', { tier: 1 });
-        await store.addMemory('test', 'mem2', 'content', { tier: 1 });
+        store.createSpace('test', 'Test', ['test']);
+        const m1 = await store.addMemory('test', 'mem1', 'content', { tier: 1, tags: ['test'] });
+        await store.addMemory('test', 'mem2', 'content', { tier: 1, tags: ['test'] });
         store.pin(m1.id);
 
         const status = store.getStatus('test');
@@ -543,9 +543,9 @@ describe('MindStore — Status', () => {
 describe('MindStore — Links', () => {
     test('should create and retrieve links', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem1 = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        const mem2 = await store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
 
         store.link(mem1.id, mem2.id, 'depends-on');
 
@@ -561,9 +561,9 @@ describe('MindStore — Links', () => {
 
     test('should unlink memories', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem1 = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        const mem2 = await store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
 
         store.link(mem1.id, mem2.id);
         store.unlink(mem1.id, mem2.id);
@@ -574,17 +574,17 @@ describe('MindStore — Links', () => {
 
     test('should not link a memory to itself', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
 
         expect(() => store.link(mem.id, mem.id)).toThrow('itself');
     });
 
     test('should cascade delete links when memory is deleted', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem1 = await store.addMemory('test', 'mem1', 'content');
-        const mem2 = await store.addMemory('test', 'mem2', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        const mem1 = await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
+        const mem2 = await store.addMemory('test', 'mem2', 'content', { tags: ['test'] });
 
         store.link(mem1.id, mem2.id);
         store.deleteMemory(mem1.id);
@@ -597,9 +597,9 @@ describe('MindStore — Links', () => {
 describe('MindStore — Search', () => {
     test('should find memories by full-text search', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'auth-flow', 'JWT authentication with refresh tokens');
-        await store.addMemory('test', 'db-schema', 'PostgreSQL with Prisma ORM');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'auth-flow', 'JWT authentication with refresh tokens', { tags: ['test'] });
+        await store.addMemory('test', 'db-schema', 'PostgreSQL with Prisma ORM', { tags: ['test'] });
 
         const results = await store.search('authentication');
         expect(results.length).toBe(1);
@@ -608,9 +608,9 @@ describe('MindStore — Search', () => {
 
     test('should search by name', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'auth-flow', 'some content');
-        await store.addMemory('test', 'other', 'other content');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'auth-flow', 'some content', { tags: ['test'] });
+        await store.addMemory('test', 'other', 'other content', { tags: ['test'] });
 
         const results = await store.search('auth');
         expect(results.length).toBe(1);
@@ -619,10 +619,10 @@ describe('MindStore — Search', () => {
 
     test('should filter search by space', async () => {
         store = createTestStore();
-        store.createSpace('proj-a', 'Project A');
-        store.createSpace('proj-b', 'Project B');
-        await store.addMemory('proj-a', 'auth', 'authentication');
-        await store.addMemory('proj-b', 'auth', 'authentication');
+        store.createSpace('proj-a', 'Project A', ['test']);
+        store.createSpace('proj-b', 'Project B', ['test']);
+        await store.addMemory('proj-a', 'auth', 'authentication', { tags: ['test'] });
+        await store.addMemory('proj-b', 'auth', 'authentication', { tags: ['test'] });
 
         const results = await store.search('authentication', { space: 'proj-a' });
         expect(results.length).toBe(1);
@@ -631,19 +631,19 @@ describe('MindStore — Search', () => {
 
     test('should filter search by tier', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'hot-auth', 'authentication', { tier: 1 });
-        await store.addMemory('test', 'cold-auth', 'authentication', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'hot-auth', 'authentication', { tier: 1, tags: ['test'] });
+        await store.addMemory('test', 'cold-auth', 'authentication', { tier: 3, tags: ['test'] });
 
-        const results = await store.search('authentication', { tier: 1 });
+        const results = await store.search('authentication', { tier: 1, tags: ['test'] });
         expect(results.length).toBe(1);
         expect(results[0]!.name).toBe('hot-auth');
     });
 
     test('should search T4 memories (frozen are searchable)', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        const mem = await store.addMemory('test', 'frozen', 'authentication token', { tier: 3 });
+        store.createSpace('test', 'Test', ['test']);
+        const mem = await store.addMemory('test', 'frozen', 'authentication token', { tier: 3, tags: ['test'] });
         store.demote(mem.id); // T3 → T4
 
         const results = await store.search('authentication');
@@ -656,8 +656,8 @@ describe('MindStore — Search', () => {
 
     test('should return empty for no matches', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'mem1', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'mem1', 'content', { tags: ['test'] });
 
         const results = await store.search('nonexistent');
         expect(results.length).toBe(0);
@@ -665,9 +665,9 @@ describe('MindStore — Search', () => {
 
     test('should use deterministic hybrid order when RAG is enabled and FTS has hits', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'auth-a', 'authentication token');
-        await store.addMemory('test', 'auth-b', 'authentication token');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'auth-a', 'authentication token', { tags: ['test'] });
+        await store.addMemory('test', 'auth-b', 'authentication token', { tags: ['test'] });
 
         const ragEnabledSpy = spyOn(ragHelpers, 'isRagEnabled').mockReturnValue(true);
         const semanticSpy = spyOn(ragHelpers, 'semanticSearch').mockResolvedValue([
@@ -685,9 +685,9 @@ describe('MindStore — Search', () => {
 
     test('should use semantic threshold fallback when FTS has no hits and RAG is enabled', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'alpha', 'one');
-        await store.addMemory('test', 'beta', 'two');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'alpha', 'one', { tags: ['test'] });
+        await store.addMemory('test', 'beta', 'two', { tags: ['test'] });
 
         const alphaId = store.getMemory('test', 'alpha')!.id;
         const betaId = store.getMemory('test', 'beta')!.id;
@@ -710,10 +710,10 @@ describe('MindStore — Search', () => {
 describe('MindStore — Query', () => {
     test('should default queryMemories page size to 25', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
+        store.createSpace('test', 'Test', ['test']);
 
         for (let i = 0; i < 30; i++) {
-            await store.addMemory('test', `mem-${i}`, `content-${i}`);
+            await store.addMemory('test', `mem-${i}`, `content-${i}`, { tags: ['test'] });
         }
 
         const results = store.queryMemories();
@@ -722,8 +722,8 @@ describe('MindStore — Query', () => {
 
     test('should query memories with metadata filters', async () => {
         store = createTestStore();
-        store.createSpace('proj-a', 'Project A');
-        store.createSpace('proj-b', 'Project B');
+        store.createSpace('proj-a', 'Project A', ['test']);
+        store.createSpace('proj-b', 'Project B', ['test']);
         await store.addMemory('proj-a', 'auth', 'authentication', { tier: 1, tags: ['backend'] });
         await store.addMemory('proj-a', 'ui', 'frontend', { tier: 2, tags: ['frontend'] });
         await store.addMemory('proj-b', 'api', 'rest', { tier: 1, tags: ['backend'] });
@@ -736,10 +736,10 @@ describe('MindStore — Query', () => {
 
     test('should support pagination in queryMemories', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'mem-a', 'a');
-        await store.addMemory('test', 'mem-b', 'b');
-        await store.addMemory('test', 'mem-c', 'c');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'mem-a', 'a', { tags: ['test'] });
+        await store.addMemory('test', 'mem-b', 'b', { tags: ['test'] });
+        await store.addMemory('test', 'mem-c', 'c', { tags: ['test'] });
 
         const page1 = store.queryMemories({ limit: 2, offset: 0 });
         const page2 = store.queryMemories({ limit: 2, offset: 2 });
@@ -751,8 +751,8 @@ describe('MindStore — Query', () => {
 
     test('should filter queryMemories by updated_at date bounds', async () => {
         store = createTestStore();
-        store.createSpace('test', 'Test');
-        await store.addMemory('test', 'mem-a', 'content');
+        store.createSpace('test', 'Test', ['test']);
+        await store.addMemory('test', 'mem-a', 'content', { tags: ['test'] });
 
         const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const results = store.queryMemories({ from: tomorrow });
@@ -837,7 +837,7 @@ describe('MindStore — RAG Integration', () => {
 describe('MindStore — Logs', () => {
     test('should add a log entry', () => {
         store = createTestStore();
-        store.createSpace('test', 'Test space');
+        store.createSpace('test', 'Test space', ['test']);
 
         store.addLog({
             source: 'cli',

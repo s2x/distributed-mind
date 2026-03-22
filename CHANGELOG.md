@@ -27,6 +27,27 @@ Example:
 
 ## [Unreleased]
 
+### MCP Redesign
+- Reduced from 30 to 20 tools
+- Tags now required on space.create and memory.add
+- space.get returns hot_memories preview (T1 + T2)
+- memory.read returns tier_change info
+- memory.read and memory.get returned links_to and linked_by
+- search with flexible parser (FTS5 → LIKE → embeddings fallback)
+- memory.query unified listing (always includes T4)
+- Unified memory reference: "space:name"
+- checkpoint tools renamed: set→save, complete→done, recover→load
+- Removed: space_rename, space_tag_add, space_tag_remove, memory_get_by_id, memory_list, memory_tag_add, memory_tag_remove, memory_tags_list, memory_patch, memory_promote, memory_demote, memory_pin, memory_unpin, links_list
+
+### Changed
+- memory_read now supports `noPromote:true` parameter for read-without-side-effects (replaces removed memory_get tool)
+- Removed `memory_get` MCP tool (consolidated into `memory_read` with `noPromote:true`)
+- search with flexible parser (FTS5 → LIKE → embeddings fallback)
+- memory.query unified listing (always includes T4)
+- Unified memory reference: "space:name"
+- checkpoint tools renamed: set→save, complete→done, recover→load
+- Removed: space_rename, space_tag_add, space_tag_remove, memory_get_by_id, memory_list, memory_tag_add, memory_tag_remove, memory_tags_list, memory_patch, memory_promote, memory_demote, memory_pin, memory_unpin, links_list
+
 ## [1.1.1] - 2026-03-13
 
 ### Fixed

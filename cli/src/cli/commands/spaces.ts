@@ -37,7 +37,7 @@ export const spacesGroup: CommandGroup = {
                     ? String(flags.tags)
                           .split(',')
                           .map((t) => t.trim())
-                    : undefined;
+                    : ['untagged'];
                 store.createSpace(space, description, tags);
                 logger.logInfo(style(`✅ Space "${space}" created`, ['bold', 'green']));
             },
