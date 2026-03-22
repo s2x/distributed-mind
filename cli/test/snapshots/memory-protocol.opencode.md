@@ -2,32 +2,50 @@
 
 Use this protocol whenever the `mind` MCP server is available.
 
-## Core Rules
+## MANDATORY: First Actions (execute before any other work)
 
-- Before using mind tools, call `mind_system_instructions` to learn correct usage details.
-- Use repo-based project spaces (example: `projects/mind`).
-- Persist important context immediately (decisions, bug fixes, discoveries, config updates).
-- Keep tags consistent (`cat:decision`, `cat:bugfix`, `cat:discovery`, `type:project`).
-- Link related memories so future agents can trace connections: pass `links_to_ids` when adding a memory that depends on or extends another, or use `link_create` for labeled relationships between existing memories. Get IDs from `memory_query` or `search`.
-- Composite operations (`memory_add` with links) are atomic all-or-nothing.
+1. `checkpoint_load` — recover previous session state for the current project space
+2. `space_get` — check if the project space exists (use repo/directory name: `projects/<repo-name>`)
+3. If space doesn't exist: `space_create` with `tags: ["type:project"]`
+4. `memory_query` or `search` — find context related to the current task
 
-## Session Continuity
+If this is your first time using mind tools in this session, call `system_instructions` to get the full usage protocol.
 
-- Keep the active checkpoint fresh with `checkpoint_save`.
-- Mark completed work with `checkpoint_done`.
-- During recovery, use `checkpoint_load` before taking new actions.
+## MANDATORY: During Work
 
-## Post-Compaction Checklist
+After EVERY significant event (decision, bug fix, discovery, config change, user preference):
+
+```
+memory_add {
+  space: "projects/<repo-name>",
+  name: "<descriptive-kebab-name>",
+  content: "**What**: ...\n**Why**: ...\n**Where**: ...\n**Learned**: ...",
+  tags: ["cat:decision"],
+  links_to_ids: [<ids from memory_query or search>]
+}
+```
+
+- Every memory MUST have at least 1 tag: `cat:decision`, `cat:bugfix`, `cat:discovery`, `cat:pattern`, `cat:preference`, `cat:config`
+- Always check for related memories (`memory_query` or `search`) and pass their IDs to `links_to_ids`
+- Update checkpoint after completing subtasks: `checkpoint_save`
+
+## MANDATORY: Session End
+
+1. `checkpoint_done` — mark the checkpoint complete with a summary
+2. `memory_add` — save session summary to `sessions/<repo-name>` with tags `["type:session", "cat:summary"]` and `links_to_ids` pointing to memories created this session
+
+## Post-Compaction Recovery
 
 If context resets or compaction happens:
 
-1. Call `checkpoint_load` for the active project.
-2. Query recent context with `memory_query` and/or `search`.
-3. Re-establish goal, pending steps, and relevant files before making edits.
+1. `checkpoint_load` for the active project
+2. `memory_query` and/or `search` for recent context
+3. Re-establish goal, pending steps, and relevant files before making edits
 
-## Minimal Workflow
+## You Are Breaking the Rules If
 
-1. Ensure project space exists (`space_get` or `space_create`).
-2. Save major findings with `memory_add` (always include tags and `links_to_ids` when related memories exist).
-3. Keep `checkpoint_save` updated while implementing.
-4. End with a concise session summary memory in `sessions/<repo>`.
+- You did significant work without calling `memory_add`
+- You created a memory without tags
+- You created a memory related to an existing one without linking it
+- Your checkpoint is stale (doesn't reflect current progress)
+- You started working without calling `checkpoint_load` first

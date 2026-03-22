@@ -115,13 +115,13 @@ Tiers help manage memory priority and auto-eviction:
 | T1 | hot | Critical active info (decisions, current preferences) | 25 |
 | T2 | warm | Default for new memories | 50 |
 | T3 | cold | Reference info (past discoveries, bugs, patterns) | 100 |
-| T4 | frozen | Archive, only accessible via search | unlimited |
+| T4 | frozen | Archive, accessible via search and memory_query | unlimited |
 
 ### Behaviors:
 - **Auto-promote**: Reading a memory (`memory_read`) moves it up one tier (T4→T3→T2→T1)
 - **Pin**: Set `pinned: true` on `memory_add` to make a memory immune to auto-promotion AND LRU eviction
 - **LRU eviction**: When a tier is full, the least-recently-used non-pinned memory moves down one tier
-- **T4 is special**: Only accessible via `search`. Not returned by `memory_query`.
+- **T4 is special**: Returned by `search` and `memory_query` (with explicit `tier: 4` or no tier filter), but not shown in `space_get` hot memories preview.
 
 ---
 

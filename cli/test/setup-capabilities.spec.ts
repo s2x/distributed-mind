@@ -278,7 +278,7 @@ describe('Setup capability model', () => {
         expect(agentsMd).toContain('## Footer notes');
         expect(agentsMd).toContain('mind managed protocol start');
         expect(agentsMd).toContain('mind managed protocol end');
-        expect(agentsMd).toContain('mind_system_instructions');
+        expect(agentsMd).toContain('system_instructions');
         expect(agentsMd).toContain(renderMemoryProtocol('codex').trim());
 
         const startCount = agentsMd.split('<!-- mind managed protocol start -->').length - 1;
@@ -325,7 +325,7 @@ describe('Setup capability model', () => {
         const claudeMd = readFileSync(claudeMdPath, 'utf-8');
 
         expect(claudeMd).toContain('mind managed protocol start');
-        expect(claudeMd).toContain('mind_system_instructions');
+        expect(claudeMd).toContain('system_instructions');
         expect(claudeMd).toContain(renderMemoryProtocol('claude-code').trim());
     });
 

@@ -141,9 +141,51 @@ function zodToJsonSchema(schema: any): any {
             }
 
             const fieldSchema = value as { _def: any; description?: string };
-            const fieldDef = fieldSchema._def;
-            const fieldType = fieldDef.type;
+            let fieldDef = fieldSchema._def;
+            let fieldType = fieldDef.type;
             const fieldDescription = fieldSchema.description;
+
+            // Unwrap ZodDefault → treat as optional with the inner type
+            if (fieldType === 'default') {
+                const innerDef = fieldDef.innerType?._def;
+                if (innerDef) {
+                    fieldDef = innerDef;
+                    fieldType = innerDef.type;
+                    // If default wraps optional, unwrap one more level
+                    if (fieldType === 'optional' && innerDef.innerType?._def) {
+                        fieldDef = innerDef.innerType._def;
+                        fieldType = fieldDef.type;
+                    }
+                }
+                // default fields are not required
+                if (fieldType === 'string') {
+                    properties[key] = { type: 'string' };
+                    if (fieldDescription) properties[key].description = fieldDescription;
+                    continue;
+                } else if (fieldType === 'number') {
+                    properties[key] = { type: 'number' };
+                    if (fieldDescription) properties[key].description = fieldDescription;
+                    continue;
+                } else if (fieldType === 'boolean') {
+                    properties[key] = { type: 'boolean' };
+                    if (fieldDescription) properties[key].description = fieldDescription;
+                    continue;
+                } else if (fieldType === 'array') {
+                    const itemType = fieldDef.element?._def?.type;
+                    properties[key] = {
+                        type: 'array',
+                        items: {
+                            type: itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string',
+                        },
+                    };
+                    if (fieldDescription) properties[key].description = fieldDescription;
+                    continue;
+                }
+                // Fallback for unknown default-wrapped types
+                properties[key] = { type: 'string' };
+                if (fieldDescription) properties[key].description = fieldDescription;
+                continue;
+            }
 
             if (fieldType === 'string') {
                 properties[key] = { type: 'string' };

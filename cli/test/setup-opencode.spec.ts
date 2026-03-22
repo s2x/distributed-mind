@@ -73,7 +73,7 @@ describe('OpenCode setup integration', () => {
         expect(injectedText).toBe(renderMemoryProtocol('opencode'));
         expect(injectedText).toContain('Mind Memory Protocol');
         expect(injectedText).toContain('Post-Compaction');
-        expect(injectedText).toContain('mind_system_instructions');
+        expect(injectedText).toContain('system_instructions');
     });
 
     test('is idempotent for repeated setup runs', async () => {

@@ -281,7 +281,13 @@ export function createCheckpointTools(store: MindStore) {
                     };
                 }
 
-                let checkpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
+                // Use queryMemories instead of listMemories to include ALL tiers
+                // (listMemories defaults to T1+T2, hiding demoted completed checkpoints)
+                let checkpoints = store.queryMemories({
+                    space: checkpointSpace,
+                    tag: 'checkpoint',
+                    limit: 500,
+                });
 
                 if (parsed.status && parsed.status !== 'all') {
                     checkpoints = checkpoints.filter((m) => m.tags.includes(parsed.status!));
