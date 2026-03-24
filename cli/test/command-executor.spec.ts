@@ -489,17 +489,15 @@ describe('Command Executor — Checkpoint', () => {
 
         await executeCommand(['checkpoint', 'set', 'myproject', 'Implement auth', 'Fix login bug'], store, logger);
 
-        // Check checkpoint space was created (hidden)
-        const checkpointSpace = store.getSpace('myproject:sessions');
-        expect(checkpointSpace).not.toBeNull();
-        expect(checkpointSpace!.hidden).toBe(true);
-
-        // Check memory was created in checkpoint space
-        const memories = store.listMemories('myproject:sessions');
+        // Check memory was created in the same space (not a hidden :sessions space)
+        const memories = store.listMemories('myproject', { tag: 'checkpoint' });
         expect(memories.length).toBe(1);
         expect(memories[0]!.tags).toContain('checkpoint');
         expect(memories[0]!.tags).toContain('active');
         expect(memories[0]!.tier).toBe(1); // T1 hot
+
+        // No :sessions space should exist
+        expect(store.getSpace('myproject:sessions')).toBeNull();
 
         // Check log output
         const logs = logger.getLogs();
@@ -513,12 +511,12 @@ describe('Command Executor — Checkpoint', () => {
 
         // Create first checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'First goal', 'First pending'], store, logger);
-        const memories1 = store.listMemories('myproject:sessions');
+        const memories1 = store.listMemories('myproject', { tag: 'checkpoint' });
         const firstId = memories1[0]!.id;
 
         // Update the same checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'Updated goal', 'Updated pending'], store, logger);
-        const memories2 = store.listMemories('myproject:sessions');
+        const memories2 = store.listMemories('myproject', { tag: 'checkpoint' });
 
         // Should still be one checkpoint (updated, not created)
         expect(memories2.length).toBe(1);
@@ -589,7 +587,7 @@ describe('Command Executor — Checkpoint', () => {
         await executeCommand(['checkpoint', 'recover', 'myproject'], store, logger);
 
         const logs = logger.getLogs();
-        expect(logs.some((l) => l.message.includes('No checkpoint'))).toBe(true);
+        expect(logs.some((l) => l.message.includes('No active checkpoint'))).toBe(true);
     });
 
     test('should complete a checkpoint', async () => {
@@ -599,18 +597,18 @@ describe('Command Executor — Checkpoint', () => {
 
         // Create checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
-        const memories = store.listMemories('myproject:sessions');
-        const checkpointId = memories[0]!.id;
+        const memories = store.listMemories('myproject', { tag: 'checkpoint' });
+        const cpName = memories[0]!.name;
 
         // Complete it
         await executeCommand(
-            ['checkpoint', 'complete', 'myproject', String(checkpointId), 'Fixed the bug'],
+            ['checkpoint', 'complete', 'myproject', cpName, 'Fixed the bug'],
             store,
             logger
         );
 
         // Check it was completed
-        const updated = store.getMemoryById(checkpointId);
+        const updated = store.getMemory('myproject', cpName);
         expect(updated!.tags).toContain('completed');
         expect(updated!.tags).not.toContain('active');
         expect(updated!.tier).toBe(2); // Demoted to T2
@@ -626,11 +624,11 @@ describe('Command Executor — Checkpoint', () => {
 
         // Create checkpoint
         await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
-        const memories = store.listMemories('myproject:sessions');
-        const checkpointId = memories[0]!.id;
+        const memories = store.listMemories('myproject', { tag: 'checkpoint' });
+        const cpName = memories[0]!.name;
 
         // Complete it
-        await executeCommand(['checkpoint', 'complete', 'myproject', String(checkpointId), 'Done'], store, logger);
+        await executeCommand(['checkpoint', 'complete', 'myproject', cpName, 'Done'], store, logger);
 
         // List all
         await executeCommand(['checkpoint', 'list', 'myproject'], store, logger);
@@ -639,20 +637,19 @@ describe('Command Executor — Checkpoint', () => {
         expect(logs.some((l) => l.message.includes('Checkpoints for'))).toBe(true);
     });
 
-    test('should create hidden checkpoint space', async () => {
+    test('checkpoint_save does not create separate session space', async () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('myproject', 'A project', ['test']);
 
         await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
 
-        // Hidden spaces should not appear in regular list
-        const regularList = store.listSpaces();
-        expect(regularList.some((s) => s.name === 'myproject:sessions')).toBe(false);
+        // No :sessions space should exist
+        expect(store.getSpace('myproject:sessions')).toBeNull();
 
-        // But should appear with hidden flag
-        const hiddenList = store.listSpaces({ includeHidden: true });
-        expect(hiddenList.some((s) => s.name === 'myproject:sessions')).toBe(true);
+        // Checkpoint should be in the project space
+        const memories = store.listMemories('myproject', { tag: 'checkpoint' });
+        expect(memories.length).toBe(1);
     });
 
     test('should create checkpoint with notes', async () => {
@@ -666,7 +663,7 @@ describe('Command Executor — Checkpoint', () => {
             logger
         );
 
-        const memories = store.listMemories('myproject:sessions');
+        const memories = store.listMemories('myproject', { tag: 'checkpoint' });
         const mem = store.getMemoryById(memories[0]!.id);
         const content = JSON.parse(mem!.content);
 

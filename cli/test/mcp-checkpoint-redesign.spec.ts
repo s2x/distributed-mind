@@ -10,23 +10,21 @@ afterEach(() => {
 });
 
 // =============================================================================
-// RED Phase: Tests for Phase 2.5 — Checkpoint Tools Rename
-// checkpoint_set → checkpoint_save
-// checkpoint_recover → checkpoint_load
-// checkpoint_complete → checkpoint_done
+// Phase 2.5: Checkpoint Tools — Same Space, Tag-based
+// Checkpoints live in the project space with tag "checkpoint"
 // =============================================================================
 
-describe('Phase 2.5: Checkpoint Tools Rename', () => {
+describe('Phase 2.5: Checkpoint Tools (same space)', () => {
     beforeEach(() => {
         store = createTestStore();
         store.createSpace('test-space', 'Test space', ['test']);
     });
 
     // ==========================================================================
-    // 2.5.1 Test: checkpoint_save crea checkpoint
+    // checkpoint_save
     // ==========================================================================
     describe('checkpoint.save', () => {
-        test('2.5.1 checkpoint_save creates checkpoint in hidden space', async () => {
+        test('2.5.1 checkpoint_save creates checkpoint in the same space', async () => {
             const tools = createCheckpointTools(store);
 
             const res = await tools.checkpoint_save.handler({
@@ -37,16 +35,12 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
 
             expect(res.content[0]?.text).toContain('created');
             expect(res.checkpoint).toBeDefined();
-            expect(res.checkpoint?.space).toBe('test-space:sessions');
+            expect(res.checkpoint?.space).toBe('test-space');
             expect(res.checkpoint?.tags).toContain('checkpoint');
             expect(res.checkpoint?.tags).toContain('active');
-
-            // Verify space is hidden
-            const space = store.getSpace('test-space:sessions');
-            expect(space?.hidden).toBe(true);
         });
 
-        test('2.5.1b checkpoint_save creates checkpoint with relatedRefs', async () => {
+        test('2.5.1b checkpoint_save creates checkpoint with relatedRefs (string refs)', async () => {
             const tools = createCheckpointTools(store);
 
             // Create a memory to link
@@ -55,20 +49,63 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
             const res = await tools.checkpoint_save.handler({
                 space: 'test-space',
                 goal: 'Implement auth',
-                relatedRefs: [mem.id],
+                relatedRefs: ['my-memory'],
             });
 
             expect(res.checkpoint).toBeDefined();
             // Look up checkpoint by name to verify links
-            const cpMemory = store.getMemory('test-space:sessions', res.checkpoint!.name);
+            const cpMemory = store.getMemory('test-space', res.checkpoint!.name);
             expect(cpMemory).toBeDefined();
             const links = store.getLinks(cpMemory!.id);
             expect(links.some((l) => l.target_id === mem.id)).toBe(true);
         });
+
+        test('2.5.1c checkpoint_save with relatedRefs using space:name format', async () => {
+            const tools = createCheckpointTools(store);
+
+            // Create a memory to link
+            const mem = await store.addMemory('test-space', 'my-memory', 'Some content', { tags: ['test'] });
+
+            const res = await tools.checkpoint_save.handler({
+                space: 'test-space',
+                goal: 'Implement auth',
+                relatedRefs: ['test-space:my-memory'],
+            });
+
+            expect(res.checkpoint).toBeDefined();
+            const cpMemory = store.getMemory('test-space', res.checkpoint!.name);
+            expect(cpMemory).toBeDefined();
+            const links = store.getLinks(cpMemory!.id);
+            expect(links.some((l) => l.target_id === mem.id)).toBe(true);
+        });
+
+        test('checkpoint_save throws if space does not exist', async () => {
+            const tools = createCheckpointTools(store);
+
+            await expect(
+                tools.checkpoint_save.handler({
+                    space: 'nonexistent',
+                    goal: 'Goal',
+                })
+            ).rejects.toThrow('not found');
+        });
+
+        test('checkpoint_save does NOT create a hidden :sessions space', async () => {
+            const tools = createCheckpointTools(store);
+
+            await tools.checkpoint_save.handler({
+                space: 'test-space',
+                goal: 'Implement auth',
+            });
+
+            // No :sessions space should exist
+            const sessionsSpace = store.getSpace('test-space:sessions');
+            expect(sessionsSpace).toBeNull();
+        });
     });
 
     // ==========================================================================
-    // 2.5.2 Test: checkpoint_load recupera checkpoint activo
+    // checkpoint_load
     // ==========================================================================
     describe('checkpoint.load', () => {
         test('2.5.2 checkpoint_load retrieves active checkpoint', async () => {
@@ -107,7 +144,7 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
     });
 
     // ==========================================================================
-    // 2.5.3 Test: checkpoint_list lista checkpoints
+    // checkpoint_list
     // ==========================================================================
     describe('checkpoint.list', () => {
         test('2.5.3 checkpoint_list returns checkpoints', async () => {
@@ -139,7 +176,7 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
 
             await tools.checkpoint_done.handler({
                 space: 'test-space',
-                checkpointId: created.checkpoint!.id,
+                checkpointName: created.checkpoint!.name,
                 summary: 'Work done',
             });
 
@@ -159,7 +196,7 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
     });
 
     // ==========================================================================
-    // 2.5.4 Test: checkpoint_done marca checkpoint completo
+    // checkpoint_done
     // ==========================================================================
     describe('checkpoint.done', () => {
         test('2.5.4 checkpoint_done marks checkpoint as completed', async () => {
@@ -173,7 +210,7 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
 
             const res = await tools.checkpoint_done.handler({
                 space: 'test-space',
-                checkpointId: created.checkpoint!.id,
+                checkpointName: created.checkpoint!.name,
                 summary: 'Finished auth implementation',
             });
 
@@ -195,7 +232,7 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
             // Complete it
             const res = await tools.checkpoint_done.handler({
                 space: 'test-space',
-                checkpointId: created.checkpoint!.id,
+                checkpointName: created.checkpoint!.name,
                 summary: 'Done',
             });
 
@@ -205,52 +242,40 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
     });
 
     // ==========================================================================
-    // 2.5.5 Test: checkpoint_set ya no existe (tool not found)
+    // Old tool names no longer exist
     // ==========================================================================
-    test('2.5.5 checkpoint_set no longer exists - calling it throws', async () => {
+    test('2.5.5 checkpoint_set no longer exists', async () => {
         const tools = createCheckpointTools(store);
-
         expect(tools.checkpoint_set).toBeUndefined();
     });
 
-    // ==========================================================================
-    // 2.5.6 Test: checkpoint_complete ya no existe (tool not found)
-    // ==========================================================================
-    test('2.5.6 checkpoint_complete no longer exists - calling it throws', async () => {
+    test('2.5.6 checkpoint_complete no longer exists', async () => {
         const tools = createCheckpointTools(store);
-
         expect(tools.checkpoint_complete).toBeUndefined();
     });
 
-    // ==========================================================================
-    // 2.5.7 Test: checkpoint_recover ya no existe (tool not found)
-    // ==========================================================================
-    test('2.5.7 checkpoint_recover no longer exists - calling it throws', async () => {
+    test('2.5.7 checkpoint_recover no longer exists', async () => {
         const tools = createCheckpointTools(store);
-
         expect(tools.checkpoint_recover).toBeUndefined();
     });
 
     // ==========================================================================
-    // Verify new tool names exist and work
+    // New tool names exist
     // ==========================================================================
-    test('2.5.8 checkpoint_save is the new name for checkpoint_set', async () => {
+    test('2.5.8 checkpoint_save exists', async () => {
         const tools = createCheckpointTools(store);
-
         expect(typeof tools.checkpoint_save).toBe('object');
         expect(typeof tools.checkpoint_save.handler).toBe('function');
     });
 
-    test('2.5.9 checkpoint_load is the new name for checkpoint_recover', async () => {
+    test('2.5.9 checkpoint_load exists', async () => {
         const tools = createCheckpointTools(store);
-
         expect(typeof tools.checkpoint_load).toBe('object');
         expect(typeof tools.checkpoint_load.handler).toBe('function');
     });
 
-    test('2.5.10 checkpoint_done is the new name for checkpoint_complete', async () => {
+    test('2.5.10 checkpoint_done exists', async () => {
         const tools = createCheckpointTools(store);
-
         expect(typeof tools.checkpoint_done).toBe('object');
         expect(typeof tools.checkpoint_done.handler).toBe('function');
     });

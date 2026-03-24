@@ -62,7 +62,7 @@ Organize memories into hierarchical spaces:
 - `user/preferences` — global user preferences
 - `user/patterns` — work patterns and conventions
 - `global/config` — cross-project configuration
-- `sessions/<REPO_NAME>` — session summaries and checkpoints (use repo name too!)
+- `sessions/<REPO_NAME>` — session summaries (use repo name too!)
 
 ---
 

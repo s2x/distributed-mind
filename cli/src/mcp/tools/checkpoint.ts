@@ -3,6 +3,7 @@ import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
 import { buildRecoveryPack, renderRecoveryPack, type RecoveryFormat } from '../../checkpoint/recovery-pack';
 import { isAgent, type Agent } from '../../cli/capabilities';
+import { resolveRefWithFallback } from './links';
 
 const CheckpointSaveSchema = z.object({
     space: z.string().min(1).describe('Working space name.'),
@@ -10,9 +11,9 @@ const CheckpointSaveSchema = z.object({
     pending: z.string().optional().describe('What remains to be done.'),
     notes: z.string().optional().describe('Additional context or notes.'),
     relatedRefs: z
-        .array(z.number())
+        .array(z.string())
         .optional()
-        .describe('Memory IDs relevant to current work. Links these to the checkpoint so recovery includes full context. Get IDs from memory_query or search.'),
+        .describe('Memory references relevant to current work (e.g. "my-memory" or "space:name"). Links these to the checkpoint so recovery includes full context.'),
 });
 
 const CheckpointDoneSchema = z.object({
@@ -43,10 +44,6 @@ const CHECKPOINT_TOOL_DESCRIPTIONS: Record<string, string> = {
     checkpoint_list: 'List all checkpoints for a space, optionally filtered by status (active, completed, all). Use to find older sessions.',
 };
 
-function getCheckpointSpaceName(space: string): string {
-    return `${space}:sessions`;
-}
-
 function now(): string {
     return new Date().toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
 }
@@ -64,12 +61,11 @@ export function createCheckpointTools(store: MindStore) {
                     throw new Error('Space is required.');
                 }
 
-                const checkpointSpace = getCheckpointSpaceName(parsed.space);
+                const space = parsed.space;
 
-                const existingSpace = store.getSpace(checkpointSpace);
-                if (!existingSpace) {
-                    store.createSpace(checkpointSpace, `Checkpoints for ${parsed.space}`, ['checkpoint', 'system']);
-                    store.updateSpace(checkpointSpace, { hidden: true });
+                // Verify the space exists
+                if (!store.getSpace(space)) {
+                    throw new Error(`Space "${space}" not found.`);
                 }
 
                 const content = JSON.stringify(
@@ -84,7 +80,7 @@ export function createCheckpointTools(store: MindStore) {
                     2
                 );
 
-                const existingCheckpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
+                const existingCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
                 const activeCheckpoint = existingCheckpoints.find((m) => m.tags.includes('active'));
 
                 let checkpoint;
@@ -104,16 +100,17 @@ export function createCheckpointTools(store: MindStore) {
                     }
                 } else {
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    checkpoint = await store.addMemory(checkpointSpace, `checkpoint-${timestamp}`, content, {
+                    checkpoint = await store.addMemory(space, `checkpoint-${timestamp}`, content, {
                         tags: ['checkpoint', 'active'],
                         tier: 1 as Tier,
                     });
                 }
 
                 if (parsed.relatedRefs && parsed.relatedRefs.length > 0 && checkpoint) {
-                    for (const memoryId of parsed.relatedRefs) {
+                    for (const ref of parsed.relatedRefs) {
                         try {
-                            store.link(checkpoint.id, memoryId, 'related');
+                            const resolved = resolveRefWithFallback(store, ref, space);
+                            store.link(checkpoint.id, resolved.id, 'related');
                         } catch {
                             // Ignore link errors
                         }
@@ -124,12 +121,12 @@ export function createCheckpointTools(store: MindStore) {
                     content: [
                         {
                             type: 'text',
-                            text: `Checkpoint ${activeCheckpoint ? 'updated' : 'created'} in "${checkpointSpace}".`,
+                            text: `Checkpoint ${activeCheckpoint ? 'updated' : 'created'} in "${space}".`,
                         },
                     ],
                     checkpoint: checkpoint
                         ? {
-                              space: checkpointSpace,
+                              space,
                               name: checkpoint.name,
                               tier: checkpoint.tier,
                               tags: checkpoint.tags,
@@ -150,20 +147,20 @@ export function createCheckpointTools(store: MindStore) {
                     throw new Error('Space is required.');
                 }
 
-                const checkpointSpace = getCheckpointSpaceName(parsed.space);
+                const space = parsed.space;
 
                 let memory;
                 if (parsed.checkpointName) {
-                    memory = store.getMemory(checkpointSpace, parsed.checkpointName);
+                    memory = store.getMemory(space, parsed.checkpointName);
                     if (!memory) {
-                        throw new Error(`Checkpoint "${parsed.checkpointName}" not found in "${checkpointSpace}".`);
+                        throw new Error(`Checkpoint "${parsed.checkpointName}" not found in "${space}".`);
                     }
                 } else {
                     // Find active checkpoint
-                    const checkpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
+                    const checkpoints = store.listMemories(space, { tag: 'checkpoint' });
                     memory = checkpoints.find((m) => m.tags.includes('active'));
                     if (!memory) {
-                        throw new Error(`No active checkpoint found in "${checkpointSpace}".`);
+                        throw new Error(`No active checkpoint found in "${space}".`);
                     }
                     // listMemories returns summaries, get full memory
                     memory = store.getMemoryById(memory.id);
@@ -276,20 +273,18 @@ export function createCheckpointTools(store: MindStore) {
                     throw new Error('Space is required.');
                 }
 
-                const checkpointSpace = getCheckpointSpaceName(parsed.space);
+                const space = parsed.space;
 
-                const space = store.getSpace(checkpointSpace);
-                if (!space) {
+                if (!store.getSpace(space)) {
                     return {
-                        content: [{ type: 'text', text: `No checkpoint space found for "${parsed.space}".` }],
+                        content: [{ type: 'text', text: `Space "${space}" not found.` }],
                         checkpoints: [],
                     };
                 }
 
-                // Use queryMemories instead of listMemories to include ALL tiers
-                // (listMemories defaults to T1+T2, hiding demoted completed checkpoints)
+                // Use queryMemories to include ALL tiers (completed checkpoints are demoted)
                 let checkpoints = store.queryMemories({
-                    space: checkpointSpace,
+                    space,
                     tag: 'checkpoint',
                     limit: 500,
                 });

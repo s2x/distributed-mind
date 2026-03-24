@@ -14,7 +14,7 @@ const SET = new ArgParser(
 );
 
 const COMPLETE = new ArgParser(
-    ['checkpoint complete|cp complete|checkpoint done|cp done', p('space'), p('id'), p('what')],
+    ['checkpoint complete|cp complete|checkpoint done|cp done', p('space'), p('name'), p('what')],
     'Marks a checkpoint as completed',
     []
 );
@@ -33,10 +33,6 @@ const LIST = new ArgParser(['checkpoint list|cp list', p('space')], 'Lists all c
     { name: 'status', alias: 'S', hasValue: true },
 ]);
 
-function getCheckpointSpaceName(space: string): string {
-    return `${space}:sessions`;
-}
-
 export const checkpointGroup: CommandGroup = {
     name: 'Checkpoint',
     helpEntries: [SET, COMPLETE, RECOVER, LIST],
@@ -51,13 +47,10 @@ export const checkpointGroup: CommandGroup = {
                 const pending = params.pending;
                 const notes = flags.notes ? String(flags.notes) : undefined;
 
-                const checkpointSpace = getCheckpointSpaceName(space);
-
-                // Create hidden checkpoint space if it doesn't exist
-                const existingSpace = store.getSpace(checkpointSpace);
-                if (!existingSpace) {
-                    store.createSpace(checkpointSpace, `Checkpoints for ${space}`, ['checkpoint', 'system']);
-                    store.updateSpace(checkpointSpace, { hidden: true });
+                // Verify the space exists
+                if (!store.getSpace(space)) {
+                    logger.logInfo(style(`❌ Space "${space}" not found`, ['red']));
+                    return;
                 }
 
                 // Build checkpoint content as JSON
@@ -73,7 +66,7 @@ export const checkpointGroup: CommandGroup = {
                 );
 
                 // Check if there's already an active checkpoint
-                const existingCheckpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
+                const existingCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
                 const activeCheckpoint = existingCheckpoints.find((m) => m.tags.includes('active'));
 
                 let checkpoint;
@@ -95,16 +88,16 @@ export const checkpointGroup: CommandGroup = {
                 } else {
                     // Create new checkpoint
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    checkpoint = await store.addMemory(checkpointSpace, `checkpoint-${timestamp}`, content, {
+                    checkpoint = await store.addMemory(space, `checkpoint-${timestamp}`, content, {
                         tags: ['checkpoint', 'active'],
                         tier: 1,
                     });
                 }
 
                 const status = activeCheckpoint ? 'updated' : 'created';
-                logger.logInfo(style(`✅ Checkpoint ${status} in "${checkpointSpace}"`, ['bold', 'green']));
+                logger.logInfo(style(`Checkpoint ${status} in "${space}"`, ['bold', 'green']));
                 if (checkpoint) {
-                    logger.logInfo(style(`   ID: ${checkpoint.id}`, ['dim']));
+                    logger.logInfo(style(`   Name: ${checkpoint.name}`, ['dim']));
                 }
             },
         },
@@ -113,21 +106,23 @@ export const checkpointGroup: CommandGroup = {
             execute: async (args, store, logger) => {
                 const params = COMPLETE.getParams(args);
                 const space = params.space;
-                const checkpointId = parseInt(params.id, 10);
+                const checkpointName = params.name;
                 const whatWasDone = params.what;
 
-                const checkpointSpace = getCheckpointSpaceName(space);
-                const memory = store.getMemoryById(checkpointId);
-
-                if (!memory) {
-                    logger.logInfo(style(`❌ Checkpoint with id ${checkpointId} not found`, ['red']));
-                    return;
+                let memory;
+                if (checkpointName) {
+                    memory = store.getMemory(space, checkpointName);
+                } else {
+                    // Find active checkpoint
+                    const checkpoints = store.listMemories(space, { tag: 'checkpoint' });
+                    const active = checkpoints.find((m) => m.tags.includes('active'));
+                    if (active) {
+                        memory = store.getMemoryById(active.id);
+                    }
                 }
 
-                if (memory.space_name !== checkpointSpace) {
-                    logger.logInfo(
-                        style(`❌ Checkpoint ${checkpointId} does not belong to "${checkpointSpace}"`, ['red'])
-                    );
+                if (!memory) {
+                    logger.logInfo(style(`Checkpoint not found in "${space}"`, ['red']));
                     return;
                 }
 
@@ -136,22 +131,22 @@ export const checkpointGroup: CommandGroup = {
                 existingContent.whatWasDone = whatWasDone;
                 existingContent.completedAt = new Date().toISOString();
 
-                await store.updateMemory(checkpointId, {
+                await store.updateMemory(memory.id, {
                     content: JSON.stringify(existingContent, null, 2),
                 });
 
                 // Update tags
-                store.removeMemoryTag(checkpointId, 'active');
-                store.addMemoryTag(checkpointId, 'completed');
+                store.removeMemoryTag(memory.id, 'active');
+                store.addMemoryTag(memory.id, 'completed');
 
                 // Demote to T2
                 try {
-                    store.demote(checkpointId);
+                    store.demote(memory.id);
                 } catch {
                     // Might be at T1 already or at max capacity
                 }
 
-                logger.logInfo(style(`✅ Checkpoint marked as completed and demoted to warm tier`, ['bold', 'green']));
+                logger.logInfo(style(`Checkpoint marked as completed and demoted to warm tier`, ['bold', 'green']));
             },
         },
         {
@@ -188,17 +183,13 @@ export const checkpointGroup: CommandGroup = {
                 const space = params.space;
                 const status = flags.status ? String(flags.status) : undefined;
 
-                const checkpointSpace = getCheckpointSpaceName(space);
-
-                // Check if checkpoint space exists
-                const checkpointSpaceExists = store.getSpace(checkpointSpace);
-                if (!checkpointSpaceExists) {
-                    logger.logInfo(style(`ℹ️  No checkpoint space found for "${space}"`, ['yellow']));
+                if (!store.getSpace(space)) {
+                    logger.logInfo(style(`No checkpoint space found for "${space}"`, ['yellow']));
                     return;
                 }
 
                 // Get all checkpoints
-                let checkpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
+                let checkpoints = store.listMemories(space, { tag: 'checkpoint' });
 
                 // Filter by status if specified
                 if (status && status !== 'all') {
@@ -209,16 +200,16 @@ export const checkpointGroup: CommandGroup = {
                 checkpoints.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
                 if (checkpoints.length === 0) {
-                    logger.logInfo(style(`ℹ️  No checkpoints found`, ['yellow']));
+                    logger.logInfo(style(`No checkpoints found`, ['yellow']));
                     return;
                 }
 
-                logger.logInfo(style(`📋 Checkpoints for "${space}":`, ['bold', 'cyan']));
+                logger.logInfo(style(`Checkpoints for "${space}":`, ['bold', 'cyan']));
                 for (const cp of checkpoints) {
                     const statusBadge = cp.tags.includes('active')
                         ? style(' [active]', ['green'])
                         : style(' [completed]', ['dim']);
-                    logger.logInfo(style(`   #${cp.id} ${cp.name}${statusBadge}`, []));
+                    logger.logInfo(style(`   ${cp.name}${statusBadge}`, []));
                     logger.logInfo(style(`       Updated: ${cp.updated_at}`, ['dim']));
                 }
             },

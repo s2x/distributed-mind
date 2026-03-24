@@ -2,7 +2,7 @@
 
 ## Overview
 
-The checkpoint system allows AI agents to persist work state across sessions and recover from context compaction. It uses hidden spaces (`<space>:sessions`) to store checkpoint memories without cluttering the main workspace.
+The checkpoint system allows AI agents to persist work state across sessions and recover from context compaction. Checkpoints are stored as tagged memories (`checkpoint` tag) in the same project space alongside regular memories.
 
 ## When to Use Checkpoints
 
@@ -15,6 +15,7 @@ checkpoint_save({
     goal: 'Implement user authentication',
     pending: 'Add OAuth2 provider, fix session validation bug',
     notes: 'Started working on auth module',
+    relatedRefs: ['JWT-decision', 'auth-architecture'], // link to relevant memories by name
 });
 ```
 
@@ -82,14 +83,12 @@ checkpoint_load({ space: '<current-project>', includeHistory: true });
 
 ## Checkpoint Storage
 
-Checkpoints are stored in hidden spaces:
+Checkpoints are stored in the same space as project memories:
 
-- Space name: `<project>:sessions`
 - Tags: `checkpoint`, `active` or `completed`
 - Content: JSON with goal, pending, notes, timestamps
-- Links: Point to relevant memories in the main project space
-
-Use `list --hidden` to see checkpoint spaces, or use checkpoint tools directly.
+- Tier: T1 (hot) while active, demoted to T2 (warm) when completed
+- Links: Use `relatedRefs` to connect checkpoints to relevant memories by name
 
 ## Best Practices
 
@@ -97,4 +96,4 @@ Use `list --hidden` to see checkpoint spaces, or use checkpoint tools directly.
 2. **Update checkpoint** when priorities change
 3. **Complete checkpoint** when finishing significant work
 4. **Always load** at the start of new sessions
-5. **Use links** to connect checkpoints to relevant memories
+5. **Use relatedRefs** to link checkpoints to relevant memories for better recovery context

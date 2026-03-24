@@ -72,7 +72,6 @@ This is the core loop. Every significant action produces a memory or checkpoint 
 ```
 checkpoint_done {
   space: "<project>",
-  checkpointId: <id>,
   summary: "What was accomplished in this session"
 }
 
@@ -234,18 +233,17 @@ checkpoint_save {
   goal: "Redesign MCP tool descriptions",
   pending: "Update system instructions example, Regenerate test snapshots",
   notes: "User wants links to be more prominent. Descriptions should explain value, not just function.",
-  relatedRefs: [1, 5, 12]
+  relatedRefs: ["mcp-descriptions-decision", "linking-patterns"]
 }
 ```
 
-`relatedRefs` links memory IDs to the checkpoint — when a future agent calls `checkpoint_load`, it gets these memories as context.
+`relatedRefs` links memories by name (or `space:name`) to the checkpoint — when a future agent calls `checkpoint_load`, it gets these memories as context.
 
 ### When to Complete a Checkpoint
 
 ```
 checkpoint_done {
   space: "projects/mind",
-  checkpointId: 42,
   summary: "Redesigned all MCP descriptions. Added linking examples to workflow. Tests passing."
 }
 ```

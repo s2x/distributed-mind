@@ -6,25 +6,20 @@ export type RecoveryFormat = 'text' | 'md' | 'json';
 type CheckpointContent = Record<string, unknown>;
 
 interface RecoveryCheckpoint {
-    id: number;
     name: string;
     space: string;
     tags: string[];
     content: CheckpointContent;
-    links: Array<{ targetId: number; targetSpace: string; targetName: string; label: string }>;
+    links: Array<{ targetSpace: string; targetName: string; label: string }>;
 }
 
 export interface RecoveryPack {
     space: string;
     checkpoint: RecoveryCheckpoint | null;
-    context_hits: Array<{ id: number; ref: string; tier: number; score?: number }>;
+    context_hits: Array<{ ref: string; tier: number; score?: number }>;
     capability_profile: CapabilityMap;
     degradation: string[];
     guidance: string[];
-}
-
-function getCheckpointSpaceName(space: string): string {
-    return `${space}:sessions`;
 }
 
 function parseCheckpointContent(raw: string): CheckpointContent {
@@ -67,17 +62,17 @@ export async function buildRecoveryPack(
     const agent = args.agent ?? 'opencode';
     const capability_profile = getAgentCapabilities(agent);
     const guidance: string[] = [];
-    const checkpointSpace = getCheckpointSpaceName(args.space);
+    const space = args.space;
 
     let checkpoint: RecoveryCheckpoint | null = null;
     const context_hits: RecoveryPack['context_hits'] = [];
 
-    const checkpointSpaceExists = store.getSpace(checkpointSpace);
-    if (!checkpointSpaceExists) {
-        guidance.push(`No checkpoint space found for "${args.space}".`);
-        guidance.push(`Use checkpoint set ${args.space} <goal> <pending> to start continuity.`);
+    const spaceExists = store.getSpace(space);
+    if (!spaceExists) {
+        guidance.push(`Space "${space}" not found.`);
+        guidance.push(`Use checkpoint_save with space="${space}" to start continuity.`);
     } else {
-        const allCheckpoints = store.listMemories(checkpointSpace, { tag: 'checkpoint' });
+        const allCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
         let candidates = allCheckpoints.filter((memory) => memory.tags.includes('active'));
         if (args.includeHistory) {
             const completed = allCheckpoints.filter((memory) => memory.tags.includes('completed'));
@@ -89,33 +84,32 @@ export async function buildRecoveryPack(
 
         if (!latest) {
             guidance.push('No active checkpoint found.');
-            guidance.push(`Create one with checkpoint set ${args.space} <goal> <pending>.`);
+            guidance.push(`Create one with checkpoint_save space="${space}".`);
         } else {
             const memory = store.getMemoryById(latest.id);
             if (memory) {
                 const content = parseCheckpointContent(memory.content);
                 const links = store.getLinks(latest.id).slice(0, 5);
                 checkpoint = {
-                    id: memory.id,
                     name: memory.name,
                     space: memory.space_name,
                     tags: memory.tags,
                     content,
                     links: links.map((link) => ({
-                        targetId: link.target_id,
                         targetSpace: link.target_space,
                         targetName: link.target_name,
                         label: link.label,
                     })),
                 };
 
+                // Semantic search for context, excluding checkpoint memories
                 const retrievalQuery = checkpointQuery(content);
                 if (retrievalQuery.length > 0) {
-                    const hits = await store.search(retrievalQuery, { space: args.space });
+                    const hits = await store.search(retrievalQuery, { space });
                     for (const hit of hits.slice(0, 5)) {
+                        if (hit.tags?.includes('checkpoint')) continue;
                         context_hits.push({
-                            id: hit.id,
-                            ref: `${hit.space_name}/${hit.name}`,
+                            ref: `${hit.space_name}:${hit.name}`,
                             tier: hit.tier,
                             score: hit.similarity,
                         });
@@ -128,22 +122,22 @@ export async function buildRecoveryPack(
     }
 
     if (context_hits.length === 0) {
-        const recent = store.queryMemories({ space: args.space, limit: 5 });
+        const recent = store.queryMemories({ space, limit: 5 });
         for (const memory of recent) {
+            if (memory.tags?.includes('checkpoint')) continue;
             context_hits.push({
-                id: memory.id,
-                ref: `${memory.space_name}/${memory.name}`,
+                ref: `${memory.space_name}:${memory.name}`,
                 tier: memory.tier,
             });
         }
     }
 
     if (guidance.length === 0) {
-        guidance.push('Use checkpoint complete <space> <id> <whatWasDone> when the task is finished.');
+        guidance.push('Use checkpoint_done when the task is finished.');
     }
 
     return {
-        space: args.space,
+        space,
         checkpoint,
         context_hits,
         capability_profile,

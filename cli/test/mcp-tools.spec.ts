@@ -121,7 +121,7 @@ describe('MCP Memory Tools', () => {
 });
 
 describe('MCP Checkpoint Tools', () => {
-    test('checkpoint_save should create checkpoint in hidden space', async () => {
+    test('checkpoint_save should create checkpoint in the same space', async () => {
         store = createTestStore();
         store.createSpace('myproject', 'A project', ['test']);
 
@@ -136,14 +136,10 @@ describe('MCP Checkpoint Tools', () => {
         expect(res.checkpoint).toBeDefined();
         const checkpoint = res.checkpoint;
         expect(checkpoint).toBeDefined();
-        expect(checkpoint?.space).toBe('myproject:sessions');
+        expect(checkpoint?.space).toBe('myproject');
         expect(checkpoint?.tags).toBeDefined();
         expect(checkpoint?.tags).toContain('checkpoint');
         expect(checkpoint?.tags).toContain('active');
-
-        // Check space is hidden
-        const space = store.getSpace('myproject:sessions');
-        expect(space?.hidden).toBe(true);
     });
 
     test('checkpoint_save should update existing active checkpoint', async () => {
@@ -168,8 +164,8 @@ describe('MCP Checkpoint Tools', () => {
 
         expect(res.content[0]?.text).toContain('updated');
 
-        // Should still be one checkpoint
-        const memories = store.listMemories('myproject:sessions');
+        // Should still be one checkpoint (filter by tag to exclude non-checkpoint memories)
+        const memories = store.listMemories('myproject', { tag: 'checkpoint' });
         expect(memories.length).toBe(1);
 
         const firstMem = memories[0];
@@ -223,30 +219,22 @@ describe('MCP Checkpoint Tools', () => {
 
         const tools = createCheckpointTools(store);
 
-        await tools.checkpoint_save.handler({
+        const created = await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Goal',
             pending: 'Pending',
         });
 
-        const memories = store.listMemories('myproject:sessions');
-        const firstMem = memories[0];
-        expect(firstMem).toBeDefined();
-        const checkpointId = firstMem!.id;
-
         const res = await tools.checkpoint_done.handler({
             space: 'myproject',
-            checkpointId,
+            checkpointName: created.checkpoint!.name,
             summary: 'Fixed the bug',
         });
 
         expect(res.content[0]?.text).toContain('completed');
-
-        const updated = store.getMemoryById(checkpointId);
-        expect(updated).toBeDefined();
-        expect(updated!.tags).toContain('completed');
-        expect(updated!.tags).not.toContain('active');
-        expect(updated!.tier).toBe(2); // Demoted to T2
+        expect(res.checkpoint?.tags).toContain('completed');
+        expect(res.checkpoint?.tags).not.toContain('active');
+        expect(res.checkpoint?.tier).toBe(2); // Demoted to T2
     });
 
     test('checkpoint_list should list all checkpoints', async () => {
@@ -255,20 +243,15 @@ describe('MCP Checkpoint Tools', () => {
 
         const tools = createCheckpointTools(store);
 
-        await tools.checkpoint_save.handler({
+        const created = await tools.checkpoint_save.handler({
             space: 'myproject',
             goal: 'Goal',
             pending: 'Pending',
         });
 
-        const memories = store.listMemories('myproject:sessions');
-        const firstMem = memories[0];
-        expect(firstMem).toBeDefined();
-        const checkpointId = firstMem!.id;
-
         await tools.checkpoint_done.handler({
             space: 'myproject',
-            checkpointId,
+            checkpointName: created.checkpoint!.name,
             summary: 'Done',
         });
 
@@ -292,14 +275,14 @@ describe('MCP Checkpoint Tools', () => {
             space: 'myproject',
             goal: 'Fix auth',
             pending: 'Debug issue',
-            relatedRefs: [mem.id],
+            relatedRefs: ['auth'],
         });
 
         expect(res.checkpoint).toBeDefined();
         const checkpoint = res.checkpoint;
         expect(checkpoint).toBeDefined();
-        // Look up checkpoint by name in the store to verify links
-        const cpMemory = store.getMemory('myproject:sessions', checkpoint!.name);
+        // Look up checkpoint by name in the same space
+        const cpMemory = store.getMemory('myproject', checkpoint!.name);
         expect(cpMemory).toBeDefined();
         const links = store.getLinks(cpMemory!.id);
         expect(links.length).toBe(1);
