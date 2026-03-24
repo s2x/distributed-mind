@@ -177,6 +177,9 @@ UPDATE meta SET value = '6' WHERE key = 'schema_version';
 
 export function initializeDatabase(db: import('bun:sqlite').Database): void {
     db.exec('PRAGMA journal_mode = WAL;');
+    db.exec('PRAGMA synchronous = NORMAL;');
+    db.exec('PRAGMA busy_timeout = 5000;');
+    db.exec('PRAGMA wal_autocheckpoint = 1000;');
     db.exec('PRAGMA foreign_keys = ON;');
     db.exec(SCHEMA_SQL);
 

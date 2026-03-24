@@ -59,8 +59,10 @@ describe('Phase 2.5: Checkpoint Tools Rename', () => {
             });
 
             expect(res.checkpoint).toBeDefined();
-            // Verify the link was created
-            const links = store.getLinks(res.checkpoint!.id);
+            // Look up checkpoint by name to verify links
+            const cpMemory = store.getMemory('test-space:sessions', res.checkpoint!.name);
+            expect(cpMemory).toBeDefined();
+            const links = store.getLinks(cpMemory!.id);
             expect(links.some((l) => l.target_id === mem.id)).toBe(true);
         });
     });

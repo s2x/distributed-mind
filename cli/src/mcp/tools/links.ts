@@ -55,7 +55,7 @@ function resolveRef(store: MindStore, ref: string, fallbackSpace?: string): { id
  * Throws "invalid memory reference" if ref has no colon AND memory doesn't exist anywhere.
  * Throws "memory not found" if ref format is valid but memory doesn't exist.
  */
-function resolveRefWithFallback(store: MindStore, ref: string, fallbackSpace?: string): { id: number; space: string; name: string } {
+export function resolveRefWithFallback(store: MindStore, ref: string, fallbackSpace?: string): { id: number; space: string; name: string } {
     const parsed = store.resolveMemoryRef(ref);
 
     if (parsed) {

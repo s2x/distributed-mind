@@ -48,6 +48,10 @@ export const api = {
     },
 
     // Logs API
+    /** @returns {Promise<{deleted: number}>} */
+    async deleteLogs() {
+        return parseResponse(await fetch('/api/logs', { method: 'DELETE' }));
+    },
     /** @param {{source?: string, operation?: string, search?: string, from?: string, to?: string, level?: string, limit?: number, offset?: number, order?: string, since?: number}} filter @returns {Promise<{logs: any[], total: number, limit: number, offset: number}>} */
     async getLogs(filter = {}) {
         const params = new URLSearchParams();

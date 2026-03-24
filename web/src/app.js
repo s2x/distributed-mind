@@ -28,7 +28,7 @@ import {
 
 /** @typedef {{ id:number, name:string, tier:1|2|3|4, pinned:boolean, access_count:number, tags?:string[] }} MemorySummary */
 /** @typedef {{ id:number, space_name:string, name:string, content:string, tier:1|2|3|4, pinned:boolean, tags?:string[] }} Memory */
-/** @typedef {{ name:string, description?:string, tags?:string[], memory_count?:number }} Space */
+/** @typedef {{ name:string, description?:string, tags?:string[], memory_count?:number, hidden?:boolean }} Space */
 /** @typedef {{ logs: any[], total: number, limit: number, offset: number }} LogsResult */
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -43,6 +43,7 @@ let state = {
     currentMemory: null, // Memory (full)
     searchActive: false,
     searchResults: [],
+    showHiddenSpaces: false,
     spaceView: 'list',
     graph: null,
     graphFocusNodeId: null,
@@ -88,6 +89,7 @@ const elGraphSvg = $('graph-svg');
 const elGraphMeta = $('graph-meta');
 const elBtnViewList = $('btn-view-list');
 const elBtnViewMap = $('btn-view-map');
+const elToggleHiddenSpaces = $('toggle-hidden-spaces');
 // Logs DOM refs
 const elLogsPage = $('logs-page');
 const elLogsList = $('logs-list');
@@ -102,6 +104,7 @@ const elLogLive = $('log-live');
 const elLogFollow = $('log-follow');
 const elLogsConnectionStatus = $('logs-connection-status');
 const elBtnRefreshLogs = $('btn-refresh-logs');
+const elBtnClearLogs = $('btn-clear-logs');
 const elBtnLoadMoreLogs = $('btn-load-more-logs');
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
@@ -149,10 +152,10 @@ function renderSpaceList() {
     elSpaceList.innerHTML = '';
     for (const sp of state.spaces) {
         const li = document.createElement('li');
-        li.className = 'space-item' + (state.currentSpace?.name === sp.name ? ' active' : '');
+        li.className = 'space-item' + (state.currentSpace?.name === sp.name ? ' active' : '') + (sp.hidden ? ' space-hidden' : '');
         li.dataset.name = sp.name;
         li.innerHTML = `
-            <span class="space-item-name">${esc(sp.name)}</span>
+            <span class="space-item-name">${sp.hidden ? '👻 ' : ''}${esc(sp.name)}</span>
             <span class="space-item-count">${sp.memory_count}</span>
         `;
         li.addEventListener('click', () => selectSpace(sp.name));
@@ -639,7 +642,8 @@ async function restoreRouteFromLocation() {
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 async function loadSpaces() {
-    state.spaces = await api.get('/api/spaces');
+    const qs = state.showHiddenSpaces ? '?includeHidden=true' : '';
+    state.spaces = await api.get(`/api/spaces${qs}`);
     renderSpaceList();
 }
 
@@ -1358,9 +1362,27 @@ elLogFollow?.addEventListener('change', () => {
     state.logsFollow = elLogFollow.checked;
 });
 elBtnRefreshLogs?.addEventListener('click', () => { state.logsOffset = 0; loadLogs(); });
+elBtnClearLogs?.addEventListener('click', async () => {
+    if (!confirm('Delete all logs? This cannot be undone.')) return;
+    try {
+        const result = await api.deleteLogs();
+        state.logs = [];
+        state.logsTotal = 0;
+        state.logsOffset = 0;
+        state.logsLastId = 0;
+        renderLogsList();
+    } catch (e) {
+        console.error('Failed to clear logs:', e);
+    }
+});
 elBtnLoadMoreLogs?.addEventListener('click', () => {
     state.logsOffset += state.logsLimit;
     loadLogs();
+});
+
+elToggleHiddenSpaces?.addEventListener('change', () => {
+    state.showHiddenSpaces = elToggleHiddenSpaces.checked;
+    loadSpaces();
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

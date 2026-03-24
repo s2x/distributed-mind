@@ -91,7 +91,7 @@ export function createSearchTools(store: MindStore) {
 
                 return {
                     content: [{ type: 'text', text: `Found ${results.length} result(s) for "${parsed.query}".` }],
-                    results,
+                    results: results.map(({ id, ...rest }: any) => rest),
                     search_method,
                 };
             },
@@ -142,7 +142,7 @@ export function createSearchTools(store: MindStore) {
 
                 return {
                     content: [{ type: 'text', text: `Found ${memories.length} memory/memories (total: ${totalFiltered.length}).` }],
-                    memories,
+                    memories: memories.map(({ id, ...rest }) => rest),
                     total: totalFiltered.length,
                     limit: parsed.limit ?? 25,
                     offset: parsed.offset ?? 0,

@@ -77,15 +77,15 @@ Call `memory_add` IMMEDIATELY after:
 - User preference learned
 - Any important context you want to preserve for future sessions
 
-**When to link memories**: When adding a memory that depends on, extends, or contradicts another existing memory, pass `links_to_ids` with the related memory IDs. This lets future agents trace related decisions without searching. Common cases:
+**When to link memories**: When adding a memory that depends on, extends, or contradicts another existing memory, pass `links_to` with references to related memories in `"space:name"` format (or bare `"name"` for same space). This lets future agents trace related decisions without searching. Common cases:
 - A bugfix that relates to a prior decision
 - A discovery that updates a previous pattern
 - A config change driven by an earlier finding
 - Two memories about the same feature or subsystem
 
-Get memory IDs from `memory_query` or `search`, then pass them to `links_to_ids` in `memory_add`, or use `link_create` for existing memories.
+Pass memory references to `links_to` in `memory_add`, or use `link_create` for existing memories.
 
-Composite operations are atomic all-or-nothing: if one step fails, no partial write is persisted (`memory_add` with `links_to_ids`).
+Composite operations are atomic all-or-nothing: if one step fails, no partial write is persisted (`memory_add` with `links_to`).
 
 ---
 
@@ -159,7 +159,7 @@ Response includes `pagination` object with `nextOffset` when more results exist.
 ## Session Workflow
 
 1. **Start**: Recover context: `checkpoint_load`, then `space_get` (use repo name!)
-2. **Work**: Add memories as you go: `memory_add` with tags and `links_to_ids`
+2. **Work**: Add memories as you go: `memory_add` with tags and `links_to`
 3. **Query**: Find context: `memory_query`, `search`
 4. **Checkpoint**: Save work progress: `checkpoint_save` (keep fresh as you go)
 5. **Close**: Complete checkpoint: `checkpoint_done`, then session summary via `memory_add` to `sessions/<REPO_NAME>`
@@ -182,24 +182,22 @@ memory_add {
   content: "**What**: Switched from sessions to JWT...\n**Why**: Scale across instances...",
   tags: ["cat:decision"]
 }
-# → returns id: 1
 
-# 3. Add a related discovery, linked to the decision
+# 3. Add a related discovery, linked to the decision by name
 memory_add {
   space: "projects/mind",
   name: "Refresh token rotation needed",
   content: "**What**: JWT requires refresh token rotation logic...\n**Why**: Caused by JWT decision...",
   tags: ["cat:discovery"],
-  links_to_ids: [1]  # <-- links to the JWT decision
+  links_to: ["JWT over sessions for auth"]  # <-- bare name, same space
 }
-# → returns id: 2
 
-# 4. Later, query for decisions (returns IDs you can use for linking)
+# 4. Later, query for decisions
 memory_query { space: "projects/mind", tag: "cat:decision" }
 
 # 5. Read a memory to see its linked context
 memory_read { space: "projects/mind", name: "JWT over sessions for auth" }
-# → returns content + links_to + linked_by
+# → returns content + links_to + linked_by (with "space:name" refs)
 
 # 6. Search across all spaces (including T4 frozen)
 search { query: "authentication" }
@@ -208,7 +206,7 @@ search { query: "authentication" }
 memory_add {
   space: "sessions/mind",  # <-- repo name
   name: "session-2026-03-07",
-  content: "## Goal: Implement MCP improvements\n## Discoveries: - Protocol instructions can be centralized\n## Accomplished: - Improved error messages\n## Relevant Files: - cli/src/mcp/server.ts",
+  content: "## Goal: Implement MCP improvements\n## Discoveries: ...",
   tags: ["type:session", "cat:summary"],
-  links_to_ids: [1, 2]  # <-- link session summary to memories worked on
+  links_to: ["projects/mind:JWT over sessions for auth", "projects/mind:Refresh token rotation needed"]
 }

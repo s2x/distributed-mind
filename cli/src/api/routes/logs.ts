@@ -2,6 +2,22 @@ import type { RouteDefinition, RouteContext } from './types';
 
 export const logRoutes: RouteDefinition[] = [
     {
+        method: 'DELETE',
+        match: (pathname: string) => {
+            if (pathname === '/api/logs' || pathname === '/api/logs/') return {};
+            return null;
+        },
+        handle: async (ctx: RouteContext) => {
+            const { store, json, err } = ctx;
+            try {
+                const deleted = store.clearAllLogs();
+                return json({ deleted });
+            } catch (e: any) {
+                return err(e.message);
+            }
+        },
+    },
+    {
         method: 'GET',
         match: (pathname: string) => {
             if (pathname === '/api/logs' || pathname === '/api/logs/') return {};

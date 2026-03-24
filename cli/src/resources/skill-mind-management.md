@@ -81,7 +81,7 @@ memory_add {
   name: "session-YYYY-MM-DD-<topic>",
   content: "## Goal\n...\n## Accomplished\n...\n## Decisions\n...\n## Open Items\n...",
   tags: ["type:session", "cat:summary"],
-  links_to_ids: [<ids of memories created/referenced this session>]
+  links_to: ["<name-of-memory-created-this-session>"]
 }
 ```
 
@@ -113,7 +113,7 @@ memory_add {
   name: "MCP tool descriptions redesign",
   content: "**What**: Rewrote all MCP tool descriptions to be actionable and explain value.\n**Why**: Agents weren't using link features because descriptions were too generic.\n**Where**: cli/src/mcp/tools/*.ts, cli/src/resources/protocols/\n**Learned**: Agents learn from examples more than rules. Including links in the example workflow was the most impactful change.",
   tags: ["cat:decision", "cat:discovery"],
-  links_to_ids: [<id-of-related-memory>]
+  links_to: ["<name-of-related-memory>"]
 }
 ```
 
@@ -184,11 +184,11 @@ memory_add {
   name: "auth-jwt-mobile-expiry-fix",
   content: "Fixed JWT early expiry on mobile due to clock skew...",
   tags: ["cat:bugfix"],
-  links_to_ids: [1, 5]
+  links_to: ["auth-jwt-decision", "mobile-clock-skew-discovery"]
 }
 ```
 
-Get IDs from the results of `memory_query` or `search` — both return memory IDs.
+Use memory names from `memory_query` or `search` results — reference as bare name (same space) or `"space:name"` (cross-space).
 
 **Between existing memories** (when you discover a relationship later):
 
@@ -207,7 +207,7 @@ References use `space:name` format. When both memories are in the same space, ba
 When you create a memory, always ask: **"Does this relate to something that already exists?"**
 
 1. Run `memory_query` or `search` for related context
-2. If related memories exist, pass their IDs to `links_to_ids`
+2. If related memories exist, pass their names to `links_to`
 3. If you discover a relationship later, use `link_create`
 
 This takes seconds and saves future agents minutes of searching.
@@ -311,7 +311,7 @@ These are requirements, not suggestions:
 1. **Session start** → `checkpoint_load` before any work
 2. **Plan approved** → `checkpoint_save` immediately
 3. **Significant event** → `memory_add` with tags NOW, not later
-4. **Related memory exists** → Link it via `links_to_ids` or `link_create`
+4. **Related memory exists** → Link it via `links_to` or `link_create`
 5. **Subtask done** → Update checkpoint (`checkpoint_save`)
 6. **Session end** → `checkpoint_done` + session summary memory
 

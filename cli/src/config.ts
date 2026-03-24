@@ -16,8 +16,8 @@ export const CONFIG = {
     dbPath,
     /** Legacy JSON path for migration */
     legacyJsonPath: path.join(resolvedDataDir, 'brain.json'),
-    /** Log retention in minutes (default: 7 days = 10080 minutes) */
-    logRetentionMinutes: parseInt(process.env.MIND_LOG_RETENTION_MINUTES ?? '10080', 10),
+    /** Log retention in minutes (default: 6 hours = 360 minutes). Override with MIND_LOG_RETENTION_MINUTES. */
+    logRetentionMinutes: parseInt(process.env.MIND_LOG_RETENTION_MINUTES ?? '360', 10),
     /** RAG: Enable semantic search with OpenAI embeddings */
     rag: {
         enabled: process.env.MIND_RAG === 'true',

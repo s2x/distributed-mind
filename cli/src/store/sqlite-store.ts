@@ -1,7 +1,7 @@
 // ── SQLite implementation of MindStore ──
 
 import { Database } from 'bun:sqlite';
-import { statSync } from 'fs';
+import { existsSync, statSync, copyFileSync, unlinkSync } from 'fs';
 import { initializeDatabase } from './schema';
 import { TIER_LIMITS } from '../config';
 import { isRagEnabled, getEmbedding, semanticSearch, blobToVector, vectorToBlob } from '../helpers/rag';
@@ -23,9 +23,58 @@ import type {
     LegacyBrain,
 } from '../types';
 
+/**
+ * Run a quick integrity check and attempt FTS rebuild if the database is corrupted.
+ * Returns true if the database is usable, false if unrecoverable.
+ */
+function ensureIntegrity(db: Database, dbPath: string): boolean {
+    try {
+        const result = db.query('PRAGMA quick_check(1)').get() as { quick_check: string } | null;
+        if (result?.quick_check === 'ok') return true;
+    } catch {
+        // quick_check itself failed — DB is definitely corrupted
+    }
+
+    // Attempt FTS rebuild first (most common corruption source with manual FTS sync)
+    try {
+        console.error('[mind] Database corruption detected, attempting FTS rebuild...');
+        db.exec("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')");
+        const recheck = db.query('PRAGMA quick_check(1)').get() as { quick_check: string } | null;
+        if (recheck?.quick_check === 'ok') {
+            console.error('[mind] FTS rebuild succeeded, database recovered.');
+            return true;
+        }
+    } catch {
+        // FTS rebuild failed too
+    }
+
+    // Last resort: backup corrupt file and start fresh
+    const backupPath = `${dbPath}.corrupt.${Date.now()}`;
+    try {
+        console.error(`[mind] FTS rebuild failed. Backing up corrupt DB to ${backupPath} and starting fresh.`);
+        db.close();
+        copyFileSync(dbPath, backupPath);
+        // Remove WAL/SHM files too
+        for (const suffix of ['-wal', '-shm']) {
+            const walPath = `${dbPath}${suffix}`;
+            if (existsSync(walPath)) unlinkSync(walPath);
+        }
+        unlinkSync(dbPath);
+    } catch (e) {
+        console.error(`[mind] Failed to backup corrupt database: ${e}`);
+    }
+    return false;
+}
+
 export function createSqliteStore(dbPath: string): MindStore {
-    const db = new Database(dbPath, { create: true });
+    let db = new Database(dbPath, { create: true });
     initializeDatabase(db);
+
+    if (!ensureIntegrity(db, dbPath)) {
+        // Corrupt DB was backed up and removed — create fresh
+        db = new Database(dbPath, { create: true });
+        initializeDatabase(db);
+    }
 
     // ── Helpers ──
 
@@ -1552,9 +1601,19 @@ export function createSqliteStore(dbPath: string): MindStore {
         return result.changes;
     }
 
+    function clearAllLogs(): number {
+        const result = db.run('DELETE FROM logs');
+        return result.changes;
+    }
+
     // ── Lifecycle ──
 
     function close(): void {
+        try {
+            db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        } catch {
+            // Best-effort WAL checkpoint before close
+        }
         db.close();
     }
 
@@ -1599,6 +1658,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         addLog,
         queryLogs,
         cleanupOldLogs,
+        clearAllLogs,
         subscribeToLogs,
         unsubscribeFromLogs,
         close,

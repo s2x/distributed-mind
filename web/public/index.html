@@ -26,6 +26,9 @@
                     <input id="global-search" type="search" placeholder="Search memories…" autocomplete="off" />
                 </div>
                 <ul id="space-list"></ul>
+                <label class="sidebar-toggle" title="Show hidden spaces (checkpoints, sessions)">
+                    <input type="checkbox" id="toggle-hidden-spaces" /> Show hidden
+                </label>
                 <div id="status-panel">
                     <div class="status-row">
                         <span class="status-label">Storage</span>
@@ -77,6 +80,7 @@
                                 <input type="checkbox" id="log-follow" checked /> Follow
                             </label>
                             <button id="btn-refresh-logs" class="btn btn-sm btn-ghost">Refresh</button>
+                            <button id="btn-clear-logs" class="btn btn-sm btn-danger">Clear All</button>
                         </div>
                     </header>
                     <div id="logs-connection-status" class="logs-connection-status hidden">● Live</div>

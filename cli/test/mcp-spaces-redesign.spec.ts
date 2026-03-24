@@ -75,7 +75,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
             expect(res.hot_memories.length).toBe(2);
         });
 
-        test('2.1.4 space.get hot_memories includes {id, name, tier, tags, pinned, updated_at}', async () => {
+        test('2.1.4 space.get hot_memories includes {name, tier, tags, pinned, updated_at} (no id)', async () => {
             store = createTestStore();
             store.createSpace('myproject', 'My project', ['test']);
             await store.addMemory('myproject', 'hot1', 'hot content', {
@@ -89,7 +89,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
 
             const hot = res.hot_memories[0];
             expect(hot).toBeDefined();
-            expect(typeof hot.id).toBe('number');
+            expect(hot.id).toBeUndefined();
             expect(hot.name).toBe('hot1');
             expect(hot.tier).toBe(1);
             expect(hot.tags).toContain('cat:decision');

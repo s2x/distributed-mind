@@ -92,7 +92,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
             expect(Array.isArray(res.linked_by)).toBe(true);
         });
 
-        test('2.2.4 memory.read noPromote:true links_to includes {id, name, space, tier, tags, pinned, changed_at}', async () => {
+        test('2.2.4 memory.read noPromote:true links_to includes {ref, name, space, tier, tags, pinned, changed_at} (no id)', async () => {
             // Create target memory
             await store.addMemory('test-space', 'target1', 'Target content', {
                 tags: ['cat:pattern'],
@@ -115,9 +115,10 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
 
             const link = res.links_to[0];
             expect(link).toBeDefined();
-            expect(link.id).toBe(target.id);
+            expect(link.id).toBeUndefined();
+            expect(link.ref).toBe('test-space:target1');
             expect(link.name).toBe('target1');
-            expect(link.space).toBe('test-space'); // space is required per task
+            expect(link.space).toBe('test-space');
             expect(link.tier).toBe(target.tier);
             expect(link.tags).toContain('cat:pattern');
             expect(link.pinned).toBe(true);
@@ -220,54 +221,52 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
     // ==========================================================================
     // memory.update — tags optional
     // ==========================================================================
-    describe('memory.update — tags optional', () => {
+    describe('memory.update — by space+name', () => {
         test('2.2.8 memory.update with tags replaces entire array', async () => {
-            // Create memory with existing tags
             await store.addMemory('test-space', 'my-memory', 'Content', {
                 tags: ['cat:decision', 'cat:pattern'],
             });
-            const memId = store.getMemory('test-space', 'my-memory')!.id;
 
             const tools = createMemoryTools(store);
             await tools.memory_update.handler({
-                id: memId,
+                space: 'test-space',
+                name: 'my-memory',
                 content: 'Updated content',
                 tags: ['new:tag'],
             });
 
-            const updated = store.getMemoryById(memId);
+            const updated = store.getMemory('test-space', 'my-memory');
             expect(updated?.tags).toEqual(['new:tag']);
         });
 
         test('2.2.9 memory.update without tags does not modify existing tags', async () => {
-            // Create memory with existing tags
             await store.addMemory('test-space', 'my-memory', 'Content', {
                 tags: ['cat:decision', 'cat:pattern'],
             });
-            const memId = store.getMemory('test-space', 'my-memory')!.id;
 
             const tools = createMemoryTools(store);
             await tools.memory_update.handler({
-                id: memId,
+                space: 'test-space',
+                name: 'my-memory',
                 content: 'Updated content',
             });
 
-            const updated = store.getMemoryById(memId);
+            const updated = store.getMemory('test-space', 'my-memory');
             expect(updated?.tags).toEqual(['cat:decision', 'cat:pattern']);
         });
 
-        test('memory.update accepts id and content (name optional)', async () => {
+        test('memory.update accepts space, name, and content', async () => {
             await store.addMemory('test-space', 'my-memory', 'Content', { tags: ['test'] });
-            const memId = store.getMemory('test-space', 'my-memory')!.id;
 
             const tools = createMemoryTools(store);
             const res = await tools.memory_update.handler({
-                id: memId,
+                space: 'test-space',
+                name: 'my-memory',
                 content: 'New content',
             });
 
             expect(res.content[0]?.text).toContain('updated');
-            const updated = store.getMemoryById(memId);
+            const updated = store.getMemory('test-space', 'my-memory');
             expect(updated?.content).toBe('New content');
         });
     });

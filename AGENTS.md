@@ -308,9 +308,9 @@ The MCP server exposes 20 tools for agent integration:
 
 | Tool            | Description                                                              |
 | --------------- | ------------------------------------------------------------------------ |
-| `memory.add`    | Add a memory to a space (requires `tags`); returns `id`                |
+| `memory.add`    | Add a memory to a space (requires `tags`); supports `links_to` refs    |
 | `memory.read`   | Read + record access (auto-promote); returns `links_to`, `linked_by`, `tier_change`. Use `noPromote:true` for read without side effects. |
-| `memory.update` | Update a memory name/content by ID                                        |
+| `memory.update` | Update a memory name/content by space and name                            |
 | `memory.delete` | Delete a memory by space/name                                            |
 
 #### Search (2 tools)
@@ -377,7 +377,7 @@ When using mind via MCP, follow these conventions:
 - T3 (cold) — reference info
 - T4 (frozen) — archive (only via search)
 
-**Continuity rule:** link directly relevant memories for recovery continuity. `memory_add` with `links_to_ids` is atomic all-or-nothing.
+**Continuity rule:** link directly relevant memories for recovery continuity. `memory_add` with `links_to` is atomic all-or-nothing.
 
 ---
 

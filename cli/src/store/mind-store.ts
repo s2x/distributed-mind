@@ -154,6 +154,7 @@ export interface MindStore {
         since?: number;
     }): { logs: any[]; total: number; limit: number; offset: number };
     cleanupOldLogs(retentionMinutes: number): number;
+    clearAllLogs(): number;
     subscribeToLogs(sessionId: string, controller: any, filter?: string): void;
     unsubscribeFromLogs(sessionId: string): void;
 

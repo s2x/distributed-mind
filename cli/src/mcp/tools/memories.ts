@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
+import { resolveRefWithFallback } from './links';
 
 // =============================================================================
 // Schemas — Phase 2.2 Redesign
@@ -13,11 +14,11 @@ const MemoryAddSchema = z.object({
     tags: z.array(z.string()).min(1).describe('Tags (at least 1 required).'),
     tier: z.number().int().min(1).max(3).optional().describe('Optional tier: 1=hot, 2=warm, 3=cold.'),
     pinned: z.boolean().optional().describe('Optional pinned state. true keeps memory immune to auto-promotion and LRU eviction.'),
-    links_to_ids: z
-        .array(z.number().int())
+    links_to: z
+        .array(z.string())
         .optional()
         .describe(
-            'IDs of existing memories this one relates to. Creates directional links (new → target). Use when this memory depends on, extends, or is caused by another. Get IDs from memory_query or search.'
+            'References to existing memories this one relates to, in "space:name" format or bare "name" (resolves in same space). Creates directional links (new → target). Use when this memory depends on, extends, or is caused by another.'
         ),
 });
 
@@ -28,8 +29,9 @@ const MemoryReadSchema = z.object({
 });
 
 const MemoryUpdateSchema = z.object({
-    id: z.number().describe('Memory ID to update.'),
-    name: z.string().optional().describe('New memory name.'),
+    space: z.string().min(1).describe('Space containing the memory.'),
+    name: z.string().min(1).describe('Current memory name to update.'),
+    newName: z.string().optional().describe('New memory name (rename).'),
     content: z.string().optional().describe('New content.'),
     tags: z.array(z.string()).optional().describe('New tags array (replaces existing). Omit to keep existing tags.'),
 });
@@ -41,12 +43,22 @@ const MemoryDeleteSchema = z.object({
 
 const MEMORY_TOOL_DESCRIPTIONS: Record<string, string> = {
     memory_add:
-        'Add a new memory to a space. Use immediately after important events: decisions, bug fixes, discoveries, config changes. Supports creating links to related memories via links_to_ids — always link when the new memory depends on or extends an existing one.',
-    memory_update: 'Update a memory name, content, or tags by ID. If tags is provided, it replaces the entire existing tags array.',
+        'Add a new memory to a space. Use immediately after important events: decisions, bug fixes, discoveries, config changes. Supports creating links to related memories via links_to (pass "space:name" refs or bare names) — always link when the new memory depends on or extends an existing one.',
+    memory_update: 'Update a memory by space and name. Can rename (newName), replace content, or replace tags. If tags is provided, it replaces the entire existing tags array.',
     memory_delete: 'Delete a memory permanently by space and name. Also removes all links to/from this memory.',
     memory_read:
         'Read a memory with its content and linked context (links_to + linked_by). By default, records access and auto-promotes the tier (T4→T3→T2→T1) — use this when actively working with a memory. Pass noPromote:true to inspect without side effects (no access count bump, no tier change).',
 };
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/** Strip internal numeric `id` from memory objects returned to agents. */
+function stripId<T extends { id?: number }>(obj: T): Omit<T, 'id'> {
+    const { id, ...rest } = obj;
+    return rest;
+}
 
 // =============================================================================
 // TierChange type (for memory.read tier_change response)
@@ -80,15 +92,24 @@ export function createMemoryTools(store: MindStore) {
                         throw new Error('tags is required and must be a non-empty array');
                     }
                     throw new Error(
-                        `Invalid arguments: ${e.message}. Provide: space, name, content, tags (required, min 1), tier (optional), pinned (optional), links_to_ids (optional).`
+                        `Invalid arguments: ${e.message}. Provide: space, name, content, tags (required, min 1), tier (optional), pinned (optional), links_to (optional, "space:name" refs).`
                     );
+                }
+
+                // Resolve string refs to numeric IDs for the store
+                let linksToIds: number[] | undefined;
+                if (parsed.links_to && parsed.links_to.length > 0) {
+                    linksToIds = parsed.links_to.map((ref) => {
+                        const resolved = resolveRefWithFallback(store, ref, parsed.space);
+                        return resolved.id;
+                    });
                 }
 
                 const memory = await store.addMemory(parsed.space, parsed.name, parsed.content, {
                     tags: parsed.tags,
                     tier: parsed.tier as Tier | undefined,
                     pinned: parsed.pinned,
-                    linksToIds: parsed.links_to_ids,
+                    linksToIds,
                 });
                 return {
                     content: [
@@ -97,7 +118,7 @@ export function createMemoryTools(store: MindStore) {
                             text: `Memory "${parsed.name}" added to space "${parsed.space}" (T${memory.tier}).`,
                         },
                     ],
-                    memory,
+                    memory: stripId(memory),
                 };
             },
         },
@@ -108,33 +129,33 @@ export function createMemoryTools(store: MindStore) {
             annotations: { readOnlyHint: false, destructiveHint: false },
             handler: async (args: unknown) => {
                 const parsed = MemoryUpdateSchema.parse(args ?? {});
-                if (!parsed.id) {
-                    throw new Error('Memory ID is required.');
+                if (!parsed.space || !parsed.name) {
+                    throw new Error('Both space and name are required.');
                 }
 
                 // Validate memory exists
-                const existing = store.getMemoryById(parsed.id);
+                const existing = store.getMemory(parsed.space, parsed.name);
                 if (!existing) {
-                    throw new Error(`Memory with ID ${parsed.id} not found.`);
+                    throw new Error(`Memory "${parsed.name}" not found in space "${parsed.space}".`);
                 }
 
-                // Update name and/or content if provided
-                if (parsed.name !== undefined || parsed.content !== undefined) {
-                    await store.updateMemory(parsed.id, {
-                        name: parsed.name,
+                // Update name (rename) and/or content if provided
+                if (parsed.newName !== undefined || parsed.content !== undefined) {
+                    await store.updateMemory(existing.id, {
+                        name: parsed.newName,
                         content: parsed.content,
                     });
                 }
 
                 // Replace tags if provided (per task: tags replaces entire array)
                 if (parsed.tags !== undefined) {
-                    store.setMemoryTags(parsed.id, parsed.tags);
+                    store.setMemoryTags(existing.id, parsed.tags);
                 }
 
-                const memory = store.getMemoryById(parsed.id);
+                const memory = store.getMemoryById(existing.id);
                 return {
                     content: [{ type: 'text', text: `Memory updated successfully.` }],
-                    memory,
+                    memory: memory ? stripId(memory) : undefined,
                 };
             },
         },
@@ -175,9 +196,9 @@ export function createMemoryTools(store: MindStore) {
                     const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
 
                     const links_to = linkedSummaries.links_to.map((l) => ({
-                        id: l.id,
                         name: l.name,
                         space: l.space_name,
+                        ref: `${l.space_name}:${l.name}`,
                         tier: l.tier,
                         tags: l.tags,
                         pinned: l.pinned,
@@ -185,9 +206,9 @@ export function createMemoryTools(store: MindStore) {
                     }));
 
                     const linked_by = linkedSummaries.linked_by.map((l) => ({
-                        id: l.id,
                         name: l.name,
                         space: l.space_name,
+                        ref: `${l.space_name}:${l.name}`,
                         tier: l.tier,
                         tags: l.tags,
                         pinned: l.pinned,
@@ -196,7 +217,7 @@ export function createMemoryTools(store: MindStore) {
 
                     return {
                         content: [{ type: 'text', text: `Memory "${parsed.name}" read (no promotion).` }],
-                        memory,
+                        memory: stripId(memory),
                         links_to,
                         linked_by,
                         tier_change: null,
@@ -247,9 +268,9 @@ export function createMemoryTools(store: MindStore) {
                 const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
 
                 const links_to = linkedSummaries.links_to.map((l) => ({
-                    id: l.id,
                     name: l.name,
                     space: l.space_name,
+                    ref: `${l.space_name}:${l.name}`,
                     tier: l.tier,
                     tags: l.tags,
                     pinned: l.pinned,
@@ -257,9 +278,9 @@ export function createMemoryTools(store: MindStore) {
                 }));
 
                 const linked_by = linkedSummaries.linked_by.map((l) => ({
-                    id: l.id,
                     name: l.name,
                     space: l.space_name,
+                    ref: `${l.space_name}:${l.name}`,
                     tier: l.tier,
                     tags: l.tags,
                     pinned: l.pinned,
@@ -268,7 +289,7 @@ export function createMemoryTools(store: MindStore) {
 
                 return {
                     content: [{ type: 'text', text: `Memory "${parsed.name}" read. Auto-promoted if applicable.` }],
-                    memory: updatedMemory,
+                    memory: updatedMemory ? stripId(updatedMemory) : undefined,
                     links_to,
                     linked_by,
                     tier_change,

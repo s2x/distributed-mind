@@ -9,7 +9,8 @@ export const spaceRoutes: RouteDefinition[] = [
         handle: ({ url, store, json }) => {
             const tagRaw = url.searchParams.get('tag');
             const tag = tagRaw ? normalizeTag(tagRaw) : undefined;
-            return json(store.listSpaces(tag ? { tag } : undefined));
+            const includeHidden = url.searchParams.get('includeHidden') === 'true';
+            return json(store.listSpaces({ tag, includeHidden }));
         },
     },
     {

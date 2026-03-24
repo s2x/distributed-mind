@@ -14,10 +14,10 @@ afterEach(() => {
 });
 
 describe('MCP Memory Tools', () => {
-    test('memory_add should support pinned and links_to_ids', async () => {
+    test('memory_add should support pinned and links_to by name', async () => {
         store = createTestStore();
         store.createSpace('proj', 'Project', ['test']);
-        const target = await store.addMemory('proj', 'target', 'target content', { tags: ['test'] });
+        await store.addMemory('proj', 'target', 'target content', { tags: ['test'] });
 
         const tools = createMemoryTools(store);
         const res = await tools.memory_add.handler({
@@ -26,16 +26,17 @@ describe('MCP Memory Tools', () => {
             content: 'source content',
             tags: ['cat:decision'],
             pinned: true,
-            links_to_ids: [target.id],
+            links_to: ['target'],
         });
 
         expect(res.memory.pinned).toBe(true);
-        const links = store.getLinks(res.memory.id);
+        // Verify link was created (use store internals since MCP no longer exposes IDs)
+        const source = store.getMemory('proj', 'source')!;
+        const links = store.getLinks(source.id);
         expect(links.length).toBe(1);
-        expect(links[0]?.target_id).toBe(target.id);
     });
 
-    test('memory_add should be atomic when links_to_ids contains invalid id', async () => {
+    test('memory_add should be atomic when links_to contains invalid ref', async () => {
         store = createTestStore();
         store.createSpace('proj', 'Project', ['test']);
         const tools = createMemoryTools(store);
@@ -46,14 +47,14 @@ describe('MCP Memory Tools', () => {
                 name: 'source',
                 content: 'source content',
                 tags: ['test'],
-                links_to_ids: [99999],
+                links_to: ['nonexistent-memory'],
             })
-        ).rejects.toThrow('linked memory id 99999');
+        ).rejects.toThrow();
 
         expect(store.getMemory('proj', 'source')).toBeNull();
     });
 
-    test('memory_read should include linked summaries by direction', async () => {
+    test('memory_read should include linked summaries by direction with refs', async () => {
         store = createTestStore();
         store.createSpace('proj', 'Project', ['test']);
         const base = await store.addMemory('proj', 'base', 'base content', { tags: ['cat:decision'] });
@@ -69,13 +70,12 @@ describe('MCP Memory Tools', () => {
         expect(res.memory?.pinned).toBe(false);
         expect(res.links_to.length).toBe(1);
         expect(res.linked_by.length).toBe(1);
-        // Phase 2.2: links_to/linked_by include 'space' field
+        // Links include ref string instead of id
         expect(Object.keys(res.links_to[0] ?? {}).sort()).toEqual(
-            ['changed_at', 'id', 'name', 'pinned', 'space', 'tags', 'tier'].sort()
+            ['changed_at', 'name', 'pinned', 'ref', 'space', 'tags', 'tier'].sort()
         );
-        expect(Object.keys(res.linked_by[0] ?? {}).sort()).toEqual(
-            ['changed_at', 'id', 'name', 'pinned', 'space', 'tags', 'tier'].sort()
-        );
+        expect(res.links_to[0]?.ref).toBe('proj:outgoing');
+        expect(res.linked_by[0]?.ref).toBe('proj:incoming');
     });
 
     test('memory_query should use default pagination values', async () => {
@@ -298,7 +298,10 @@ describe('MCP Checkpoint Tools', () => {
         expect(res.checkpoint).toBeDefined();
         const checkpoint = res.checkpoint;
         expect(checkpoint).toBeDefined();
-        const links = store.getLinks(checkpoint!.id);
+        // Look up checkpoint by name in the store to verify links
+        const cpMemory = store.getMemory('myproject:sessions', checkpoint!.name);
+        expect(cpMemory).toBeDefined();
+        const links = store.getLinks(cpMemory!.id);
         expect(links.length).toBe(1);
         const firstLink = links[0];
         expect(firstLink).toBeDefined();

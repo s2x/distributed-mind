@@ -94,7 +94,7 @@ export function createSpaceTools(store: MindStore) {
                 if (!space) {
                     throw new Error(`Space "${parsed.name}" does not exist.`);
                 }
-                const hot_memories = store.getHotMemories(parsed.name);
+                const hot_memories = store.getHotMemories(parsed.name).map(({ id, ...rest }) => rest);
                 return {
                     content: [{ type: 'text', text: `Space: ${space.name}` }],
                     space,

@@ -46,7 +46,6 @@ checkpoint_load({
 // MCP tool: checkpoint_done
 checkpoint_done({
     space: 'my-project',
-    checkpointId: 1,
     summary: 'Added JWT validation, fixed session expiry check',
 });
 ```
