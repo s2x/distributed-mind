@@ -27,6 +27,8 @@ Example:
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-24
+
 ### MCP Redesign
 - Reduced from 30 to 20 tools
 - Tags now required on space.create and memory.add
