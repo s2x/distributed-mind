@@ -487,13 +487,14 @@ export const MindAutomationPlugin = async (ctx) => {
 
         checkpointForEvent(payload, 'Pre-compaction checkpoint capture and signal preservation');
         const recovered = recoverCheckpointContext(getProjectSpace(ctx));
+        const escaped = (recovered ?? '').replace(/\n/g, '\\n');
 
         if (Array.isArray(output?.context)) {
           output.context.push(
             '## mind Prudent Continuity',
             '- Before compaction: key context was checkpointed using mind checkpoint set.',
             '- After compaction: recover with \`checkpoint recover <project-space> --history\` if needed.',
-            recovered ? '\nRecovered context snapshot:\n' + recovered : '\nRecovered context snapshot unavailable; follow manual mind protocol.'
+            escaped ? '\\\\nRecovered context snapshot:\\\\n' + escaped : '\\\\nRecovered context snapshot unavailable; follow manual mind protocol.'
           );
         }
       } catch {
@@ -519,13 +520,14 @@ export const MindAutomationPlugin = async (ctx) => {
         const lastIdx = output.system.length - 1;
         const projectSpace = getProjectSpace(ctx);
         const recovered = recoverCheckpointContext(projectSpace);
+        const escaped = (recovered ?? '').replace(/\n/g, '\\n');
 
-        if (recovered) {
+        if (escaped) {
           state.handled[dedupeKey] = Date.now();
-          output.system[lastIdx] += '\n\n' + recovered;
+          output.system[lastIdx] += '\\n\\n' + escaped;
         } else {
           state.handled[dedupeKey] = Date.now();
-          output.system[lastIdx] += '\n\n' + RECOVERY_TEXT;
+          output.system[lastIdx] += '\\n\\n' + RECOVERY_TEXT;
         }
       } catch {
         // Non-blocking fallback: protocol instructions remain available.
