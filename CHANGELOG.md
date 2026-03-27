@@ -27,6 +27,8 @@ Example:
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-03-27
+
 ### Fixed
 - Fixed checkpoint recovery context rendering in Claude Code L3 hooks — newlines in recovered context are now properly escaped to prevent Markdown formatting issues.
 
