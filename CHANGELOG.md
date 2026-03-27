@@ -27,6 +27,9 @@ Example:
 
 ## [Unreleased]
 
+### Fixed
+- Fixed checkpoint recovery context rendering in Claude Code L3 hooks — newlines in recovered context are now properly escaped to prevent Markdown formatting issues.
+
 ## [1.2.0] - 2026-03-24
 
 ### MCP Redesign
