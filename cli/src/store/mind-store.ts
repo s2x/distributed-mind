@@ -60,7 +60,8 @@ export interface MindStore {
     /**
      * List memories in a space.
      * Default (no tier filter): returns T1 + T2 only.
-     * T4 is never returned by list — use search to find frozen memories.
+     * Passing tier 3 will return T3 memories.
+     * T4 has been removed — listing with tier=3 or no filter only.
      */
     listMemories(space: string, filter?: { tier?: Tier; tag?: string }): MemorySummary[];
     /**
@@ -88,14 +89,14 @@ export interface MindStore {
 
     // Tiers
     /**
-     * Promote memory one tier up (T4→T3, T3→T2, T2→T1).
+     * Promote memory one tier up (T3→T2, T2→T1).
      * Evicts LRU non-pinned from destination if full.
      * Throws if already at T1 or destination is full and all are pinned.
      */
     promote(id: number): void;
     /**
-     * Demote memory one tier down (T1→T2, T2→T3, T3→T4).
-     * Throws if already at T4.
+     * Demote memory one tier down (T1→T2, T2→T3).
+     * Throws if already at lowest tier (T3).
      */
     demote(id: number): void;
     pin(id: number): void;
@@ -106,7 +107,7 @@ export interface MindStore {
     unlink(sourceId: number, targetId: number): void;
     getLinks(memoryId: number): Link[];
 
-    // Search (T4 memories ARE included in search results)
+    // Search (T4 memories are no longer applicable - T3 is unlimited)
     // When RAG is enabled, returns FTS results merged with semantic similarity scores
     search(query: string, filter?: SearchFilter): Promise<SearchResult[]>;
 
@@ -116,7 +117,7 @@ export interface MindStore {
     // Query memories by metadata/date with pagination
     queryMemories(filter?: MemoryQueryFilter): MemorySummary[];
 
-    // Graph view (includes T1..T4)
+    // Graph view (includes T1..T3 only)
     getSpaceGraph(space: string, opts?: { limit?: number; maxLimit?: number }): SpaceGraphResult;
 
     // Status

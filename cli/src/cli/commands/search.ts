@@ -8,11 +8,11 @@ const p = ArgParser.param.bind(ArgParser);
 
 const SEARCH = new ArgParser(
     ['search|s', p('query')],
-    'Full-text search across all memories (including T4). Use term* for prefix match.',
+    'Full-text search across all memories. Use term* for prefix match.',
     [
         { name: 'space', hasValue: true, description: 'space name (e.g. projects/api)' },
         { name: 'tag', hasValue: true, description: 'tag without # (e.g. backend)' },
-        { name: 'tier', hasValue: true, description: '1|2|3|4' },
+        { name: 'tier', hasValue: true, description: '1|2|3' },
         { name: 'detail', hasValue: false, description: 'show content + changed date' },
     ]
 );
@@ -20,7 +20,7 @@ const SEARCH = new ArgParser(
 const QUERY = new ArgParser(['query|q'], 'Query memories by metadata/date with pagination.', [
     { name: 'space', hasValue: true, description: 'space name (e.g. Credentials)' },
     { name: 'tag', hasValue: true, description: 'tag without # (e.g. backend)' },
-    { name: 'tier', hasValue: true, description: '1|2|3|4' },
+    { name: 'tier', hasValue: true, description: '1|2|3' },
     { name: 'from', hasValue: true, description: 'YYYY-MM-DD or ISO datetime' },
     { name: 'to', hasValue: true, description: 'YYYY-MM-DD or ISO datetime' },
     { name: 'limit', hasValue: true, description: 'page size (default: 25)' },
@@ -70,8 +70,8 @@ export const searchGroup: CommandGroup = {
                 const effectiveLimit = limit ?? 25;
                 const effectiveOffset = offset ?? 0;
 
-                if (tier !== undefined && (tier < 1 || tier > 4)) {
-                    throw new Error('--tier must be between 1 and 4.');
+                if (tier !== undefined && (tier < 1 || tier > 3)) {
+                    throw new Error('--tier must be between 1 and 3.');
                 }
                 if (limit !== undefined && Number.isNaN(limit)) {
                     throw new Error('--limit must be a valid number.');

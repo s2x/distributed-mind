@@ -28,11 +28,10 @@ function renderStatus(store: MindStore, logger: Logger, space?: string): void {
     logger.logInfo('   Tier           Count  Pinned  Limit');
     logger.logInfo('   ─────────────────────────────────────');
 
-    const tierRows: { icon: string; label: string; limit: string; tier: 1 | 2 | 3 | 4 }[] = [
+    const tierRows: { icon: string; label: string; limit: string; tier: 1 | 2 | 3 }[] = [
         { tier: 1, icon: '🔴', label: 'T1 hot    ', limit: `${TIER_LIMITS[1]}/space` },
         { tier: 2, icon: '🟡', label: 'T2 warm   ', limit: `${TIER_LIMITS[2]}/space` },
-        { tier: 3, icon: '🔵', label: 'T3 cold   ', limit: `${TIER_LIMITS[3]}/space` },
-        { tier: 4, icon: '💠', label: 'T4 frozen ', limit: '—' },
+        { tier: 3, icon: '🔵', label: 'T3 cold   ', limit: 'unlimited' },
     ];
 
     for (const row of tierRows) {

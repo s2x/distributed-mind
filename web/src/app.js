@@ -26,8 +26,8 @@ import {
     shouldCloseMemoryPanelOnClick,
 } from './features/memory-panel/interactions.js';
 
-/** @typedef {{ id:number, name:string, tier:1|2|3|4, pinned:boolean, access_count:number, tags?:string[] }} MemorySummary */
-/** @typedef {{ id:number, space_name:string, name:string, content:string, tier:1|2|3|4, pinned:boolean, tags?:string[] }} Memory */
+/** @typedef {{ id:number, name:string, tier:1|2|3, pinned:boolean, access_count:number, tags?:string[] }} MemorySummary */
+/** @typedef {{ id:number, space_name:string, name:string, content:string, tier:1|2|3, pinned:boolean, tags?:string[] }} Memory */
 /** @typedef {{ name:string, description?:string, tags?:string[], memory_count?:number, hidden?:boolean }} Space */
 /** @typedef {{ logs: any[], total: number, limit: number, offset: number }} LogsResult */
 
@@ -48,6 +48,7 @@ let state = {
     graph: null,
     graphFocusNodeId: null,
     graphTransform: { scale: 1, tx: 0, ty: 0 },
+    lastAppliedScale: null, // Track last scale for label update optimization
     // Logs state
     logsActive: false,
     logs: [],
@@ -108,9 +109,9 @@ const elBtnClearLogs = $('btn-clear-logs');
 const elBtnLoadMoreLogs = $('btn-load-more-logs');
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
-const TIER_LABEL = { 1: 'T1 — Hot', 2: 'T2 — Warm', 3: 'T3 — Cold', 4: 'T4 — Frozen' };
-const TIER_CLASS = { 1: 't1', 2: 't2', 3: 't3', 4: 't4' };
-const TIER_LIMITS = { 1: 25, 2: 50, 3: 100, 4: null }; // null = unlimited
+const TIER_LABEL = { 1: 'T1 — Hot', 2: 'T2 — Warm', 3: 'T3 — Cold' };
+const TIER_CLASS = { 1: 't1', 2: 't2', 3: 't3' };
+const TIER_LIMITS = { 1: 25, 2: 50, 3: null }; // null = unlimited
 const GRAPH_SCALE_MIN = 0.45;
 const GRAPH_SCALE_MAX = 4.5;
 const GRAPH_LABEL_BASE = 11;
@@ -122,7 +123,6 @@ const ICON_TIER = {
     1: `<svg class="tier-icon tier-icon-1" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#ff7b72"/></svg>`,
     2: `<svg class="tier-icon tier-icon-2" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#e3b341"/></svg>`,
     3: `<svg class="tier-icon tier-icon-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#79c0ff"/></svg>`,
-    4: `<svg class="tier-icon tier-icon-4" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#8b949e"/></svg>`,
 };
 const ICON_PIN = `<svg class="icon-pin" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="4" y="2" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 8v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 const ICON_CLOSE = `<svg class="icon-close" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
@@ -150,7 +150,7 @@ function appendStatusTierPill(tier, value) {
 function renderStatusPlaceholder() {
     elStatusSpaces.textContent = '-';
     elStatusTiers.innerHTML = '';
-    for (const tier of [1, 2, 3, 4]) {
+    for (const tier of [1, 2, 3]) {
         appendStatusTierPill(tier, '-');
     }
 }
@@ -295,7 +295,6 @@ function renderGraph() {
         { tier: 1, radius: 130, color: '#ff7b72' },
         { tier: 2, radius: 230, color: '#e3b341' },
         { tier: 3, radius: 330, color: '#79c0ff' },
-        { tier: 4, radius: 430, color: '#8b949e' },
     ];
 
     for (const ring of rings) {
@@ -438,7 +437,7 @@ function graphTierColor(tier) {
     if (tier === 1) return '#ff7b72';
     if (tier === 2) return '#e3b341';
     if (tier === 3) return '#79c0ff';
-    return '#8b949e';
+    throw new Error('Invalid tier: ' + tier);
 }
 
 function applyGraphTransform() {
@@ -446,7 +445,11 @@ function applyGraphTransform() {
     if (!transformGroup) return;
     const { scale, tx, ty } = state.graphTransform;
     transformGroup.setAttribute('transform', `translate(${tx} ${ty}) scale(${scale})`);
-    updateGraphLabels(scale);
+    // Only recalculate labels if the scale actually changed
+    if (scale !== state.lastAppliedScale) {
+        updateGraphLabels(scale);
+        state.lastAppliedScale = scale;
+    }
 }
 
 function updateGraphLabels(scale) {
@@ -758,6 +761,7 @@ async function selectSpace(name, options = {}) {
     state.memories = memories;
     state.graph = graph;
     state.graphTransform = { scale: 1, tx: 0, ty: 0 };
+    state.lastAppliedScale = null;
 
     showPanel('space');
     renderSpaceList();
@@ -879,6 +883,7 @@ $('btn-graph-zoom-out').addEventListener('click', () => {
 
 $('btn-graph-reset').addEventListener('click', () => {
     state.graphTransform = { scale: 1, tx: 0, ty: 0 };
+    state.lastAppliedScale = null;
     applyGraphTransform();
 });
 

@@ -57,7 +57,7 @@ export interface Link {
     created_at: string;
 }
 
-export type Tier = 1 | 2 | 3 | 4;
+export type Tier = 1 | 2 | 3;
 
 export interface TierChange {
     from: Tier;
@@ -110,7 +110,7 @@ export interface StatusResult {
     db_size_bytes: number;
     total_spaces: number;
     total_memories: number;
-    /** Always contains entries for all 4 tiers, even if count is 0 */
+    /** Always contains entries for all 3 tiers, even if count is 0 */
     by_tier: { tier: Tier; count: number; pinned: number }[];
     /** RAG / embeddings info */
     rag_enabled: boolean;

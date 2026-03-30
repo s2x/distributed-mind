@@ -28,10 +28,9 @@ export const CONFIG = {
 
 /**
  * Max non-pinned memories per space per tier.
- * T4 is unlimited (not included here).
+ * T3 is unlimited (not included here).
  */
-export const TIER_LIMITS: Record<1 | 2 | 3, number> = {
+export const TIER_LIMITS: Record<1 | 2, number> = {
     1: 25,
     2: 50,
-    3: 100,
 };

@@ -311,13 +311,6 @@
     animation: neon-pulse 3s ease-in-out infinite;
 }
 
-.tier-heading.tier-4 {
-    color: var(--tier4);
-    border-color: color-mix(in srgb, var(--tier4) 25%, transparent);
-    box-shadow: 0 2px 0 var(--tier4), 0 0 4px var(--tier4), 0 0 8px rgba(139,148,158,0.4);
-    animation: neon-pulse 3s ease-in-out infinite;
-}
-
 /* ── Memory list ──────────────────────────────────────────────────────────── */
 .memory-list {
     list-style: none;
@@ -460,11 +453,6 @@
 .tier-badge.t3 {
     color: var(--tier3);
     background: color-mix(in srgb, var(--tier3) 15%, transparent);
-}
-
-.tier-badge.t4 {
-    color: var(--tier4);
-    background: color-mix(in srgb, var(--tier4) 15%, transparent);
 }
 
 .mem-content {
@@ -746,6 +734,11 @@
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
+    will-change: transform;
+}
+
+#graph-transform {
+    will-change: transform;
 }
 
 #graph-svg:active {
@@ -770,10 +763,6 @@
 
 .node-t3 {
     filter: drop-shadow(0 0 5px var(--tier3)) drop-shadow(0 0 10px rgba(121,192,255,0.3));
-}
-
-.node-t4 {
-    filter: drop-shadow(0 0 4px var(--tier4)) drop-shadow(0 0 8px rgba(139,148,158,0.25));
 }
 
 .node-focused {
@@ -934,11 +923,6 @@
 .status-tier-pill.t3 {
     border-color: color-mix(in srgb, var(--tier3) 40%, transparent);
     color: var(--tier3);
-}
-
-.status-tier-pill.t4 {
-    border-color: color-mix(in srgb, var(--tier4) 40%, transparent);
-    color: var(--tier4);
 }
 
 /* ── Logs page ─────────────────────────────────────────────────────────────── */

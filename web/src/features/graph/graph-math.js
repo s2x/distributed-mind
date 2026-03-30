@@ -6,7 +6,7 @@ const TWO_PI = Math.PI * 2;
 /** @typedef {{ factor:number, anchorX:number, anchorY:number, minScale:number, maxScale:number }} ZoomOptions */
 /** @typedef {{ id:number, tier?:number, links_to:number[], linked_by:number[] }} GraphNode */
 /** @typedef {{ x:number, y:number }} Point */
-/** @typedef {{ centerX?:number, centerY?:number, tierRadius?:Record<1|2|3|4, number> }} LayoutOptions */
+/** @typedef {{ centerX?:number, centerY?:number, tierRadius?:Record<1|2|3, number> }} LayoutOptions */
 
 /** @param {number} value @param {number} min @param {number} max */
 function clamp(value, min, max) {
@@ -100,22 +100,24 @@ function buildNeighborhoodFocus(nodes, selectedNodeId) {
 function layoutGraph(nodes, options = {}) {
     const centerX = options.centerX ?? 500;
     const centerY = options.centerY ?? 500;
-    const tierRadius = options.tierRadius ?? { 1: 130, 2: 230, 3: 330, 4: 430 };
-    /** @type {Record<1|2|3|4, GraphNode[]>} */
-    const byTier = { 1: [], 2: [], 3: [], 4: [] };
+    const tierRadius = options.tierRadius ?? { 1: 130, 2: 230, 3: 330 };
+    /** @type {Record<1|2|3, GraphNode[]>} */
+    const byTier = { 1: [], 2: [], 3: [] };
 
     for (const node of nodes) {
-        if (node.tier !== 1 && node.tier !== 2 && node.tier !== 3 && node.tier !== 4) continue;
-        const tierKey = /** @type {1|2|3|4} */ (node.tier);
+        if (node.tier !== 1 && node.tier !== 2 && node.tier !== 3) {
+            throw new Error('Invalid tier: ' + node.tier);
+        }
+        const tierKey = /** @type {1|2|3} */ (node.tier);
         byTier[tierKey].push(node);
     }
 
     /** @type {Map<number, any>} */
     const positions = new Map();
-    for (const tier of [1, 2, 3, 4]) {
-        const tierNodes = byTier[/** @type {1|2|3|4} */ (tier)];
+    for (const tier of [1, 2, 3]) {
+        const tierNodes = byTier[/** @type {1|2|3} */ (tier)];
         if (tierNodes.length === 0) continue;
-        placeTierNodes(tierNodes, tierRadius[/** @type {1|2|3|4} */ (tier)], centerX, centerY, positions);
+        placeTierNodes(tierNodes, tierRadius[/** @type {1|2|3} */ (tier)], centerX, centerY, positions);
     }
 
     return positions;

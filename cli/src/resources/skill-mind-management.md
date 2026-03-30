@@ -258,14 +258,12 @@ Mind uses a CPU-cache-style tier system. Understanding it helps you organize kno
 |------|------|---------|-----------------|
 | T1 | hot | Critical active context | 25 |
 | T2 | warm | Default for new memories | 50 |
-| T3 | cold | Reference, past patterns | 100 |
-| T4 | frozen | Archive, search-only | unlimited |
+| T3 | cold | Reference, past patterns | unlimited |
 
 **Key behaviors:**
 - New memories start at T2 (warm) unless you specify a tier
-- `memory_read` auto-promotes one tier up (T4→T3→T2→T1)
+- `memory_read` auto-promotes one tier up (T3→T2→T1)
 - When a tier is full, the least-recently-used memory is evicted down
-- T4 memories are only findable via `search` — invisible to `memory_query`
 - `pinned` memories are immune to promotion and eviction
 
 **Practical guidance:**
@@ -289,7 +287,7 @@ Mind uses a CPU-cache-style tier system. Understanding it helps you organize kno
 | `memory_read` | Read memory content + links (+ auto-promote tier). Use `noPromote:true` for read without side effects. |
 | `memory_update` | Update name, content, or replace tags |
 | `memory_delete` | Delete memory + all its links |
-| `search` | Full-text search (FTS5). Only way to find T4 memories. Space required, use `"*"` for all. |
+| `search` | Full-text search (FTS5). Finds all memories including cold tier. Space required, use `"*"` for all. |
 | `memory_query` | Query by metadata (tag, tier, date range). Space required, use `"*"` for all. |
 | `status` | Storage stats (counts per tier, links, spaces) |
 | `link_create` | Link two memories by ref (`space:name`). Add a label. |

@@ -472,12 +472,12 @@ describe('Command Executor — Status', () => {
         expect(logs.some((l) => l.message.includes('test'))).toBe(true);
     });
 
-    test('should reject --tier 4 when adding a memory', () => {
+    test('should reject --tier 4 when adding a memory (T4 has been removed)', () => {
         store = createTestStore();
         const logger = mockedLogger();
         store.createSpace('test', 'Test', ['test']);
 
-        expect(() => executeCommand(['add', 'test', 'frozen', 'content', '--tier', '4'], store, logger)).toThrow('T4');
+        expect(() => executeCommand(['add', 'test', 'frozen', 'content', '--tier', '4'], store, logger)).toThrow('must be 1, 2, or 3');
     });
 });
 

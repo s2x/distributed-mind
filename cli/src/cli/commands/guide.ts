@@ -17,18 +17,16 @@ function printGuide(logger: Logger, mode: string): void {
         logger.logInfo('');
         logger.logInfo(style('Data model:', ['bold']));
         logger.logInfo('  Space    Namespace with a name, description, and tags.');
-        logger.logInfo('  Memory   Key-value entry: name, content, tier (1–4), tags.');
+        logger.logInfo('  Memory   Key-value entry: name, content, tier (1–3), tags.');
         logger.logInfo('  Tier     🔴 T1 hot (25/space) → 🟡 T2 warm (50/space, default)');
-        logger.logInfo('           → 🔵 T3 cold (100/space) → 💠 T4 frozen (unlimited).');
+        logger.logInfo('           → 🔵 T3 cold (unlimited).');
         logger.logInfo('           Reading a non-pinned memory auto-promotes it one tier up.');
-        logger.logInfo('           T4 entries are only reachable via search, not list.');
         logger.logInfo('  Pin      Pinned memories are never auto-promoted or LRU-evicted.');
         logger.logInfo('  Link     Directional edge between two memories with a label.');
         logger.logInfo('');
         logger.logInfo(style('Best practices:', ['bold']));
-        logger.logInfo('  - Search before adding to avoid duplicates (search covers T4 too)');
+        logger.logInfo('  - Search before adding to avoid duplicates (search covers all tiers)');
         logger.logInfo('  - Pin critical memories to prevent auto-promotion and LRU eviction');
-        logger.logInfo('  - T4 memories are frozen but still searchable');
         logger.logInfo('  - Run mind help for the full command reference');
     } else {
         logger.logInfo(style('🧠 mind — User Guide', ['bold', 'magenta']));
@@ -39,8 +37,7 @@ function printGuide(logger: Logger, mode: string): void {
         logger.logInfo(style('Tiers (CPU-cache style):', ['bold']));
         logger.logInfo('  🔴 T1 hot    (25/space)  — Frequently accessed');
         logger.logInfo('  🟡 T2 warm   (50/space)  — Default for new memories');
-        logger.logInfo('  🔵 T3 cold   (100/space) — Rarely used');
-        logger.logInfo('  💠 T4 frozen (unlimited) — Archive; only reachable via search');
+        logger.logInfo('  🔵 T3 cold   (unlimited) — Archive');
         logger.logInfo('  Reading a memory auto-promotes it one tier up.');
         logger.logInfo('');
         logger.logInfo('Run mind help for the full command reference.');

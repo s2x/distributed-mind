@@ -6,7 +6,7 @@ import { regex } from './types';
 function parseTier(raw: string | null): Tier | undefined {
     if (!raw) return undefined;
     const n = Number(raw);
-    if (n >= 1 && n <= 4) return n as Tier;
+    if (n >= 1 && n <= 3) return n as Tier;
     return undefined;
 }
 
@@ -80,7 +80,7 @@ export const memoryRoutes: RouteDefinition[] = [
             };
 
             if (body.tier !== undefined && (body.tier < 1 || body.tier > 3)) {
-                return err('tier must be 1, 2, or 3. T4 is reserved for auto-eviction.', 400);
+                return err('tier must be 1, 2, or 3.', 400);
             }
 
             const tags = body.tags ? normalizeTags(body.tags) : undefined;

@@ -29,11 +29,11 @@ describe('Phase 1.1 — Type definitions', () => {
       expect(auto.reason).toBe('auto_promote');
     });
 
-    test('should allow all tier values 1-4 for from/to', () => {
-      const t1to4: TierChange = { from: 1, to: 4, reason: 'demote' };
-      const t4to1: TierChange = { from: 4, to: 1, reason: 'promote' };
-      expect(t1to4.from).toBe(1);
-      expect(t4to1.to).toBe(1);
+    test('should allow all tier values 1-3 for from/to', () => {
+      const t1to3: TierChange = { from: 1, to: 3, reason: 'demote' };
+      const t3to1: TierChange = { from: 3, to: 1, reason: 'promote' };
+      expect(t1to3.from).toBe(1);
+      expect(t3to1.to).toBe(1);
     });
   });
 

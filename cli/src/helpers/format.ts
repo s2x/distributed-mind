@@ -6,7 +6,6 @@ export const TIER_LABELS: Record<number, string> = {
     1: '🔴 T1 (hot)',
     2: '🟡 T2 (warm)',
     3: '🔵 T3 (cold)',
-    4: '💠 T4 (frozen)',
 };
 
 export function tierLabel(tier: number): string {

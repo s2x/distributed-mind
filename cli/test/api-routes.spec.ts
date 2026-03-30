@@ -17,25 +17,24 @@ async function requestJson(path: string): Promise<any> {
 }
 
 describe('API Routes — Space Graph', () => {
-    test('returns minimal graph payload including T4 memories', async () => {
+    test('returns minimal graph payload including T1-T3 memories', async () => {
         store = createTestStore();
         store.createSpace('proj', 'Project', ['test']);
 
         const t1 = await store.addMemory('proj', 'hot', 'h', { tier: 1, tags: ['test'] });
         const t2 = await store.addMemory('proj', 'warm', 'w', { tier: 2, tags: ['test'] });
-        const t4 = await store.addMemory('proj', 'frozen', 'f', { tier: 3, tags: ['test'] });
-        store.demote(t4.id); // T3 -> T4
+        const t3 = await store.addMemory('proj', 'cold', 'c', { tier: 3, tags: ['test'] });
 
         store.link(t1.id, t2.id);
-        store.link(t4.id, t1.id);
+        store.link(t3.id, t1.id);
 
         const payload = await requestJson('/api/spaces/proj/graph');
         expect(payload.meta.total_nodes).toBe(3);
         expect(payload.nodes).toHaveLength(3);
 
-        const frozenNode = payload.nodes.find((node: any) => node.id === t4.id);
-        expect(frozenNode).toBeTruthy();
-        expect(frozenNode.tier).toBe(4);
+        const coldNode = payload.nodes.find((node: any) => node.id === t3.id);
+        expect(coldNode).toBeTruthy();
+        expect(coldNode.tier).toBe(3);
 
         const firstNodeKeys = Object.keys(payload.nodes[0] ?? {}).sort();
         expect(firstNodeKeys).toEqual(['id', 'linked_by', 'links_to', 'name', 'tier']);

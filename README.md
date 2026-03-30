@@ -14,22 +14,22 @@ Mind is a Bun + TypeScript project that provides:
 - an **MCP server** for AI agent integration,
 - and a **web interface + API** for browsing and editing memory visually.
 
-All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags, links between memories, and a 4-tier memory model.
+All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags, links between memories, and a 3-tier memory model (T1 hot, T2 warm, T3 cold unlimited).
 
 ## How It Works (High Level)
 
 1. You write memories into named **spaces** (`projects/app`, `user/preferences`, etc).
 2. Mind stores them in SQLite with tags and metadata.
 3. You retrieve them with fast full-text search and filters.
-4. Memories are organized by tier (hot/warm/cold/frozen) and can auto-promote based on access.
+4. Memories are organized by tier (hot/warm/cold) and can auto-promote based on access.
 5. AI agents can use the same memory via MCP tools.
 
 ## Key Features
 
 - **Spaces + Memories**: structured memory namespaces.
-- **4-tier memory model**: T1 hot, T2 warm, T3 cold, T4 frozen.
+- **3-tier memory model**: T1 hot, T2 warm, T3 cold (unlimited).
 - **Tags + Links**: classify and connect related memories.
-- **Full-text search (FTS5)** across all memories (including archive tier).
+- **Full-text search (FTS5)** across all memories.
 - **Optional semantic search (RAG)** with OpenAI embeddings.
 - **MCP integration** for agent workflows.
 - **Web API + UI** for visual memory management.
@@ -122,7 +122,7 @@ mind serve stop
 In the web UI, each space now has a **Neural Map** view:
 
 - read-only graph per space
-- concentric rings by tier (**T1..T4**)
+- concentric rings by tier (**T1..T3**)
 - pan + zoom controls
 - node prominence based on connectivity (link degree)
 - click a node to fetch/show memory details via existing memory detail endpoint
@@ -140,7 +140,7 @@ Graph API endpoint used by the SPA:
 
 - `GET /api/spaces/:space/graph?limit=<n>`
 - returns minimal payload per node: `id`, `name`, `tier`, `links_to:number[]`, `linked_by:number[]`
-- includes T4 by default
+- includes all tiers by default
 - includes truncation metadata (`total_nodes`, `returned_nodes`, `requested_limit`, `applied_limit`, `max_limit`, `truncated`)
 
 ### MCP Server

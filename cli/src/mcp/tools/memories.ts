@@ -47,7 +47,7 @@ const MEMORY_TOOL_DESCRIPTIONS: Record<string, string> = {
     memory_update: 'Update a memory by space and name. Can rename (newName), replace content, or replace tags. If tags is provided, it replaces the entire existing tags array.',
     memory_delete: 'Delete a memory permanently by space and name. Also removes all links to/from this memory.',
     memory_read:
-        'Read a memory with its content and linked context (links_to + linked_by). By default, records access and auto-promotes the tier (T4→T3→T2→T1) — use this when actively working with a memory. Pass noPromote:true to inspect without side effects (no access count bump, no tier change).',
+        'Read a memory with its content and linked context (links_to + linked_by). By default, records access and auto-promotes the tier (T3→T2→T1) — use this when actively working with a memory. Pass noPromote:true to inspect without side effects (no access count bump, no tier change).',
 };
 
 // =============================================================================

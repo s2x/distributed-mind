@@ -6,7 +6,7 @@ This document describes the **mind** project: its architecture, behavior, techni
 
 ## 1. Project overview
 
-**mind** is a CLI tool for persistent long-term memory — tracking thoughts, ideas, tasks, and knowledge. Data is organized into named **spaces**, each containing **memories** with full-text search, tags, links, and a 4-tier CPU-cache-style access-frequency system.
+**mind** is a CLI tool for persistent long-term memory — tracking thoughts, ideas, tasks, and knowledge. Data is organized into named **spaces**, each containing **memories** with full-text search, tags, links, and a 3-tier CPU-cache-style access-frequency system.
 
 - **Runtime:** [Bun](https://bun.sh/)
 - **Language:** TypeScript (strict mode, ESNext)
@@ -74,7 +74,7 @@ Neural Map API/UI touchpoints:
 
 - `GET /api/spaces/:space/graph?limit=<n>` (implemented in memory routes)
 - `MindStore.getSpaceGraph(space, opts)` backed by SQLite implementation
-- SPA view toggle (`List` / `Neural Map`) with concentric tier rings (T1..T4), anchored pan/zoom (higher max zoom cap), deterministic best-effort overlap mitigation, truncated visible labels (25 chars + ellipsis), and click-to-fetch details via existing memory detail endpoint
+- SPA view toggle (`List` / `Neural Map`) with concentric tier rings (T1..T3), anchored pan/zoom (higher max zoom cap), deterministic best-effort overlap mitigation, truncated visible labels (25 chars + ellipsis), and click-to-fetch details via existing memory detail endpoint
 - SPA URL contract and state sync for space/view/memory: `/`, `/spaces/{encodedSpace}`, `view=list|map`, optional `memory={encodedMemory}`
 
 ### 2.3 Data model
@@ -83,15 +83,14 @@ Neural Map API/UI touchpoints:
 - **Space:** `{ name: string, description: string, hidden: boolean, tags: string[], created_at, updated_at }`. Identified by name (primary key).
 - **Hidden spaces:** Spaces can be marked hidden and are omitted from default `list`; include them with `list --hidden`.
 - **Checkpoints:** Session checkpoints are stored as tagged memories (`checkpoint` tag) in the same project space.
-- **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3|4, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at, changed_at }`. Identified by `(space_name, name)`.
+- **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at, changed_at }`. Identified by `(space_name, name)`.
 - **Tier system:**
     - 🔴 **T1 (hot)** — frequently accessed (limit: 25/space)
     - 🟡 **T2 (warm)** — default for new memories (limit: 50/space)
-    - 🔵 **T3 (cold)** — rarely used (limit: 100/space)
-    - 💠 **T4 (frozen)** — archive tier; unlimited capacity; only reachable via `search`, never via `list`
-    - Auto-promotion on CLI `read`: each read promotes one tier up (T4→T3, T3→T2, T2→T1). Skipped silently if pinned or if destination is full and all are pinned.
-    - **LRU eviction:** when a tier is full, the least-recently-used non-pinned memory is demoted one tier down (no cascading). T3 LRU evicts to T4 (unlimited). If all memories in a tier are pinned, `addMemory` and `promote` throw an error; `recordAccess` promotion silently skips.
-    - New memories can be added to T1, T2, or T3 only; `--tier 4` is rejected at the command level.
+    - 🔵 **T3 (cold)** — rarely used (unlimited capacity)
+    - Auto-promotion on CLI `read`: each read promotes one tier up (T3→T2, T2→T1). Skipped silently if pinned or if destination is full and all are pinned.
+    - **LRU eviction:** when a tier is full, the least-recently-used non-pinned memory is demoted one tier down (no cascading). T3 is unlimited, so no eviction from T3. If all memories in a tier are pinned, `addMemory` and `promote` throw an error; `recordAccess` promotion silently skips.
+    - New memories can be added to T1, T2, or T3 only.
     - **Pinned memories are immune to auto-promotion and LRU eviction.**
 - **Link:** Directional edge between two memories with a label (default: `"related"`). Stored as `(source_id, target_id, label)`.
 - **Tags:** Both spaces and memories can have multiple string tags. Tags are normalized on input: converted to lowercase, leading `#` stripped, validated against allowed characters (`a-z`, `0-9`, `-`, `_`, `.`, `:`, `/`, `=`, `+`, `@`). Tags cannot be empty or contain spaces. Displayed with `#` prefix in CLI output.
@@ -105,7 +104,7 @@ Neural Map API/UI touchpoints:
 | `meta`         | `key`, `value`                                                                                                                                                            | Tracks `schema_version`.                                         |
 | `spaces`       | `name` (PK), `description`, `hidden`, timestamps                                                                                                                          |                                                                  |
 | `space_tags`   | `space_name` (FK), `tag`                                                                                                                                                  | Cascades on space rename/delete.                                 |
-| `memories`     | `id` (PK), `space_name` (FK), `name`, `content`, `tier`, `pinned`, `access_count`, `last_accessed_at`, `embedding`, timestamps (`created_at`, `updated_at`, `changed_at`) | UNIQUE on `(space_name, name)`. Cascades on space delete/rename. |
+| `memories`     | `id` (PK), `space_name` (FK), `name`, `content`, `tier` (CHECK `tier BETWEEN 1 AND 3`), `pinned`, `access_count`, `last_accessed_at`, `embedding`, timestamps (`created_at`, `updated_at`, `changed_at`) | UNIQUE on `(space_name, name)`. Cascades on space delete/rename. |
 | `memory_tags`  | `memory_id` (FK), `tag`                                                                                                                                                   | Cascades on memory delete.                                       |
 | `links`        | `source_id` (FK), `target_id` (FK), `label`                                                                                                                               | No self-links. Cascades on memory delete.                        |
 | `memories_fts` | FTS5 virtual table: `name`, `content`                                                                                                                                     | Synced manually (no triggers).                                   |
@@ -115,7 +114,7 @@ Neural Map API/UI touchpoints:
 
 ## 3. Technical considerations
 
-- **Schema version:** Current schema is version 6. Existing v1 databases (tier `CHECK (tier BETWEEN 1 AND 3)`) are migrated automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds the `embedding BLOB` column. V3→V4 adds `changed_at` and backfills it from `updated_at`. V4→V5 adds `spaces.hidden` with default `0`. V5→V6 adds the `logs` table for operation auditing.
+- **Schema version:** Current schema is version 7. Existing v1 databases (tier `CHECK (tier BETWEEN 1 AND 3)`) are migrated automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds the `embedding BLOB` column. V3→V4 adds `changed_at` and backfills it from `updated_at`. V4→V5 adds `spaces.hidden` with default `0`. V5→V6 adds the `logs` table for operation auditing. V6→V7 removes T4 (frozen) tier; all T4 memories migrate to T3 which becomes unlimited.
 - **Bun:** The project is run and tested with Bun. Use `bun run`, `bun test`, and Bun's built-in TypeScript + SQLite support. No separate compile step.
 - **bun:sqlite FTS5 bug:** bun:sqlite (v1.2.10) cannot handle FTS5 `content=table` sync triggers — any UPDATE or DELETE on the source table errors with "N values for M columns". **Workaround:** `memories_fts` is a standalone FTS5 table (no `content=` option, no triggers). FTS is synced manually in `sqlite-store.ts` via `ftsInsert`, `ftsUpdate`, `ftsDelete` helpers called from `addMemory`, `updateMemory`, `deleteMemory`, `deleteMemoryByName`, `deleteSpace`, and `importFromJson`.
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
@@ -255,7 +254,7 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 | Help                | `help`                | `h`                                         | —                              | —                                                                     | List all commands.                                                                                                                                                              |
 | Create space        | `create`              | `c`                                         | `<space>` `<description>`      | `--tags`                                                              | Create a new space (comma-sep tags).                                                                                                                                            |
 | List spaces         | `list`                | `ls`, `l`                                   | —                              | `--tag`, `--hidden`                                                   | List all visible spaces by default (optionally include hidden).                                                                                                                 |
-| List memories       | `list`                | `ls`, `l`                                   | `<space>`                      | `--tier`, `--tag`                                                     | List T1+T2 memories in a space (use `--tier 3` for cold; `--tier 4` returns empty).                                                                                             |
+| List memories       | `list`                | `ls`, `l`                                   | `<space>`                      | `--tier`, `--tag`                                                     | List T1+T2 memories in a space (use `--tier 3` for cold).                                                                                             |
 | Delete space        | `delete`              | `d`                                         | `<space>`                      | —                                                                     | Delete a space and all its memories.                                                                                                                                            |
 | Rename space        | `rename`              | `rn`                                        | `<old>` `<new>`                | —                                                                     | Rename a space.                                                                                                                                                                 |
 | Describe space      | `describe`            | `ds`                                        | `<space>` `<description>`      | —                                                                     | Change a space's description.                                                                                                                                                   |
@@ -268,13 +267,13 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 | Remove memory       | `remove`              | `rm`                                        | `<space>` `<name>`             | —                                                                     | Remove a memory by name.                                                                                                                                                        |
 | Tag memory          | `tag`                 | `t`                                         | `<space>` `<name>` `<tag>`     | —                                                                     | Add a tag to a memory.                                                                                                                                                          |
 | Untag memory        | `untag`               | —                                           | `<space>` `<name>` `<tag>`     | —                                                                     | Remove a tag from a memory.                                                                                                                                                     |
-| Promote             | `promote`             | `up`                                        | `<space>` `<name>`             | —                                                                     | Move memory one tier up (T4→T3, T3→T2, T2→T1).                                                                                                                                  |
-| Demote              | `demote`              | `down`                                      | `<space>` `<name>`             | —                                                                     | Move memory one tier down (T1→T2, T2→T3, T3→T4).                                                                                                                                |
+| Promote             | `promote`             | `up`                                        | `<space>` `<name>`             | —                                                                     | Move memory one tier up (T3→T2, T2→T1).                                                                                                                                  |
+| Demote              | `demote`              | `down`                                      | `<space>` `<name>`             | —                                                                     | Move memory one tier down (T1→T2, T2→T3).                                                                                                                                |
 | Pin                 | `pin`                 | —                                           | `<space>` `<name>`             | —                                                                     | Pin a memory (immune to auto-promotion).                                                                                                                                        |
 | Unpin               | `unpin`               | —                                           | `<space>` `<name>`             | —                                                                     | Unpin a memory.                                                                                                                                                                 |     | Link | `link` | —   | `<source>` `<target>` | `--label` | Link two memories (`space/name` format). |
 | Unlink              | `unlink`              | —                                           | `<source>` `<target>`          | —                                                                     | Remove a link between memories.                                                                                                                                                 |
 | Show links          | `links`               | —                                           | `<space>` `<name>`             | —                                                                     | Show all links for a memory.                                                                                                                                                    |
-| Search              | `search`              | `s`                                         | `<query>`                      | `--space`, `--tag`, `--tier`, `--detail`                              | Full-text search across memories (includes T4). Default output includes memory ref, tier, and changed timestamp. `--detail` adds content preview. Use `term*` for prefix match. |
+| Search              | `search`              | `s`                                         | `<query>`                      | `--space`, `--tag`, `--tier`, `--detail`                              | Full-text search across memories. Default output includes memory ref, tier, and changed timestamp. `--detail` adds content preview. Use `term*` for prefix match. |
 | Query               | `query`               | `q`                                         | —                              | `--space`, `--tag`, `--tier`, `--from`, `--to`, `--limit`, `--offset` | Query memories by metadata/date with pagination (ordered by latest semantic memory changes).                                                                                    |
 | Status (global)     | `status`              | —                                           | —                              | —                                                                     | Show storage info and per-tier breakdown.                                                                                                                                       |
 | Status (space)      | `status`              | —                                           | `<space>`                      | —                                                                     | Show tier breakdown for a specific space.                                                                                                                                       |
@@ -317,8 +316,8 @@ The MCP server exposes 20 tools for agent integration:
 
 | Tool      | Description                                                               |
 | --------- | ------------------------------------------------------------------------- |
-| `search`  | Full-text search with flexible parser (FTS5 → LIKE → embeddings fallback); includes T4 |
-| `memory.query` | Unified memory listing; always includes T4                            |
+| `search`  | Full-text search with flexible parser (FTS5 → LIKE → embeddings fallback) |
+| `memory.query` | Unified memory listing                                               |
 
 #### Links (2 tools)
 
@@ -374,8 +373,7 @@ When using mind via MCP, follow these conventions:
 
 - T1 (hot) — critical active info
 - T2 (warm) — default for new memories
-- T3 (cold) — reference info
-- T4 (frozen) — archive (only via search)
+- T3 (cold) — unlimited
 
 **Continuity rule:** link directly relevant memories for recovery continuity. `memory_add` with `links_to` is atomic all-or-nothing.
 

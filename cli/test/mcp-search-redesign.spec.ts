@@ -115,25 +115,23 @@ describe('Phase 2.3: Search + memory.query Tools Redesign', () => {
     });
 
     // ==========================================================================
-    // memory.query — unified, always includes T4, space REQUIRED
+    // memory.query — unified, space REQUIRED
     // ==========================================================================
     describe('memory.query — unified query, space REQUIRED', () => {
-        test('2.3.8 memory.query with space: "*" returns ALL memories including T4', async () => {
+        test('2.3.8 memory.query with space: "*" returns ALL memories including T3', async () => {
             // Add T1 memory
             await store.addMemory('projects/mind', 'hot', 'Hot content', { tier: 1, tags: ['test'] });
             // Add T2 memory
             await store.addMemory('projects/mind', 'warm', 'Warm content', { tier: 2, tags: ['test'] });
             // Add T3 memory
             await store.addMemory('projects/mind', 'cold', 'Cold content', { tier: 3, tags: ['test'] });
-            // Add T4 memory (frozen)
-            await store.addMemory('projects/mind', 'frozen', 'Frozen content', { tier: 4, tags: ['test'] });
 
             const tools = createSearchTools(store);
             const res = await tools.memory_query.handler({ space: '*' });
 
-            expect(res.memories.length).toBe(4);
+            expect(res.memories.length).toBe(3);
             const tiers = res.memories.map((m: any) => m.tier).sort();
-            expect(tiers).toEqual([1, 2, 3, 4]);
+            expect(tiers).toEqual([1, 2, 3]);
         });
 
         test('2.3.9 memory.query with space: "projects/mind" filters to that space', async () => {
@@ -147,14 +145,14 @@ describe('Phase 2.3: Search + memory.query Tools Redesign', () => {
             expect(res.memories[0].space_name).toBe('projects/mind');
         });
 
-        test('2.3.10 memory.query includes T4 (frozen) memories in results', async () => {
-            // Add T4 memory (frozen - normally not returned by list)
-            await store.addMemory('projects/mind', 'archived', 'Archived content', { tier: 4, tags: ['test'] });
+        test('2.3.10 memory.query includes T3 memories in results', async () => {
+            // Add T3 memory
+            await store.addMemory('projects/mind', 'archived', 'Archived content', { tier: 3, tags: ['test'] });
 
             const tools = createSearchTools(store);
             const res = await tools.memory_query.handler({ space: 'projects/mind' });
 
-            expect(res.memories.some((m: any) => m.tier === 4)).toBe(true);
+            expect(res.memories.some((m: any) => m.tier === 3)).toBe(true);
         });
 
         test('memory.query without space throws "space is required"', async () => {

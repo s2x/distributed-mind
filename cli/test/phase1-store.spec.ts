@@ -16,7 +16,6 @@ describe('Phase 1.2 — MindStore interface: getHotMemories', () => {
         await store.addMemory('test', 'mem1', 'content', { tags: ['backend'], tier: 1 });
         await store.addMemory('test', 'mem2', 'content', { tags: ['frontend'], tier: 2 });
         await store.addMemory('test', 'mem3', 'content', { tags: ['archive'], tier: 3 });
-        await store.addMemory('test', 'mem4', 'content', { tags: ['old'], tier: 4 });
 
         const hot = (store as any).getHotMemories('test');
 
@@ -118,21 +117,18 @@ describe('Phase 1.2 — MindStore interface: resolveMemoryRef', () => {
 });
 
 describe('Phase 1.3 — SQLite store implementation: getHotMemories', () => {
-    test('getHotMemories returns T1 + T2 only (not T3/T4)', async () => {
+    test('getHotMemories returns T1 + T2 only (not T3)', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test space', ['test']);
         await store.addMemory('test', 't1', 'content', { tier: 1, tags: ['test'] });
         await store.addMemory('test', 't2', 'content', { tier: 2, tags: ['test'] });
         await store.addMemory('test', 't3', 'content', { tier: 3, tags: ['test'] });
-        const t4Mem = await store.addMemory('test', 't4', 'content', { tier: 3, tags: ['test'] });
-        store.demote(t4Mem.id); // → T4
 
         const hot = (store as any).getHotMemories('test');
         const names = hot.map((m: HotMemorySummary) => m.name).sort();
 
         expect(names).toEqual(['t1', 't2']);
         expect(names).not.toContain('t3');
-        expect(names).not.toContain('t4');
     });
 
     test('getHotMemories includes pinned status correctly', async () => {

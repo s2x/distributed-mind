@@ -60,9 +60,7 @@ export const memoriesGroup: CommandGroup = {
                     : ['untagged'];
                 const tier = flags.tier ? (parseInt(String(flags.tier)) as Tier) : undefined;
                 if (tier !== undefined && (tier < 1 || tier > 3)) {
-                    throw new Error(
-                        '--tier must be 1, 2, or 3 when adding a memory. T4 is reserved for auto-eviction.'
-                    );
+                    throw new Error('--tier must be 1, 2, or 3 when adding a memory.');
                 }
                 const memory = await store.addMemory(space, name, content, { tags, tier });
                 logger.logInfo(

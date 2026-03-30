@@ -24,7 +24,6 @@ html {
     --tier1: #ff7b72;
     --tier2: #e3b341;
     --tier3: #79c0ff;
-    --tier4: #8b949e;
 
     /* ── Semantic ── */
     --accent: var(--neon-cyan);

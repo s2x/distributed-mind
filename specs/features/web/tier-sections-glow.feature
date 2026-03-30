@@ -20,12 +20,6 @@ Feature: Tier Sections Cyberpunk Glow
     Then the heading should have a blue glowing underline
     And the glow should be 0 0 4px var(--tier3), 0 0 8px rgba(121,192,255,0.5)
 
-  Scenario: T4 tier heading has grey glow underline
-    Given the tier sections are displayed in list view
-    When the T4 heading renders
-    Then the heading should have a grey glowing underline
-    And the glow should be 0 0 4px var(--tier4), 0 0 8px rgba(139,148,158,0.4)
-
   Scenario: Memory item glows on hover
     Given a memory item is displayed in a tier list
     When the user hovers over the memory item

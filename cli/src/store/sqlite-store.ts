@@ -164,13 +164,13 @@ export function createSqliteStore(dbPath: string): MindStore {
     /**
      * Ensure a tier has capacity for one more memory.
      * If the tier is full, evicts the LRU non-pinned memory to the next tier (no cascading).
-     * T4 is unlimited — always returns true.
+     * T3 is unlimited — always returns true.
      * @param throwOnFull - if true, throws when tier is full and all are pinned; if false, returns false
      * @returns true if there is (or was made) capacity, false if no evictable memory
      */
     function ensureCapacity(space: string, tier: number, throwOnFull: boolean, touchChangedAt = true): boolean {
-        const limit = TIER_LIMITS[tier as 1 | 2 | 3];
-        if (limit === undefined) return true; // T4: unlimited
+        const limit = TIER_LIMITS[tier as 1 | 2];
+        if (limit === undefined) return true; // T3: unlimited
 
         const total = countTierTotal(space, tier);
         if (total < limit) return true; // room available
@@ -194,7 +194,7 @@ export function createSqliteStore(dbPath: string): MindStore {
             return false;
         }
 
-        // Evict LRU one tier down (no cascading — T3 LRU goes to T4 which is unlimited)
+        // Evict LRU one tier down (no cascading — T3 is unlimited, no eviction needed)
         const nextTier = tier + 1;
         const ts = now();
         if (touchChangedAt) {
@@ -364,7 +364,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         }
 
         const addMemoryTransaction = db.transaction(() => {
-            // Ensure capacity at target tier (evict LRU if needed); T4 is unlimited
+            // Ensure capacity at target tier (evict LRU if needed); T3 is unlimited
             ensureCapacity(space, tier, true);
 
             const ts = now();
@@ -441,9 +441,9 @@ export function createSqliteStore(dbPath: string): MindStore {
         }
 
         if (filter?.tier !== undefined) {
-            // Explicit tier filter: return only that tier (T4 returns empty since it's never listed)
+            // Explicit tier filter: T4 has been removed
             if (filter.tier === 4) {
-                return []; // T4 is never listed — use search instead
+                throw new Error('T4 has been removed; use tier 1, 2, or 3');
             }
             conditions.push('m.tier = ?');
             whereParams.push(filter.tier);
@@ -637,8 +637,8 @@ export function createSqliteStore(dbPath: string): MindStore {
 
         if (patch.tierTransition === 'demote') {
             const current = requireMemory(id) as any;
-            if (current.tier >= 4) {
-                throw new Error('Cannot demote memory: already at T4.');
+            if (current.tier >= 3) {
+                throw new Error('Cannot demote memory: already at the lowest tier.');
             }
         }
 
@@ -802,7 +802,7 @@ export function createSqliteStore(dbPath: string): MindStore {
 
     function demote(id: number): void {
         const row = requireMemory(id) as any;
-        if (row.tier >= 4) throw new Error('Memory is already at the lowest tier');
+        if (row.tier >= 3) throw new Error('Memory is already at the lowest tier');
         const ts = now();
         db.run('UPDATE memories SET tier = tier + 1, updated_at = ?, changed_at = ? WHERE id = ?', [ts, ts, id]);
     }
@@ -1294,7 +1294,7 @@ export function createSqliteStore(dbPath: string): MindStore {
         const normalizedRequestedLimit = Math.max(1, Math.trunc(requestedLimit));
         const appliedLimit = Math.min(normalizedRequestedLimit, Math.max(1, Math.trunc(maxLimit)));
 
-        const totalRow = db.query('SELECT COUNT(*) as total FROM memories WHERE space_name = ?').get(space) as {
+        const totalRow = db.query('SELECT COUNT(*) as total FROM memories WHERE space_name = ? AND tier < 4').get(space) as {
             total: number;
         };
         const totalNodes = totalRow.total;
@@ -1303,7 +1303,7 @@ export function createSqliteStore(dbPath: string): MindStore {
             .query(
                 `SELECT id, name, tier
                  FROM memories
-                 WHERE space_name = ?
+                 WHERE space_name = ? AND tier < 4
                  ORDER BY tier ASC, access_count DESC, name ASC
                  LIMIT ?`
             )
@@ -1381,8 +1381,8 @@ export function createSqliteStore(dbPath: string): MindStore {
             )
             .all(...spaceParams) as { tier: number; count: number; pinned: number }[];
 
-        // Always return all 4 tiers
-        const allTiers: Tier[] = [1, 2, 3, 4];
+        // Always return all 3 tiers
+        const allTiers: Tier[] = [1, 2, 3];
         const by_tier = allTiers.map((t) => {
             const row = tierRows.find((r) => r.tier === t);
             return { tier: t, count: row?.count ?? 0, pinned: row?.pinned ?? 0 };

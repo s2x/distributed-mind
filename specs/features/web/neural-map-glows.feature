@@ -20,12 +20,6 @@ Feature: Neural Map Cyberpunk Glows
     Then the node should have a blue glow at 60% intensity
     And the glow should be steady (no animation)
 
-  Scenario: T4 Frozen memory nodes have grey glow
-    Given the neural map is displayed
-    When a T4 (Frozen) memory node is rendered
-    Then the node should have a grey glow at 40% intensity
-    And the glow should be barely visible
-
   Scenario: Graph edges have subtle glow
     Given the neural map is displayed with edges
     When an edge between two nodes is rendered

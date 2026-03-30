@@ -6,13 +6,13 @@ const SearchSchema = z.object({
     query: z.string().min(1).describe('Search query using FTS5 syntax. Supports: quoted phrases ("exact match"), AND/OR/NOT operators, prefix matching (bug*).'),
     space: z.string().min(1).describe('Space to search in. Use "*" for all spaces.'),
     tag: z.string().optional().describe('Filter by tag.'),
-    tier: z.number().int().min(1).max(4).optional().describe('Filter by tier: 1, 2, 3, 4.'),
+    tier: z.number().int().min(1).max(3).optional().describe('Filter by tier: 1, 2, 3.'),
 });
 
 const MemoryQuerySchema = z.object({
     space: z.string().min(1).describe('Space to query. Use "*" for all spaces.'),
     tag: z.string().optional().describe('Filter by tag.'),
-    tier: z.number().int().min(1).max(4).optional().describe('Filter by tier: 1, 2, 3, 4.'),
+    tier: z.number().int().min(1).max(3).optional().describe('Filter by tier: 1, 2, 3.'),
     from: z.string().optional().describe('Changed date lower bound (YYYY-MM-DD).'),
     to: z.string().optional().describe('Changed date upper bound (YYYY-MM-DD).'),
     limit: z.number().int().min(1).max(500).optional().describe('Page size (default: 25).'),
@@ -24,8 +24,8 @@ const StatusSchema = z.object({
 });
 
 const SEARCH_TOOL_DESCRIPTIONS: Record<string, string> = {
-    search: 'Full-text search across all memories including T4 frozen ones. Use FTS5 syntax (e.g., "auth AND jwt", "bug*"). This is the only way to find T4 archived memories. Space is required; use "*" for all spaces.',
-    memory_query: 'Query memories by metadata/date with pagination. Always includes T4 frozen memories. Use space="*" for all spaces. Supports filtering by tag, tier, and date range.',
+    search: 'Full-text search across all memories. Use FTS5 syntax (e.g., "auth AND jwt", "bug*"). Space is required; use "*" for all spaces.',
+    memory_query: 'Query memories by metadata/date with pagination. Use space="*" for all spaces. Supports filtering by tag, tier, and date range.',
     status: 'Get storage status: memory counts per tier, space usage, and link totals. Use to understand current storage state before cleanup or reorganization.',
 };
 

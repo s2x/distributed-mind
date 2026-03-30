@@ -169,18 +169,17 @@ describe('MindStore — Memories', () => {
         await store.addMemory('test', 'hot', 'content', { tier: 1, tags: ['test'] });
         await store.addMemory('test', 'cold', 'content', { tier: 3, tags: ['test'] });
 
-        const cold = store.listMemories('test', { tier: 3, tags: ['test'] });
+        const cold = store.listMemories('test', { tier: 3, tag: 'test' });
         expect(cold.length).toBe(1);
         expect(cold[0]!.name).toBe('cold');
     });
 
-    test('should list memories — tier 4 returns empty', async () => {
+    test('should throw when listing memories with tier 4 (T4 has been removed)', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
         await store.addMemory('test', 'mem', 'content', { tier: 2, tags: ['test'] });
 
-        const t4 = store.listMemories('test', { tier: 4, tags: ['test'] });
-        expect(t4.length).toBe(0);
+        expect(() => store.listMemories('test', { tier: 4 })).toThrow('T4 has been removed');
     });
 
     test('should filter memories by tier', async () => {
@@ -189,7 +188,7 @@ describe('MindStore — Memories', () => {
         await store.addMemory('test', 'hot', 'content', { tier: 1, tags: ['test'] });
         await store.addMemory('test', 'warm', 'content', { tier: 2, tags: ['test'] });
 
-        const tier1 = store.listMemories('test', { tier: 1, tags: ['test'] });
+        const tier1 = store.listMemories('test', { tier: 1, tag: 'test' });
         expect(tier1.length).toBe(1);
         expect(tier1[0]!.name).toBe('hot');
     });
@@ -270,20 +269,19 @@ describe('MindStore — Tiers', () => {
         expect(store.getMemoryById(mem.id)!.tier).toBe(3);
     });
 
-    test('should demote from T3 to T4', async () => {
+    test('should demote from T3 to T2 (T3 is now the lowest tier)', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 2, tags: ['test'] });
         store.demote(mem.id);
-        expect(store.getMemoryById(mem.id)!.tier).toBe(4);
+        expect(store.getMemoryById(mem.id)!.tier).toBe(3);
     });
 
-    test('should not demote beyond tier 4', async () => {
+    test('should not demote beyond tier 3 (T3 is now the lowest tier)', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
-        // Add at T3 then demote to T4 manually via demote
+        // Add at T3 and try to demote - should throw since T3 is lowest
         const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
-        store.demote(mem.id); // T3 → T4
         expect(() => store.demote(mem.id)).toThrow('lowest tier');
     });
 
@@ -302,31 +300,21 @@ describe('MindStore — Tiers', () => {
     test('should auto-promote tier 3 to 2 on read', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 2, tags: ['test'] });
 
         store.recordAccess(mem.id);
-        expect(store.getMemoryById(mem.id)!.tier).toBe(2);
-    });
-
-    test('should auto-promote tier 4 to 3 on read', async () => {
-        store = createTestStore();
-        store.createSpace('test', 'Test', ['test']);
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
-        store.demote(mem.id); // T3 → T4
-
-        store.recordAccess(mem.id);
-        expect(store.getMemoryById(mem.id)!.tier).toBe(3);
+        expect(store.getMemoryById(mem.id)!.tier).toBe(1);
     });
 
     test('should not auto-promote pinned memory on read', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
-        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 3, tags: ['test'] });
+        const mem = await store.addMemory('test', 'mem1', 'content', { tier: 2, tags: ['test'] });
         store.pin(mem.id);
 
         store.recordAccess(mem.id);
-        // Pinned: stays at T3
-        expect(store.getMemoryById(mem.id)!.tier).toBe(3);
+        // Pinned: stays at T2
+        expect(store.getMemoryById(mem.id)!.tier).toBe(2);
     });
 
     test('should bump access count on read', async () => {
@@ -384,23 +372,20 @@ describe('MindStore — LRU Eviction', () => {
         await expect(store.addMemory('test', 'overflow', 'content', { tier: 1, tags: ['test'] })).rejects.toThrow('pinned');
     });
 
-    test('should evict LRU from T3 to T4 when T3 is full', async () => {
+    test('should not evict LRU from T3 (T3 is now unlimited)', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
 
-        const { TIER_LIMITS } = require('../src/config');
-        const limit: number = TIER_LIMITS[3];
-
-        // Fill T3 to limit
-        for (let i = 0; i < limit; i++) {
+        // Add 100+ memories to T3 - T3 is unlimited, so no eviction
+        for (let i = 0; i < 100; i++) {
             await store.addMemory('test', `cold-${i}`, 'content', { tier: 3, tags: ['test'] });
         }
 
-        // Adding one more to T3 should evict LRU (cold-0) to T4
+        // Adding more to T3 should succeed with no eviction
         await store.addMemory('test', 'overflow', 'content', { tier: 3, tags: ['test'] });
 
         expect(store.getMemory('test', 'overflow')!.tier).toBe(3);
-        expect(store.getMemory('test', 'cold-0')!.tier).toBe(4);
+        expect(store.getMemory('test', 'cold-0')!.tier).toBe(3); // cold-0 should still be at T3
     });
 
     test('pinned memories should not be LRU-evicted', async () => {
@@ -449,13 +434,12 @@ describe('MindStore — LRU Eviction', () => {
 });
 
 describe('MindStore — Space Graph', () => {
-    test('should return graph nodes with minimal payload including T4 and directed links', async () => {
+    test('should return graph nodes with minimal payload including T1-T3 and directed links', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
         const a = await store.addMemory('test', 'A', 'content', { tier: 1, tags: ['test'] });
         const b = await store.addMemory('test', 'B', 'content', { tier: 2, tags: ['test'] });
         const c = await store.addMemory('test', 'C', 'content', { tier: 3, tags: ['test'] });
-        store.demote(c.id); // T4
 
         store.link(a.id, b.id);
         store.link(c.id, a.id);
@@ -466,7 +450,7 @@ describe('MindStore — Space Graph', () => {
         expect(graph.meta.truncated).toBe(false);
 
         const cNode = graph.nodes.find((node) => node.id === c.id)!;
-        expect(cNode.tier).toBe(4);
+        expect(cNode.tier).toBe(3);
         expect(cNode.links_to).toEqual([a.id]);
 
         const aNode = graph.nodes.find((node) => node.id === a.id)!;
@@ -504,11 +488,10 @@ describe('MindStore — Status', () => {
         const status = store.getStatus();
         expect(status.total_spaces).toBe(2);
         expect(status.total_memories).toBe(3);
-        expect(status.by_tier.length).toBe(4); // always 4 tiers
+        expect(status.by_tier.length).toBe(3); // always 3 tiers
         expect(status.by_tier.find((b) => b.tier === 1)!.count).toBe(1);
         expect(status.by_tier.find((b) => b.tier === 2)!.count).toBe(1);
         expect(status.by_tier.find((b) => b.tier === 3)!.count).toBe(1);
-        expect(status.by_tier.find((b) => b.tier === 4)!.count).toBe(0);
         expect(status.db_path).toContain('.db');
         expect(status.db_size_bytes).toBeGreaterThan(0);
     });
@@ -635,21 +618,20 @@ describe('MindStore — Search', () => {
         await store.addMemory('test', 'hot-auth', 'authentication', { tier: 1, tags: ['test'] });
         await store.addMemory('test', 'cold-auth', 'authentication', { tier: 3, tags: ['test'] });
 
-        const results = await store.search('authentication', { tier: 1, tags: ['test'] });
+        const results = await store.search('authentication', { tier: 1, tag: 'test' });
         expect(results.length).toBe(1);
         expect(results[0]!.name).toBe('hot-auth');
     });
 
-    test('should search T4 memories (frozen are searchable)', async () => {
+    test('should search T3 memories (T3 is now unlimited)', async () => {
         store = createTestStore();
         store.createSpace('test', 'Test', ['test']);
-        const mem = await store.addMemory('test', 'frozen', 'authentication token', { tier: 3, tags: ['test'] });
-        store.demote(mem.id); // T3 → T4
+        const mem = await store.addMemory('test', 'cold-auth', 'authentication token', { tier: 3, tags: ['test'] });
 
         const results = await store.search('authentication');
         expect(results.length).toBe(1);
-        expect(results[0]!.name).toBe('frozen');
-        expect(results[0]!.tier).toBe(4);
+        expect(results[0]!.name).toBe('cold-auth');
+        expect(results[0]!.tier).toBe(3);
         // Verify similarity field exists (undefined when RAG disabled, number when enabled)
         expect('similarity' in results[0]!).toBe(true);
     });

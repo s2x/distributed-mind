@@ -27,6 +27,12 @@ Example:
 
 ## [Unreleased]
 
+### Changed
+- Tier system simplified: T4 (frozen) removed, T3 now unlimited. All T4 memories automatically migrate to T3 on startup.
+
+### Fixed
+- Automatic schema migration from v6 to v7 on startup (idempotent, transaction-wrapped)
+
 ## [1.2.1] - 2026-03-27
 
 ### Fixed
