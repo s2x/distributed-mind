@@ -3,15 +3,28 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#0f1117" />
         <title>Mind</title>
         <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
         <link rel="stylesheet" href="/styles/main.css" />
     </head>
     <body>
+        <!-- Sidebar overlay for mobile -->
+        <div id="sidebar-overlay" class="overlay-hidden"></div>
         <div id="app">
             <!-- Sidebar -->
             <aside id="sidebar">
                 <header class="sidebar-header">
+                    <button
+                        id="hamburger-btn"
+                        class="btn btn-sm btn-ghost"
+                        aria-label="Open menu"
+                        aria-expanded="false"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
                     <span class="logo"><img src="/assets/logo.svg" class="logo-img" alt="Mind" /> Mind</span>
                     <button
                         id="btn-new-space"
@@ -35,7 +48,10 @@
                         <span id="status-spaces">—</span>
                     </div>
                     <div class="status-tiers" id="status-tiers"></div>
-                    <a href="/logs" id="nav-logs" class="nav-link">📋 Logs</a>
+                    <a href="/logs" id="nav-logs" class="nav-link">
+                        <svg style="display:inline-flex;width:14px;height:14px;vertical-align:middle;margin-right:6px;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 8h6M5 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Logs
+                    </a>
                 </div>
             </aside>
 
@@ -49,7 +65,10 @@
                 <div id="search-results" class="hidden">
                     <header class="panel-header">
                         <h2 id="search-heading">Search results</h2>
-                        <button class="btn btn-sm btn-ghost" id="btn-close-search">✕ Close</button>
+                        <button class="btn btn-sm btn-ghost" id="btn-close-search">
+                        <svg style="display:inline-flex;width:14px;height:14px;vertical-align:middle;margin-right:4px;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Close
+                    </button>
                     </header>
                     <ul id="search-list" class="memory-list"></ul>
                 </div>
@@ -57,7 +76,10 @@
                 <!-- Logs page -->
                 <div id="logs-page" class="hidden">
                     <header class="panel-header">
-                        <h2>📋 Operation Logs</h2>
+                        <h2>
+                            <svg style="display:inline-flex;width:16px;height:16px;vertical-align:middle;margin-right:6px;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 8h6M5 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            Operation Logs
+                        </h2>
                         <div class="logs-controls">
                             <label class="logs-filter">
                                 <input type="checkbox" id="log-source-cli" value="cli" checked /> CLI
@@ -114,15 +136,15 @@
                     <!-- Tier containers -->
                     <div id="tiers">
                         <section class="tier-section" data-tier="1">
-                            <h3 class="tier-heading tier-1">🔴 T1 — Hot</h3>
+                            <h3 class="tier-heading tier-1">T1 — Hot</h3>
                             <ul class="memory-list" data-tier="1"></ul>
                         </section>
                         <section class="tier-section" data-tier="2">
-                            <h3 class="tier-heading tier-2">🟡 T2 — Warm</h3>
+                            <h3 class="tier-heading tier-2">T2 — Warm</h3>
                             <ul class="memory-list" data-tier="2"></ul>
                         </section>
                         <section class="tier-section" data-tier="3">
-                            <h3 class="tier-heading tier-3">🔵 T3 — Cold</h3>
+                            <h3 class="tier-heading tier-3">T3 — Cold</h3>
                             <ul class="memory-list" data-tier="3"></ul>
                         </section>
                     </div>
@@ -146,9 +168,12 @@
                 <div id="memory-panel" class="hidden">
                     <header class="panel-header">
                         <div class="panel-title-row">
+                            <button id="btn-mem-close" class="btn btn-sm btn-ghost btn-back" aria-label="Go back">
+                                <svg style="display:inline-flex;width:16px;height:16px;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </button>
                             <h3 id="mem-title"></h3>
-                            <button id="btn-mem-close" class="btn btn-sm btn-ghost" aria-label="Close memory details">
-                                ✕
+                            <button id="btn-mem-close-inline" class="btn btn-sm btn-ghost" aria-label="Close memory details" style="display:none;">
+                                <svg style="display:inline-flex;width:16px;height:16px;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                             </button>
                         </div>
                         <div class="panel-subheader">
@@ -163,7 +188,11 @@
                                 <button id="btn-mem-demote" class="btn btn-sm btn-ghost" title="Demote tier">
                                     ↓ Demote
                                 </button>
-                                <button id="btn-mem-pin" class="btn btn-sm btn-ghost" title="Pin/Unpin">📌</button>
+                            <button id="btn-mem-pin" class="btn btn-sm btn-ghost" title="Pin/Unpin">
+                                    <span class="pin-button-icon">
+                                        <svg class="icon-pin" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="4" y="2" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 8v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                                    </span>
+                                </button>
                                 <button id="btn-mem-edit" class="btn btn-sm btn-secondary">Edit</button>
                                 <button id="btn-mem-delete" class="btn btn-sm btn-danger">Delete</button>
                             </div>
@@ -206,9 +235,9 @@
                 <label
                     >Tier
                     <select id="new-mem-tier">
-                        <option value="1">🔴 T1 — Hot</option>
-                        <option value="2" selected>🟡 T2 — Warm</option>
-                        <option value="3">🔵 T3 — Cold</option>
+                        <option value="1">T1 — Hot</option>
+                        <option value="2" selected>T2 — Warm</option>
+                        <option value="3">T3 — Cold</option>
                     </select>
                 </label>
                 <label>Content<textarea id="new-mem-content" rows="8" placeholder="Memory content…"></textarea></label>

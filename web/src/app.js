@@ -108,7 +108,7 @@ const elBtnClearLogs = $('btn-clear-logs');
 const elBtnLoadMoreLogs = $('btn-load-more-logs');
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
-const TIER_LABEL = { 1: '🔴 T1 — Hot', 2: '🟡 T2 — Warm', 3: '🔵 T3 — Cold', 4: '💠 T4 — Frozen' };
+const TIER_LABEL = { 1: 'T1 — Hot', 2: 'T2 — Warm', 3: 'T3 — Cold', 4: 'T4 — Frozen' };
 const TIER_CLASS = { 1: 't1', 2: 't2', 3: 't3', 4: 't4' };
 const TIER_LIMITS = { 1: 25, 2: 50, 3: 100, 4: null }; // null = unlimited
 const GRAPH_SCALE_MIN = 0.45;
@@ -117,7 +117,43 @@ const GRAPH_LABEL_BASE = 11;
 const GRAPH_LABEL_MIN = 8;
 const GRAPH_LABEL_MAX = 16;
 
+// ── SVG Icons ──────────────────────────────────────────────────────────────────
+const ICON_TIER = {
+    1: `<svg class="tier-icon tier-icon-1" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#ff7b72"/></svg>`,
+    2: `<svg class="tier-icon tier-icon-2" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#e3b341"/></svg>`,
+    3: `<svg class="tier-icon tier-icon-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#79c0ff"/></svg>`,
+    4: `<svg class="tier-icon tier-icon-4" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#8b949e"/></svg>`,
+};
+const ICON_PIN = `<svg class="icon-pin" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="4" y="2" width="8" height="6" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 8v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+const ICON_CLOSE = `<svg class="icon-close" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const ICON_HIDDEN = `<svg class="icon-hidden" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M3 3l10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const ICON_LOGS = `<svg class="icon-logs" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 8h6M5 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const ICON_SUCCESS = `<svg class="toast-icon toast-icon-success" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="7" stroke="#3fb950" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#3fb950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICON_ERROR = `<svg class="toast-icon toast-icon-error" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="7" stroke="#f85149" stroke-width="1.5"/><path d="M9 6v4M9 12v.5" stroke="#f85149" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const ICON_WARNING = `<svg class="toast-icon toast-icon-warning" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 2L16 15H2L9 2z" stroke="#d29922" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 7v4M9 13v.5" stroke="#d29922" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const ICON_BACK = `<svg class="icon-back" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
 // ── Status panel ──────────────────────────────────────────────────────────────
+
+function appendStatusTierPill(tier, value) {
+    const cls = TIER_CLASS[tier] ?? '';
+    const icon = ICON_TIER[tier] ?? '';
+    const limit = TIER_LIMITS[tier];
+    const cap = typeof value === 'number' && limit != null ? `/${limit}` : '';
+    const pill = document.createElement('span');
+    pill.className = `status-tier-pill ${cls}`;
+    pill.title = TIER_LABEL[tier] ?? `T${tier}`;
+    pill.innerHTML = `${icon}<span>${value}${cap}</span>`;
+    elStatusTiers.appendChild(pill);
+}
+
+function renderStatusPlaceholder() {
+    elStatusSpaces.textContent = '-';
+    elStatusTiers.innerHTML = '';
+    for (const tier of [1, 2, 3, 4]) {
+        appendStatusTierPill(tier, '-');
+    }
+}
 
 function renderStatus(status) {
     const spaces = status.total_spaces ?? 0;
@@ -125,24 +161,21 @@ function renderStatus(status) {
     elStatusSpaces.textContent = `${spaces} space${spaces !== 1 ? 's' : ''}, ${memories} mem`;
     elStatusTiers.innerHTML = '';
     for (const t of status.by_tier ?? []) {
-        const cls = TIER_CLASS[t.tier] ?? '';
-        const label = t.tier === 4 ? '💠' : (['', '🔴', '🟡', '🔵'][t.tier] ?? '');
-        const limit = TIER_LIMITS[t.tier];
-        const cap = limit != null ? `/${limit}` : '';
-        const pill = document.createElement('span');
-        pill.className = `status-tier-pill ${cls}`;
-        pill.title = TIER_LABEL[t.tier] ?? `T${t.tier}`;
-        pill.textContent = `${label} ${t.count}${cap}`;
-        elStatusTiers.appendChild(pill);
+        appendStatusTierPill(t.tier, t.count);
     }
 }
 
-async function loadStatus() {
+async function loadStatus(spaceName = state.currentSpace?.name) {
+    if (!spaceName) {
+        renderStatusPlaceholder();
+        return;
+    }
+
     try {
-        const status = await api.get('/api/status');
+        const status = await api.get(`/api/status?space=${enc(spaceName)}`);
         renderStatus(status);
     } catch {
-        /* non-critical, ignore */
+        renderStatusPlaceholder();
     }
 }
 
@@ -155,10 +188,13 @@ function renderSpaceList() {
         li.className = 'space-item' + (state.currentSpace?.name === sp.name ? ' active' : '') + (sp.hidden ? ' space-hidden' : '');
         li.dataset.name = sp.name;
         li.innerHTML = `
-            <span class="space-item-name">${sp.hidden ? '👻 ' : ''}${esc(sp.name)}</span>
+            <span class="space-item-name">${sp.hidden ? '<span class="icon-hidden-inline" style="display:inline-flex;width:14px;height:14px;vertical-align:middle;margin-right:2px;">' + ICON_HIDDEN + '</span>' : ''}${esc(sp.name)}</span>
             <span class="space-item-count">${sp.memory_count}</span>
         `;
-        li.addEventListener('click', () => selectSpace(sp.name));
+        li.addEventListener('click', () => {
+            closeSidebarOnSpaceSelect();
+            selectSpace(sp.name);
+        });
         elSpaceList.appendChild(li);
     }
 }
@@ -218,6 +254,16 @@ function setSpaceView(view, options = {}) {
     elBtnViewList.setAttribute('aria-pressed', String(!showMap));
     elBtnViewMap.setAttribute('aria-pressed', String(showMap));
 
+    // Toggle sliding indicator on view track
+    const track = document.querySelector('.view-toggle-track');
+    if (track) {
+        if (showMap) {
+            track.classList.add('toggle-map');
+        } else {
+            track.classList.remove('toggle-map');
+        }
+    }
+
     if (updateUrl && state.currentSpace) {
         syncUrl();
     }
@@ -259,8 +305,9 @@ function renderGraph() {
         circle.setAttribute('r', String(ring.radius));
         circle.setAttribute('fill', 'none');
         circle.setAttribute('stroke', ring.color);
-        circle.setAttribute('stroke-opacity', '0.35');
+        circle.setAttribute('stroke-opacity', '0.2');
         circle.setAttribute('stroke-width', '1');
+        circle.classList.add('tier-ring');
         layers.get('rings').appendChild(circle);
     }
 
@@ -286,6 +333,7 @@ function renderGraph() {
             const edgeWidth = isIncident ? 1.6 : 1;
             line.setAttribute('stroke-opacity', String(edgeOpacity));
             line.setAttribute('stroke-width', String(edgeWidth));
+            line.classList.add('edge-glow');
             layers.get('edges').appendChild(line);
         }
     }
@@ -320,6 +368,11 @@ function renderGraph() {
         circle.setAttribute('role', 'button');
         circle.setAttribute('aria-label', `Open memory ${node.name}. Degree ${degree}`);
         circle.style.cursor = 'pointer';
+        // Add tier glow class
+        circle.classList.add(`node-t${node.tier}`);
+        if (isFocusedNode) {
+            circle.classList.add('node-focused');
+        }
 
         const circleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         circleTitle.textContent = node.name;
@@ -450,10 +503,9 @@ function renderMemoryItem(mem, spaceName) {
         .join('');
 
     li.innerHTML = `
-        <span class="memory-item-pin">${mem.pinned ? '📌' : ''}</span>
+        <span class="memory-item-pin">${mem.pinned ? '<span class="memory-item-pin-icon">' + ICON_PIN + '</span>' : ''}</span>
         <span class="memory-item-name">${esc(mem.name)}</span>
         <span class="memory-item-tags">${tags}</span>
-        <span class="memory-item-count" title="${mem.access_count} accesses">${mem.access_count > 0 ? mem.access_count + '×' : ''}</span>
     `;
     li.addEventListener('click', () => selectMemory(spaceName, mem.name));
     return li;
@@ -467,7 +519,10 @@ function renderTagRow(container, tags, onRemove, onAdd) {
         span.textContent = '#' + tag;
         span.title = 'Click to remove';
         span.style.cursor = 'pointer';
-        span.addEventListener('click', () => onRemove(tag));
+        span.addEventListener('click', async () => {
+            if (!confirm(`Delete tag #${tag}?`)) return;
+            await onRemove(tag);
+        });
         container.appendChild(span);
     }
     const addBtn = document.createElement('button');
@@ -479,7 +534,7 @@ function renderTagRow(container, tags, onRemove, onAdd) {
 
 function renderMemoryPanel(memory) {
     elMemTitle.textContent = memory.name;
-    elMemTierBadge.textContent = TIER_LABEL[memory.tier];
+    elMemTierBadge.innerHTML = ICON_TIER[memory.tier] + ' ' + TIER_LABEL[memory.tier];
     elMemTierBadge.className = 'tier-badge ' + TIER_CLASS[memory.tier];
 
     renderTagRow(
@@ -500,8 +555,13 @@ function renderMemoryPanel(memory) {
         }
     );
 
-    elMemContent.innerHTML = globalThis.marked.parse(memory.content || '');
-    $('btn-mem-pin').textContent = memory.pinned ? '📌 Unpin' : '📌 Pin';
+    // Sanitize HTML before rendering markdown output
+    const rawContent = memory.content || '';
+    const parsedContent = globalThis.marked.parse(rawContent);
+    elMemContent.innerHTML = sanitizeHTML(parsedContent);
+
+    const pinBtn = $('btn-mem-pin');
+    pinBtn.innerHTML = '<span class="pin-button-icon">' + ICON_PIN + '</span><span>' + (memory.pinned ? 'Unpin' : 'Pin') + '</span>';
 
     // Show content, hide editor
     elMemContent.classList.remove('hidden');
@@ -509,33 +569,51 @@ function renderMemoryPanel(memory) {
 }
 
 function renderSearchResults(results, query) {
-    elSearchHeading.textContent = `"${query}" — ${results.length} result${results.length !== 1 ? 's' : ''}`;
+    // Group results by space_name
+    const groups = results.reduce((acc, r) => {
+        const list = acc.get(r.space_name) ?? [];
+        list.push(r);
+        acc.set(r.space_name, list);
+        return acc;
+    }, new Map());
+
+    const spaceCount = groups.size;
+    elSearchHeading.textContent = `"${query}" — ${results.length} result${results.length !== 1 ? 's' : ''} in ${spaceCount} space${spaceCount !== 1 ? 's' : ''}`;
     elSearchList.innerHTML = '';
     if (results.length === 0) {
         elSearchList.innerHTML = '<li class="tier-empty">No results.</li>';
         return;
     }
-    for (const r of results) {
-        const li = document.createElement('li');
-        li.className = 'memory-item';
-        const tierClass = TIER_CLASS[r.tier] ?? '';
-        const tierLabel = TIER_LABEL[r.tier] ?? '';
-        li.innerHTML = `
-            <span class="memory-item-name">${esc(r.name)}</span>
-            <span class="memory-item-tags">${(r.tags ?? [])
-                .slice(0, 2)
-                .map((t) => `<span class="memory-item-tag">${esc(t)}</span>`)
-                .join('')}</span>
-            <span class="tier-badge ${tierClass}" style="font-size:10px;padding:0 5px;">${tierLabel}</span>
-            <div class="search-result-space">${esc(r.space_name)}</div>
-        `;
-        li.addEventListener('click', () => {
-            state.searchActive = false;
-            showPanel('space');
-            // Navigate to the space first, then open memory
-            selectSpace(r.space_name).then(() => selectMemory(r.space_name, r.name));
-        });
-        elSearchList.appendChild(li);
+
+    for (const [spaceName, memories] of groups) {
+        // Space header
+        const headerLi = document.createElement('li');
+        headerLi.className = 'search-space-header';
+        headerLi.textContent = `${esc(spaceName)} (${memories.length})`;
+        elSearchList.appendChild(headerLi);
+
+        // Memory items for this space
+        for (const r of memories) {
+            const li = document.createElement('li');
+            li.className = 'memory-item';
+            const tierClass = TIER_CLASS[r.tier] ?? '';
+            const tierLabel = TIER_LABEL[r.tier] ?? '';
+            li.innerHTML = `
+                <span class="memory-item-name">${esc(r.name)}</span>
+                <span class="memory-item-tags">${(r.tags ?? [])
+                    .slice(0, 2)
+                    .map((t) => `<span class="memory-item-tag">${esc(t)}</span>`)
+                    .join('')}</span>
+                <span class="tier-badge ${tierClass}" style="font-size:10px;padding:0 5px;">${tierLabel}</span>
+            `;
+            li.addEventListener('click', () => {
+                state.searchActive = false;
+                showPanel('space');
+                // Navigate to the space first, then open memory
+                selectSpace(r.space_name).then(() => selectMemory(r.space_name, r.name));
+            });
+            elSearchList.appendChild(li);
+        }
     }
 }
 
@@ -553,8 +631,23 @@ function showPanel(panel) {
 }
 
 function showMemoryPanel(show) {
-    if (show) elMemoryPanel.classList.remove('hidden');
-    else elMemoryPanel.classList.add('hidden');
+    if (show) {
+        elMemoryPanel.classList.remove('hidden');
+        // Force reflow so CSS transition animates from current (off-screen) state
+        void elMemoryPanel.offsetWidth;
+        elMemoryPanel.classList.add('open');
+    } else {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        elMemoryPanel.classList.remove('open');
+        if (prefersReducedMotion) {
+            elMemoryPanel.classList.add('hidden');
+        } else {
+            // Wait for slide-out animation (250ms) before hiding
+            setTimeout(() => {
+                elMemoryPanel.classList.add('hidden');
+            }, 250);
+        }
+    }
 }
 
 function closeCurrentMemoryPanel() {
@@ -599,6 +692,7 @@ function resetToHomeState() {
     showMemoryPanel(false);
     showPanel('empty');
     renderSpaceList();
+    renderStatusPlaceholder();
 }
 
 async function restoreRouteFromLocation() {
@@ -652,6 +746,7 @@ async function selectSpace(name, options = {}) {
     state.currentSpace = state.spaces.find((s) => s.name === name) ?? { name };
     state.currentMemory = null;
     state.graphFocusNodeId = null;
+    state.logsActive = false;
     showMemoryPanel(false);
 
     const [spaceData, memories, graph] = await Promise.all([
@@ -668,6 +763,7 @@ async function selectSpace(name, options = {}) {
     renderSpaceList();
     renderSpaceDetail();
     setSpaceView(view, { updateUrl: false });
+    await loadStatus(spaceData.name);
 
     if (updateUrl) {
         syncUrl();
@@ -680,7 +776,7 @@ async function refreshSpace(name) {
         api.get(`/api/spaces/${enc(name)}/memories`),
         api.get(`/api/spaces/${enc(name)}/graph`),
         loadSpaces(),
-        loadStatus(),
+        loadStatus(name),
     ]);
     state.currentSpace = spaceData;
     state.memories = memories;
@@ -747,6 +843,24 @@ function makeEditable(el, onSave) {
 
 elBtnViewList.addEventListener('click', () => setSpaceView('list'));
 elBtnViewMap.addEventListener('click', () => setSpaceView('map'));
+
+// View toggle keyboard navigation (ArrowLeft/ArrowRight)
+const viewButtons = document.querySelectorAll('.view-toggle-btn');
+viewButtons.forEach((btn, index) => {
+    btn.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            const prevBtn = viewButtons[index - 1] || viewButtons[viewButtons.length - 1];
+            prevBtn.click();
+            prevBtn.focus();
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            const nextBtn = viewButtons[index + 1] || viewButtons[0];
+            nextBtn.click();
+            nextBtn.focus();
+        }
+    });
+});
 
 window.addEventListener('popstate', () => {
     restoreRouteFromLocation().catch(() => {
@@ -920,13 +1034,26 @@ $('modal-space-create').addEventListener('click', async () => {
         .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
     if (!name) return;
-    await api.post('/api/spaces', { name, description: desc, tags });
-    $('modal-new-space').classList.add('hidden');
-    $('new-space-name').value = '';
-    $('new-space-desc').value = '';
-    $('new-space-tags').value = '';
-    await loadSpaces();
-    await selectSpace(name);
+
+    const btn = $('modal-space-create');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Creating…';
+
+    try {
+        await api.post('/api/spaces', { name, description: desc, tags });
+        $('modal-new-space').classList.add('hidden');
+        $('new-space-name').value = '';
+        $('new-space-desc').value = '';
+        $('new-space-tags').value = '';
+        await loadSpaces();
+        await selectSpace(name);
+        showToast(`Space "${name}" created`, 'success');
+    } catch (err) {
+        showToast(`Failed to create space: ${err.message || 'Unknown error'}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Create';
+    }
 });
 
 // Delete space
@@ -934,13 +1061,23 @@ $('btn-delete-space').addEventListener('click', async () => {
     const name = state.currentSpace?.name;
     if (!name) return;
     if (!confirm(`Delete space "${name}" and all its memories?`)) return;
-    await api.del(`/api/spaces/${enc(name)}`);
-    state.currentSpace = null;
-    state.currentMemory = null;
-    showMemoryPanel(false);
-    showPanel('empty');
-    syncUrl();
-    await loadSpaces();
+
+    const btn = $('btn-delete-space');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Deleting…';
+
+    try {
+        await api.del(`/api/spaces/${enc(name)}`);
+        resetToHomeState();
+        syncUrl();
+        await loadSpaces();
+        showToast(`Space "${name}" deleted`, 'success');
+    } catch (err) {
+        showToast(`Failed to delete space: ${err.message || 'Unknown error'}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Delete space';
+    }
 });
 
 // New memory modal
@@ -955,17 +1092,34 @@ $('modal-mem-create').addEventListener('click', async () => {
         .filter(Boolean);
     const tier = Number($('new-mem-tier').value);
     if (!name || !state.currentSpace) return;
-    await api.post(`/api/spaces/${enc(state.currentSpace.name)}/memories`, { name, content, tags, tier });
-    $('modal-new-memory').classList.add('hidden');
-    $('new-mem-name').value = '';
-    $('new-mem-content').value = '';
-    $('new-mem-tags').value = '';
-    $('new-mem-tier').value = '2';
-    await refreshSpace(state.currentSpace.name);
+
+    const btn = $('modal-mem-create');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Adding…';
+
+    try {
+        await api.post(`/api/spaces/${enc(state.currentSpace.name)}/memories`, { name, content, tags, tier });
+        $('modal-new-memory').classList.add('hidden');
+        $('new-mem-name').value = '';
+        $('new-mem-content').value = '';
+        $('new-mem-tags').value = '';
+        $('new-mem-tier').value = '2';
+        await refreshSpace(state.currentSpace.name);
+        showToast(`Memory "${name}" added`, 'success');
+    } catch (err) {
+        showToast(`Failed to add memory: ${err.message || 'Unknown error'}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Add';
+    }
 });
 
 // Memory panel actions
 $('btn-mem-close').addEventListener('click', () => {
+    closeCurrentMemoryPanel();
+});
+
+$('btn-mem-close-inline').addEventListener('click', () => {
     closeCurrentMemoryPanel();
 });
 
@@ -1008,39 +1162,77 @@ $('btn-mem-save').addEventListener('click', async () => {
     const mem = state.currentMemory;
     if (!mem) return;
     const content = elMemEditInput.value;
-    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { content });
-    await refreshMemory(mem.space_name, mem.name);
+
+    const btn = $('btn-mem-save');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Saving…';
+
+    try {
+        await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { content });
+        await refreshMemory(mem.space_name, mem.name);
+        showToast('Memory saved', 'success');
+    } catch (err) {
+        showToast(`Failed to save: ${err.message || 'Unknown error'}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Save';
+    }
 });
 
 $('btn-mem-promote').addEventListener('click', async () => {
     const mem = state.currentMemory;
     if (!mem) return;
-    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { promote: true });
-    await refreshMemory(mem.space_name, mem.name);
+    try {
+        await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { promote: true });
+        await refreshMemory(mem.space_name, mem.name);
+    } catch (err) {
+        showToast(`Failed to promote: ${err.message || 'Unknown error'}`, 'error');
+    }
 });
 
 $('btn-mem-demote').addEventListener('click', async () => {
     const mem = state.currentMemory;
     if (!mem) return;
-    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { demote: true });
-    await refreshMemory(mem.space_name, mem.name);
+    try {
+        await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { demote: true });
+        await refreshMemory(mem.space_name, mem.name);
+    } catch (err) {
+        showToast(`Failed to demote: ${err.message || 'Unknown error'}`, 'error');
+    }
 });
 
 $('btn-mem-pin').addEventListener('click', async () => {
     const mem = state.currentMemory;
     if (!mem) return;
-    await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { pinned: !mem.pinned });
-    await refreshMemory(mem.space_name, mem.name);
+    try {
+        await api.patch(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`, { pinned: !mem.pinned });
+        await refreshMemory(mem.space_name, mem.name);
+    } catch (err) {
+        showToast(`Failed to update pin: ${err.message || 'Unknown error'}`, 'error');
+    }
 });
 
 $('btn-mem-delete').addEventListener('click', async () => {
     const mem = state.currentMemory;
     if (!mem || !confirm(`Delete memory "${mem.name}"?`)) return;
-    await api.del(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`);
-    state.currentMemory = null;
-    showMemoryPanel(false);
-    await refreshSpace(mem.space_name);
-    syncUrl();
+
+    const btn = $('btn-mem-delete');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Deleting…';
+
+    try {
+        await api.del(`/api/spaces/${enc(mem.space_name)}/memories/${enc(mem.name)}`);
+        state.currentMemory = null;
+        showMemoryPanel(false);
+        await refreshSpace(mem.space_name);
+        syncUrl();
+        showToast(`Memory "${mem.name}" deleted`, 'success');
+    } catch (err) {
+        showToast(`Failed to delete memory: ${err.message || 'Unknown error'}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Delete';
+    }
 });
 
 // Close search
@@ -1053,6 +1245,7 @@ $('btn-close-search').addEventListener('click', () => {
 
 // Global search (debounced)
 let searchTimer = null;
+let searchTypingTimer = null;
 elGlobalSearch.addEventListener('input', () => {
     clearTimeout(searchTimer);
     const q = elGlobalSearch.value.trim();
@@ -1060,6 +1253,12 @@ elGlobalSearch.addEventListener('input', () => {
         state.searchActive = false;
         if (state.currentSpace) showPanel('space');
         else showPanel('empty');
+        // Reset typing pulse state
+        if (searchTypingTimer) {
+            clearTimeout(searchTypingTimer);
+            searchTypingTimer = null;
+        }
+        elGlobalSearch.style.boxShadow = '';
         return;
     }
     searchTimer = setTimeout(async () => {
@@ -1068,13 +1267,64 @@ elGlobalSearch.addEventListener('input', () => {
         showPanel('search');
         renderSearchResults(state.searchResults, q);
     }, 300);
+
+    // Search typing pulse - after 1s of continuous typing, start pulsing
+    if (searchTypingTimer) {
+        clearTimeout(searchTypingTimer);
+    }
+    searchTypingTimer = setTimeout(() => {
+        const pulse = () => {
+            elGlobalSearch.style.boxShadow = '0 0 12px var(--neon-cyan), 0 0 24px rgba(0,240,255,0.6), 0 0 48px rgba(0,240,255,0.3)';
+            setTimeout(() => {
+                elGlobalSearch.style.boxShadow = '0 0 6px var(--neon-cyan), 0 0 16px rgba(0,240,255,0.4), 0 0 32px rgba(0,240,255,0.15)';
+            }, 250);
+        };
+        pulse();
+        const intervalId = setInterval(pulse, 500);
+        // Store interval id in a custom property for cleanup
+        searchTypingTimer = { intervalId, timeoutId: null };
+        searchTypingTimer.timeoutId = setTimeout(() => {
+            clearInterval(searchTypingTimer.intervalId);
+            elGlobalSearch.style.boxShadow = '';
+            searchTypingTimer = null;
+        }, 3000);
+    }, 1000);
 });
+
+elGlobalSearch.addEventListener('blur', () => {
+    if (searchTypingTimer) {
+        if (searchTypingTimer.intervalId) clearInterval(searchTypingTimer.intervalId);
+        if (searchTypingTimer.timeoutId) clearTimeout(searchTypingTimer.timeoutId);
+        searchTypingTimer = null;
+    }
+    elGlobalSearch.style.boxShadow = '';
+});
+
+// Modal dismiss with scale-out animation
+function closeModal() {
+    const backdrop = document.querySelector('.modal-backdrop');
+    const modal = document.querySelector('.modal');
+    if (!backdrop) return;
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+        backdrop.classList.add('hidden');
+        modal.classList.add('hidden');
+    } else {
+        modal.classList.add('modal-closing');
+        setTimeout(() => {
+            backdrop.classList.add('hidden');
+            modal.classList.remove('modal-closing');
+            modal.classList.add('hidden');
+        }, 150);
+    }
+}
 
 // Modal keyboard close
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        $('modal-new-space').classList.add('hidden');
-        $('modal-new-memory').classList.add('hidden');
+        closeModal();
     }
 });
 
@@ -1089,6 +1339,164 @@ function esc(str) {
 
 function enc(str) {
     return encodeURIComponent(str);
+}
+
+// ── Toast notifications ─────────────────────────────────────────────────────────
+let toastContainer = null;
+
+function ensureToastContainer() {
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        document.body.appendChild(toastContainer);
+    }
+}
+
+function showToast(message, type = 'success', duration = null) {
+    ensureToastContainer();
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'polite');
+
+    let icon = '';
+    if (type === 'success') icon = ICON_SUCCESS;
+    else if (type === 'error') icon = ICON_ERROR;
+    else if (type === 'warning') icon = ICON_WARNING;
+
+    toast.innerHTML = `
+        ${icon}
+        <span class="toast-message">${esc(message)}</span>
+        <button class="toast-dismiss" aria-label="Dismiss">${ICON_CLOSE}</button>
+    `;
+
+    const dismissBtn = toast.querySelector('.toast-dismiss');
+    dismissBtn.addEventListener('click', () => dismissToast(toast));
+
+    toastContainer.appendChild(toast);
+
+    // Auto-dismiss for success, manual for error/warning
+    if (type === 'success') {
+        const autoDuration = duration ?? 3000;
+        setTimeout(() => dismissToast(toast), autoDuration);
+    }
+
+    return toast;
+}
+
+function dismissToast(toast) {
+    if (!toast || !toast.parentNode) return;
+    toast.classList.add('toast-fade-out');
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 200);
+}
+
+// ── Skeleton loading ───────────────────────────────────────────────────────────
+function renderSkeletonMemoryList(container, count = 3) {
+    container.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+        const li = document.createElement('li');
+        li.className = 'skeleton-memory-item';
+        li.innerHTML = `
+            <div class="skeleton skeleton-circle"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-tag"></div>
+            <div class="skeleton skeleton-count"></div>
+        `;
+        container.appendChild(li);
+    }
+}
+
+function showGraphLoadingOverlay() {
+    let overlay = $('graph-loading-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'graph-loading-overlay';
+        overlay.innerHTML = '<div class="spinner"></div>';
+        overlay.style.display = 'flex';
+        const canvasWrap = $('graph-canvas-wrap');
+        if (canvasWrap) canvasWrap.style.position = 'relative';
+        const graphSvg = $('graph-svg');
+        if (graphSvg && graphSvg.parentNode) {
+            graphSvg.parentNode.insertBefore(overlay, graphSvg.nextSibling);
+        }
+    }
+    overlay.style.display = 'flex';
+}
+
+function hideGraphLoadingOverlay() {
+    const overlay = $('graph-loading-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// ── XSS Sanitization ───────────────────────────────────────────────────────────
+const SAFE_TAGS = new Set(['p', 'strong', 'em', 'a', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'br', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td']);
+const SAFE_ATTRS = new Set(['href', 'title', 'alt', 'class']);
+
+function sanitizeHTML(html) {
+    if (!html) return '';
+
+    // Parse HTML into a DOM to safely extract allowed content
+    const doc = document.implementation.createHTMLDocument('');
+    const body = doc.body;
+
+    // Use a temporary div to parse HTML (safe because we're extracting text content only)
+    const temp = doc.createElement('div');
+    temp.innerHTML = html;
+    body.appendChild(temp);
+
+    // Walk the DOM and sanitize
+    function sanitizeNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return '';
+        }
+
+        const tagName = node.tagName.toLowerCase();
+
+        if (!SAFE_TAGS.has(tagName)) {
+            // For non-safe tags, preserve their text content only
+            return Array.from(node.childNodes).map(sanitizeNode).join('');
+        }
+
+        // Build sanitized attributes
+        const attrs = [];
+        for (const attr of node.attributes) {
+            const name = attr.name.toLowerCase();
+            if (SAFE_ATTRS.has(name)) {
+                if (name === 'href') {
+                    const value = attr.value.trim();
+                    if (value.toLowerCase().startsWith('javascript:')) {
+                        continue; // Strip javascript: hrefs
+                    }
+                    attrs.push(`${name}="${value.replace(/"/g, '&quot;')}"`);
+                } else {
+                    attrs.push(`${name}="${attr.value.replace(/"/g, '&quot;')}"`);
+                }
+            }
+        }
+
+        const attrStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+        const innerHTML = Array.from(node.childNodes).map(sanitizeNode).join('');
+
+        // Self-closing tags
+        if (['br', 'hr', 'img'].includes(tagName)) {
+            return `<${tagName}${attrStr}>`;
+        }
+
+        return `<${tagName}${attrStr}>${innerHTML}</${tagName}>`;
+    }
+
+    return Array.from(body.childNodes).map(sanitizeNode).join('');
 }
 
 // ── Logs ─────────────────────────────────────────────────────────────────────
@@ -1385,9 +1793,66 @@ elToggleHiddenSpaces?.addEventListener('change', () => {
     loadSpaces();
 });
 
+// ── Mobile sidebar overlay ─────────────────────────────────────────────────────
+const sidebar = $('sidebar');
+const sidebarOverlay = $('sidebar-overlay');
+const hamburgerBtn = $('hamburger-btn');
+
+function openSidebar() {
+    sidebar?.classList.add('sidebar-open');
+    sidebarOverlay?.classList.remove('overlay-hidden');
+    hamburgerBtn?.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+    sidebar?.classList.remove('sidebar-open');
+    sidebarOverlay?.classList.add('overlay-hidden');
+    hamburgerBtn?.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+}
+
+hamburgerBtn?.addEventListener('click', () => {
+    const isOpen = sidebar?.classList.contains('sidebar-open');
+    if (isOpen) {
+        closeSidebar();
+    } else {
+        openSidebar();
+    }
+});
+
+sidebarOverlay?.addEventListener('click', closeSidebar);
+
+// Close sidebar when selecting a space on mobile
+function closeSidebarOnSpaceSelect() {
+    if (window.innerWidth < 768) {
+        closeSidebar();
+    }
+}
+
+// Update close button visibility based on screen size
+function updateCloseButtonVisibility() {
+    const isMobile = window.innerWidth < 768;
+    const btnBack = $('btn-mem-close');
+    const btnInline = $('btn-mem-close-inline');
+    if (btnBack && btnInline) {
+        btnBack.style.display = isMobile ? 'flex' : 'none';
+        btnInline.style.display = isMobile ? 'none' : 'flex';
+    }
+}
+
+// Handle window resize
+window.addEventListener('resize', () => {
+    updateCloseButtonVisibility();
+    if (window.innerWidth >= 768) {
+        closeSidebar();
+    }
+});
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function boot() {
+    updateCloseButtonVisibility();
     await loadSpaces();
     await loadStatus();
     await restoreRouteFromLocation();

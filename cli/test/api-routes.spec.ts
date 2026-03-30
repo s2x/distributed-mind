@@ -60,6 +60,24 @@ describe('API Routes — Space Graph', () => {
 });
 
 describe('API Routes — Logs', () => {
+    test('GET /api/logs does not create get_api_logs entries', async () => {
+        store = createTestStore();
+
+        await requestJson('/api/logs');
+        await requestJson('/api/logs?limit=10');
+
+        const apiLogReads = store.queryLogs({
+            source: 'api',
+            operation: 'get_api_logs',
+            limit: 20,
+            offset: 0,
+            order: 'asc',
+        });
+
+        expect(apiLogReads.logs).toHaveLength(0);
+        expect(apiLogReads.total).toBe(0);
+    });
+
     test('GET /api/logs returns log entries', async () => {
         store = createTestStore();
 

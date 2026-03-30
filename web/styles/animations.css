@@ -1,0 +1,106 @@
+/* ── Neon Pulse ─────────────────────────────────────────────────────────────── */
+@keyframes neon-pulse {
+    0%, 100% {
+        opacity: 1;
+        filter: brightness(1);
+    }
+    50% {
+        opacity: 0.8;
+        filter: brightness(1.2);
+    }
+}
+
+/* ── Glow Breathe ───────────────────────────────────────────────────────────── */
+@keyframes glow-breathe {
+    0%, 100% {
+        filter: brightness(1);
+    }
+    50% {
+        filter: brightness(1.2);
+    }
+}
+
+/* ── Slide In Right ──────────────────────────────────────────────────────────── */
+@keyframes slide-in-right {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ── Slide Out Right ────────────────────────────────────────────────────────── */
+@keyframes slide-out-right {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* ── Scale In ───────────────────────────────────────────────────────────────── */
+@keyframes scale-in {
+    from {
+        transform: scale(0.92);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ── Scale Out ──────────────────────────────────────────────────────────────── */
+@keyframes scale-out {
+    from {
+        transform: scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: scale(0.96);
+        opacity: 0;
+    }
+}
+
+/* ── Glow Border Pulse ──────────────────────────────────────────────────────── */
+@keyframes glow-border-pulse {
+    0%, 100% {
+        border-color: rgba(0,240,255,0.4);
+        box-shadow: 0 0 8px var(--neon-cyan), 0 0 16px rgba(0,240,255,0.3);
+    }
+    50% {
+        border-color: rgba(0,240,255,0.8);
+        box-shadow: 0 0 12px var(--neon-cyan), 0 0 24px rgba(0,240,255,0.5);
+    }
+}
+
+/* ── Float Up ───────────────────────────────────────────────────────────────── */
+@keyframes float-up {
+    0% {
+        transform: translateY(8px);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* ── Reduced motion overrides for keyframes ── */
+@media (prefers-reduced-motion: reduce) {
+    @keyframes neon-pulse {
+        from, to { opacity: 1; filter: brightness(1); }
+    }
+    @keyframes glow-breathe {
+        from, to { filter: brightness(1); }
+    }
+    @keyframes glow-border-pulse {
+        from, to { border-color: rgba(0,240,255,0.4); box-shadow: 0 0 8px var(--neon-cyan), 0 0 16px rgba(0,240,255,0.3); }
+    }
+}

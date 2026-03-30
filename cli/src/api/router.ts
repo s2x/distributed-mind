@@ -15,6 +15,8 @@ export async function matchApiRoute(req: Request, store: MindStore): Promise<Res
 
     // Skip logging for health checks
     const isHealthCheck = url.pathname === '/health' || url.pathname === '/api/health';
+    const isLogsRead = req.method === 'GET' && (url.pathname === '/api/logs' || url.pathname === '/api/logs/');
+    const shouldLog = !isHealthCheck && !isLogsRead;
 
     const json = (data: unknown, status = 200): Response => Response.json(data, { status });
     const err = (msg: string, status = 400): Response => Response.json({ error: msg }, { status });
@@ -57,7 +59,7 @@ export async function matchApiRoute(req: Request, store: MindStore): Promise<Res
             const response = await route.handle(ctx);
 
             // Extract response body for logging (clone the response to read it)
-            if (!isHealthCheck) {
+            if (shouldLog) {
                 try {
                     const clone = response.clone();
                     const jsonData = await clone.json().catch(() => ({ status: response.status }));
@@ -73,7 +75,7 @@ export async function matchApiRoute(req: Request, store: MindStore): Promise<Res
             errorMessage = error.message;
             throw error;
         } finally {
-            if (!isHealthCheck) {
+            if (shouldLog) {
                 const durationMs = Date.now() - startTime;
                 logEntry({
                     source: 'api',
