@@ -6,67 +6,67 @@
 
 /** @param {string|null} view @returns {SpaceView} */
 function normalizeView(view) {
-    return view === 'map' ? 'map' : 'list';
+  return view === 'map' ? 'map' : 'list';
 }
 
 /** @param {string} value */
 function safeDecode(value) {
-    try {
-        return decodeURIComponent(value);
-    } catch {
-        return null;
-    }
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
 }
 
 /** @param {string} pathname @param {string} search @returns {AppRoute} */
 function parseAppRoute(pathname, search) {
-    if (pathname === '/') {
-        return { spaceName: null, view: 'list', memoryName: null };
-    }
+  if (pathname === '/') {
+    return { spaceName: null, view: 'list', memoryName: null };
+  }
 
-    // Check for logs route
-    if (pathname === '/logs') {
-        return { spaceName: null, view: 'list', memoryName: null, isLogsPage: true };
-    }
+  // Check for logs route
+  if (pathname === '/logs') {
+    return { spaceName: null, view: 'list', memoryName: null, isLogsPage: true };
+  }
 
-    const match = /^\/spaces\/([^/]+)$/.exec(pathname);
-    if (!match) {
-        return { spaceName: null, view: 'list', memoryName: null };
-    }
+  const match = /^\/spaces\/([^/]+)$/.exec(pathname);
+  if (!match) {
+    return { spaceName: null, view: 'list', memoryName: null };
+  }
 
-    const decodedSpace = safeDecode(match[1] ?? '');
-    if (!decodedSpace) {
-        return { spaceName: null, view: 'list', memoryName: null };
-    }
+  const decodedSpace = safeDecode(match[1] ?? '');
+  if (!decodedSpace) {
+    return { spaceName: null, view: 'list', memoryName: null };
+  }
 
-    const params = new URLSearchParams(search ?? '');
-    const view = normalizeView(params.get('view'));
-    const memoryName = params.get('memory');
+  const params = new URLSearchParams(search ?? '');
+  const view = normalizeView(params.get('view'));
+  const memoryName = params.get('memory');
 
-    return {
-        spaceName: decodedSpace,
-        view,
-        memoryName: memoryName ?? null,
-    };
+  return {
+    spaceName: decodedSpace,
+    view,
+    memoryName: memoryName ?? null,
+  };
 }
 
 /** @param {BuildAppRouteInput} route */
 function buildAppUrl(route) {
-    if (route?.isLogsPage) {
-        return '/logs';
-    }
+  if (route?.isLogsPage) {
+    return '/logs';
+  }
 
-    if (!route?.spaceName) {
-        return '/';
-    }
+  if (!route?.spaceName) {
+    return '/';
+  }
 
-    const encodedSpace = encodeURIComponent(route.spaceName);
-    const query = [`view=${normalizeView(route.view ?? null)}`];
-    if (route.memoryName) {
-        query.push(`memory=${encodeURIComponent(route.memoryName)}`);
-    }
+  const encodedSpace = encodeURIComponent(route.spaceName);
+  const query = [`view=${normalizeView(route.view ?? null)}`];
+  if (route.memoryName) {
+    query.push(`memory=${encodeURIComponent(route.memoryName)}`);
+  }
 
-    return `/spaces/${encodedSpace}?${query.join('&')}`;
+  return `/spaces/${encodedSpace}?${query.join('&')}`;
 }
 
 export { parseAppRoute, buildAppUrl };

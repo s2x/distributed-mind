@@ -12,18 +12,18 @@ const resolvedDataDir = path.isAbsolute(dataDir) ? dataDir : path.join(repoRoot,
 const dbPath = process.env.MIND_DB_PATH ?? path.join(resolvedDataDir, 'mind.db');
 
 export const CONFIG = {
-    dataDir: resolvedDataDir,
-    dbPath,
-    /** Legacy JSON path for migration */
-    legacyJsonPath: path.join(resolvedDataDir, 'brain.json'),
-    /** Log retention in minutes (default: 6 hours = 360 minutes). Override with MIND_LOG_RETENTION_MINUTES. */
-    logRetentionMinutes: parseInt(process.env.MIND_LOG_RETENTION_MINUTES ?? '360', 10),
-    /** RAG: Enable semantic search with OpenAI embeddings */
-    rag: {
-        enabled: process.env.MIND_RAG === 'true',
-        apiKey: process.env.OPENAI_API_KEY ?? null,
-        model: 'text-embedding-3-small',
-    },
+  dataDir: resolvedDataDir,
+  dbPath,
+  /** Legacy JSON path for migration */
+  legacyJsonPath: path.join(resolvedDataDir, 'brain.json'),
+  /** Log retention in minutes (default: 6 hours = 360 minutes). Override with MIND_LOG_RETENTION_MINUTES. */
+  logRetentionMinutes: parseInt(process.env.MIND_LOG_RETENTION_MINUTES ?? '360', 10),
+  /** RAG: Enable semantic search with OpenAI embeddings */
+  rag: {
+    enabled: process.env.MIND_RAG === 'true',
+    apiKey: process.env.OPENAI_API_KEY ?? null,
+    model: 'text-embedding-3-small',
+  },
 };
 
 /**
@@ -31,6 +31,6 @@ export const CONFIG = {
  * T3 is unlimited (not included here).
  */
 export const TIER_LIMITS: Record<1 | 2, number> = {
-    1: 25,
-    2: 50,
+  1: 25,
+  2: 50,
 };

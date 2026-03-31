@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 // Re-export types to make tests self-contained
-import type {
-  TierChange,
-  HotMemorySummary,
-} from '../src/types';
+import type { TierChange, HotMemorySummary } from '../src/types';
 
 describe('Phase 1.1 — Type definitions', () => {
   describe('TierChange interface', () => {

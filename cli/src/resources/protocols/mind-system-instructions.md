@@ -6,6 +6,7 @@ After this, you can proceed with space_create, memory_add, etc.
 ---
 
 ## IMPORTANT: Create Space First
+
 Before adding memories, you MUST create a space with `space_create`.
 Memory tools will fail with "Space X does not exist" if the space hasn't been created.
 
@@ -18,11 +19,13 @@ Memory tools will fail with "Space X does not exist" if the space hasn't been cr
 This is VITAL for future agents to find your knowledge. If you use arbitrary names like "my-project" or "test123", future agents won't know where to search.
 
 ### ✅ DO:
+
 - `projects/mind` — if the repo/directory is named "mind"
 - `projects/arcana-web` — if the repo is "arcana-web"
 - `projects/api-gateway` — if the directory is "api-gateway"
 
 ### ❌ DON'T:
+
 - `projects/my-awesome-app` — too vague
 - `projects/work-stuff` — unclear
 - `projects/test123` — meaningless
@@ -36,6 +39,7 @@ This is VITAL for future agents to find your knowledge. If you use arbitrary nam
 **Custom tags are allowed.** The following are RECOMMENDED conventions to keep things organized, but you can create any tag you need.
 
 ### Required prefixes (for spaces):
+
 - `type:project` — code project spaces
 - `type:user` — user preferences/settings
 - `type:config` — cross-project configuration
@@ -43,6 +47,7 @@ This is VITAL for future agents to find your knowledge. If you use arbitrary nam
 - `type:session` — session summaries
 
 ### Category tags (for memories):
+
 - `cat:decision` — architectural decision
 - `cat:bugfix` — bug fix
 - `cat:pattern` — established pattern
@@ -58,6 +63,7 @@ Before creating a new tag, search existing memories first (`search` or `memory_q
 ## Space Structure
 
 Organize memories into hierarchical spaces:
+
 - `projects/<REPO_NAME>` — one space per project (use the actual repo/directory name!)
 - `user/preferences` — global user preferences
 - `user/patterns` — work patterns and conventions
@@ -69,6 +75,7 @@ Organize memories into hierarchical spaces:
 ## When to Save (mandatory)
 
 Call `memory_add` IMMEDIATELY after:
+
 - Bug fix completed
 - Architecture decision made
 - Non-obvious technical discovery
@@ -78,6 +85,7 @@ Call `memory_add` IMMEDIATELY after:
 - Any important context you want to preserve for future sessions
 
 **When to link memories**: When adding a memory that depends on, extends, or contradicts another existing memory, pass `links_to` with references to related memories in `"space:name"` format (or bare `"name"` for same space). This lets future agents trace related decisions without searching. Common cases:
+
 - A bugfix that relates to a prior decision
 - A discovery that updates a previous pattern
 - A config change driven by an earlier finding
@@ -110,13 +118,14 @@ Example:
 
 Tiers help manage memory priority and auto-eviction:
 
-| Tier | Name | Use Case | Limit/space |
-|------|------|----------|-------------|
-| T1 | hot | Critical active info (decisions, current preferences) | 25 |
-| T2 | warm | Default for new memories | 50 |
-| T3 | cold | Reference info (past discoveries, bugs, patterns) | unlimited |
+| Tier | Name | Use Case                                              | Limit/space |
+| ---- | ---- | ----------------------------------------------------- | ----------- |
+| T1   | hot  | Critical active info (decisions, current preferences) | 25          |
+| T2   | warm | Default for new memories                              | 50          |
+| T3   | cold | Reference info (past discoveries, bugs, patterns)     | unlimited   |
 
 ### Behaviors:
+
 - **Auto-promote**: Reading a memory (`memory_read`) moves it up one tier (T3→T2→T1)
 - **Pin**: Set `pinned: true` on `memory_add` to make a memory immune to auto-promotion AND LRU eviction
 - **LRU eviction**: When a tier is full, the least-recently-used non-pinned memory moves down one tier
@@ -125,12 +134,12 @@ Tiers help manage memory priority and auto-eviction:
 
 ## Tools Overview
 
-| Category | Tools |
-|----------|-------|
-| Spaces | space_create, space_list, space_get, space_update, space_delete |
-| Memories | memory_add, memory_update, memory_delete, memory_read |
-| Links | link_create, link_delete |
-| Search | search, memory_query, status |
+| Category   | Tools                                                              |
+| ---------- | ------------------------------------------------------------------ |
+| Spaces     | space_create, space_list, space_get, space_update, space_delete    |
+| Memories   | memory_add, memory_update, memory_delete, memory_read              |
+| Links      | link_create, link_delete                                           |
+| Search     | search, memory_query, status                                       |
 | Checkpoint | checkpoint_save, checkpoint_done, checkpoint_load, checkpoint_list |
 
 ---
@@ -138,6 +147,7 @@ Tiers help manage memory priority and auto-eviction:
 ## Pagination
 
 For tools that return lists (`memory_query`, `search`), results are paginated:
+
 - `limit`: Number of results (default 25, max 500)
 - `offset`: Zero-based index (default 0)
 - Use `offset + limit` for next page
@@ -167,44 +177,52 @@ Response includes `pagination` object with `nextOffset` when more results exist.
 ## Example Workflow
 
 # 1. Create a project space (USE THE REPO NAME!)
+
 space_create {
-  name: "projects/mind",  # <-- actual repo name
-  description: "Mind project decisions and patterns",
-  tags: ["type:project"]
+name: "projects/mind", # <-- actual repo name
+description: "Mind project decisions and patterns",
+tags: ["type:project"]
 }
 
 # 2. Add a decision memory
+
 memory_add {
-  space: "projects/mind",
-  name: "JWT over sessions for auth",
-  content: "**What**: Switched from sessions to JWT...\n**Why**: Scale across instances...",
-  tags: ["cat:decision"]
+space: "projects/mind",
+name: "JWT over sessions for auth",
+content: "**What**: Switched from sessions to JWT...\n**Why**: Scale across instances...",
+tags: ["cat:decision"]
 }
 
 # 3. Add a related discovery, linked to the decision by name
+
 memory_add {
-  space: "projects/mind",
-  name: "Refresh token rotation needed",
-  content: "**What**: JWT requires refresh token rotation logic...\n**Why**: Caused by JWT decision...",
-  tags: ["cat:discovery"],
-  links_to: ["JWT over sessions for auth"]  # <-- bare name, same space
+space: "projects/mind",
+name: "Refresh token rotation needed",
+content: "**What**: JWT requires refresh token rotation logic...\n**Why**: Caused by JWT decision...",
+tags: ["cat:discovery"],
+links_to: ["JWT over sessions for auth"] # <-- bare name, same space
 }
 
 # 4. Later, query for decisions
+
 memory_query { space: "projects/mind", tag: "cat:decision" }
 
 # 5. Read a memory to see its linked context
+
 memory_read { space: "projects/mind", name: "JWT over sessions for auth" }
+
 # → returns content + links_to + linked_by (with "space:name" refs)
 
 # 6. Search across all spaces
+
 search { query: "authentication" }
 
 # 7. End of session: summarize (use repo name!)
+
 memory_add {
-  space: "sessions/mind",  # <-- repo name
-  name: "session-2026-03-07",
-  content: "## Goal: Implement MCP improvements\n## Discoveries: ...",
-  tags: ["type:session", "cat:summary"],
-  links_to: ["projects/mind:JWT over sessions for auth", "projects/mind:Refresh token rotation needed"]
+space: "sessions/mind", # <-- repo name
+name: "session-2026-03-07",
+content: "## Goal: Implement MCP improvements\n## Discoveries: ...",
+tags: ["type:session", "cat:summary"],
+links_to: ["projects/mind:JWT over sessions for auth", "projects/mind:Refresh token rotation needed"]
 }

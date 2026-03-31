@@ -1,184 +1,186 @@
 #app {
-    display: grid;
-    grid-template-columns: var(--sidebar-w) 1fr;
-    height: 100vh;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  height: 100vh;
 }
 
 #sidebar {
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 #main {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
 }
 
 #space-detail {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
 }
 
 #tiers {
-    overflow-y: auto;
-    flex: 1;
-    padding: 12px 20px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+  overflow-y: auto;
+  flex: 1;
+  padding: 12px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 #memory-panel {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: var(--mem-panel);
-    display: flex;
-    flex-direction: column;
-    z-index: 10;
-    transform: translateX(100%);
-    opacity: 0;
-    transition: transform var(--dur-panel) var(--ease-out-expo), opacity var(--dur-normal) ease-out;
-    border-left: 1px solid var(--neon-cyan);
-    box-shadow: inset 2px 0 8px rgba(0,240,255,0.2);
-    background: var(--bg2);
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--mem-panel);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  transform: translateX(100%);
+  opacity: 0;
+  transition:
+    transform var(--dur-panel) var(--ease-out-expo),
+    opacity var(--dur-normal) ease-out;
+  border-left: 1px solid var(--neon-cyan);
+  box-shadow: inset 2px 0 8px rgba(0, 240, 255, 0.2);
+  background: var(--bg2);
 }
 
 #memory-panel.open {
-    transform: translateX(0);
-    opacity: 1;
+  transform: translateX(0);
+  opacity: 1;
 }
 
 #search-results {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
 }
 
 #search-list {
-    overflow-y: auto;
-    flex: 1;
-    padding: 12px 20px 20px;
+  overflow-y: auto;
+  flex: 1;
+  padding: 12px 20px 20px;
 }
 
 #graph-view {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 #graph-canvas-wrap {
-    flex: 1;
-    min-height: 0;
-    padding: 12px 20px 20px;
-    position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 20px 20px;
+  position: relative;
 }
 
 /* ── Mobile sidebar overlay ────────────────────────────────────────────────── */
 #sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: 50;
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 50;
 }
 
 #hamburger-btn {
-    display: none;
-    background: none;
-    border: none;
-    color: var(--text);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 6px;
-    min-width: 44px;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
 }
 
 #hamburger-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 @media (max-width: 767px) {
-    #app {
-        grid-template-columns: 1fr;
-    }
+  #app {
+    grid-template-columns: 1fr;
+  }
 
-    #sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: var(--sidebar-w);
-        z-index: 60;
-        transform: translateX(-100%);
-        transition: transform 0.25s ease-out;
-    }
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-w);
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease-out;
+  }
 
-    #sidebar.sidebar-open {
-        transform: translateX(0);
-    }
+  #sidebar.sidebar-open {
+    transform: translateX(0);
+  }
 
-    #sidebar-overlay {
-        display: block;
-    }
+  #sidebar-overlay {
+    display: block;
+  }
 
-    #sidebar-overlay.overlay-hidden {
-        display: none;
-    }
+  #sidebar-overlay.overlay-hidden {
+    display: none;
+  }
 
-    #hamburger-btn {
-        display: flex;
-    }
+  #hamburger-btn {
+    display: flex;
+  }
 
-    .sidebar-header {
-        gap: 8px;
-    }
+  .sidebar-header {
+    gap: 8px;
+  }
 
-    /* Memory panel full-width on mobile */
-    #memory-panel {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        width: 100%;
-        z-index: 20;
-    }
+  /* Memory panel full-width on mobile */
+  #memory-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 20;
+  }
 
-    #memory-panel .panel-header {
-        flex-direction: column;
-        gap: 8px;
-    }
+  #memory-panel .panel-header {
+    flex-direction: column;
+    gap: 8px;
+  }
 
-    #memory-panel .panel-subheader {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+  #memory-panel .panel-subheader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-    /* Back button for memory panel on mobile */
-    #memory-panel .panel-title-row {
-        width: 100%;
-    }
+  /* Back button for memory panel on mobile */
+  #memory-panel .panel-title-row {
+    width: 100%;
+  }
 
-    .btn-back {
-        display: flex !important;
-    }
+  .btn-back {
+    display: flex !important;
+  }
 }
 
 .btn-back {
-    display: none;
+  display: none;
 }

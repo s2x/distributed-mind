@@ -16,12 +16,14 @@ This skill is **MANDATORY**. When mind MCP is available, you MUST use it for eve
 ## Why This Exists
 
 Without persistent memory:
+
 - Your context dies when the session ends
 - Future agents repeat mistakes you already solved
 - Decisions lack traceable rationale
 - Session continuity breaks on context resets
 
 With mind:
+
 - Every agent inherits the knowledge of every previous agent
 - Decisions form a traceable graph — not isolated notes
 - Recovery from compaction is instant, not guesswork
@@ -90,17 +92,17 @@ memory_add {
 
 Call `memory_add` **immediately** after any of these — not later, not "when I'm done", NOW:
 
-| Event | Tag | Example |
-|-------|-----|---------|
-| Decision made | `cat:decision` | "Chose JWT over sessions for auth" |
-| Bug identified or fixed | `cat:bugfix` | "Fixed race condition in queue processor" |
-| Non-obvious discovery | `cat:discovery` | "Bun's SQLite FTS5 has a trigger bug" |
-| Pattern established | `cat:pattern` | "All MCP tools follow schema + handler pattern" |
-| Config or env change | `cat:config` | "Enabled MIND_RAG=true for semantic search" |
-| User preference learned | `cat:preference` | "User prefers terse responses, no summaries" |
-| Architecture choice | `cat:decision` | "Chose monorepo with Bun workspaces" |
-| Plan approved by user | `cat:decision` | "User approved 3-phase migration plan" |
-| Research conclusion | `cat:discovery` | "Evaluated 3 ORMs, chose Drizzle for type safety" |
+| Event                   | Tag              | Example                                           |
+| ----------------------- | ---------------- | ------------------------------------------------- |
+| Decision made           | `cat:decision`   | "Chose JWT over sessions for auth"                |
+| Bug identified or fixed | `cat:bugfix`     | "Fixed race condition in queue processor"         |
+| Non-obvious discovery   | `cat:discovery`  | "Bun's SQLite FTS5 has a trigger bug"             |
+| Pattern established     | `cat:pattern`    | "All MCP tools follow schema + handler pattern"   |
+| Config or env change    | `cat:config`     | "Enabled MIND_RAG=true for semantic search"       |
+| User preference learned | `cat:preference` | "User prefers terse responses, no summaries"      |
+| Architecture choice     | `cat:decision`   | "Chose monorepo with Bun workspaces"              |
+| Plan approved by user   | `cat:decision`   | "User approved 3-phase migration plan"            |
+| Research conclusion     | `cat:discovery`  | "Evaluated 3 ORMs, chose Drizzle for type safety" |
 
 ### Memory Content Format
 
@@ -117,6 +119,7 @@ memory_add {
 ```
 
 **Name format**: descriptive, kebab-case, scannable:
+
 - `auth-jwt-token-expiry`
 - `mcp-tool-descriptions-redesign`
 - `sqlite-fts5-trigger-workaround`
@@ -129,30 +132,32 @@ Every memory and space MUST have at least one tag. Tags are how future agents fi
 
 ### Space tags (required on `space_create`)
 
-| Tag | When |
-|-----|------|
-| `type:project` | Code project spaces |
-| `type:user` | User preferences and settings |
-| `type:session` | Session summaries and checkpoints |
-| `type:config` | Cross-project configuration |
-| `type:learning` | Learned knowledge and reference |
+| Tag             | When                              |
+| --------------- | --------------------------------- |
+| `type:project`  | Code project spaces               |
+| `type:user`     | User preferences and settings     |
+| `type:session`  | Session summaries and checkpoints |
+| `type:config`   | Cross-project configuration       |
+| `type:learning` | Learned knowledge and reference   |
 
 ### Memory tags (required on `memory_add`)
 
-| Tag | When |
-|-----|------|
-| `cat:decision` | Architectural or design decisions |
-| `cat:bugfix` | Bug investigations and fixes |
-| `cat:discovery` | Technical findings and learnings |
-| `cat:pattern` | Established conventions to follow |
-| `cat:preference` | User preferences |
-| `cat:config` | Configuration specifics |
-| `cat:summary` | Session summaries |
+| Tag              | When                              |
+| ---------------- | --------------------------------- |
+| `cat:decision`   | Architectural or design decisions |
+| `cat:bugfix`     | Bug investigations and fixes      |
+| `cat:discovery`  | Technical findings and learnings  |
+| `cat:pattern`    | Established conventions to follow |
+| `cat:preference` | User preferences                  |
+| `cat:config`     | Configuration specifics           |
+| `cat:summary`    | Session summaries                 |
 
 **Before inventing a new tag**, check what already exists:
+
 ```
 search { query: "<your-topic>", space: "*" }
 ```
+
 Look at the tags on returned results and reuse existing ones.
 
 Custom tags are allowed — but prefer the conventions above for discoverability.
@@ -165,13 +170,13 @@ Links are how isolated notes become a knowledge graph. **Always link when a rela
 
 ### When to Link
 
-| Situation | Link label |
-|-----------|------------|
-| Bugfix caused by a prior decision | `caused_by` |
-| Discovery that updates a pattern | `extends` |
+| Situation                              | Link label    |
+| -------------------------------------- | ------------- |
+| Bugfix caused by a prior decision      | `caused_by`   |
+| Discovery that updates a pattern       | `extends`     |
 | New decision that overrides an old one | `contradicts` |
-| Implementation of a design decision | `implements` |
-| Two memories about the same subsystem | `relates_to` |
+| Implementation of a design decision    | `implements`  |
+| Two memories about the same subsystem  | `relates_to`  |
 
 ### How to Link
 
@@ -219,13 +224,13 @@ Checkpoints are how work survives context resets and compaction. Be disciplined 
 
 ### When to Save a Checkpoint
 
-| Event | What to save |
-|-------|-------------|
-| User approves a plan | `goal` + `pending` steps |
-| Complete a subtask | Update `pending` (remove completed item) |
-| Significant decision made | Add to `notes` |
-| Before a risky operation | Full state snapshot |
-| Every 15-20 minutes of work | Progress update |
+| Event                       | What to save                             |
+| --------------------------- | ---------------------------------------- |
+| User approves a plan        | `goal` + `pending` steps                 |
+| Complete a subtask          | Update `pending` (remove completed item) |
+| Significant decision made   | Add to `notes`                           |
+| Before a risky operation    | Full state snapshot                      |
+| Every 15-20 minutes of work | Progress update                          |
 
 ```
 checkpoint_save {
@@ -254,19 +259,21 @@ checkpoint_done {
 
 Mind uses a CPU-cache-style tier system. Understanding it helps you organize knowledge effectively.
 
-| Tier | Name | Purpose | Limit per space |
-|------|------|---------|-----------------|
-| T1 | hot | Critical active context | 25 |
-| T2 | warm | Default for new memories | 50 |
-| T3 | cold | Reference, past patterns | unlimited |
+| Tier | Name | Purpose                  | Limit per space |
+| ---- | ---- | ------------------------ | --------------- |
+| T1   | hot  | Critical active context  | 25              |
+| T2   | warm | Default for new memories | 50              |
+| T3   | cold | Reference, past patterns | unlimited       |
 
 **Key behaviors:**
+
 - New memories start at T2 (warm) unless you specify a tier
 - `memory_read` auto-promotes one tier up (T3→T2→T1)
 - When a tier is full, the least-recently-used memory is evicted down
 - `pinned` memories are immune to promotion and eviction
 
 **Practical guidance:**
+
 - Active decisions and current preferences → T1 (or let auto-promotion handle it)
 - General context → T2 (default, no action needed)
 - Historical reference → T3
@@ -276,27 +283,27 @@ Mind uses a CPU-cache-style tier system. Understanding it helps you organize kno
 
 ## Tool Quick Reference
 
-| Tool | Purpose |
-|------|---------|
-| `space_create` | Create space (required before adding memories). Tags required. |
-| `space_get` | Get space details + hot memories preview |
-| `space_list` | List spaces, optionally by tag |
-| `space_update` | Update description and/or tags |
-| `space_delete` | Delete space + all contents permanently |
-| `memory_add` | Add memory with tags (required) and optional links |
-| `memory_read` | Read memory content + links (+ auto-promote tier). Use `noPromote:true` for read without side effects. |
-| `memory_update` | Update name, content, or replace tags |
-| `memory_delete` | Delete memory + all its links |
-| `search` | Full-text search (FTS5). Finds all memories including cold tier. Space required, use `"*"` for all. |
-| `memory_query` | Query by metadata (tag, tier, date range). Space required, use `"*"` for all. |
-| `status` | Storage stats (counts per tier, links, spaces) |
-| `link_create` | Link two memories by ref (`space:name`). Add a label. |
-| `link_delete` | Remove a link between two memories |
-| `checkpoint_save` | Save/update session state (goal, pending, notes) |
-| `checkpoint_load` | Recover most recent active checkpoint |
-| `checkpoint_done` | Mark checkpoint complete with summary |
-| `checkpoint_list` | List checkpoints by status |
-| `system_instructions` | Get full protocol documentation |
+| Tool                  | Purpose                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `space_create`        | Create space (required before adding memories). Tags required.                                         |
+| `space_get`           | Get space details + hot memories preview                                                               |
+| `space_list`          | List spaces, optionally by tag                                                                         |
+| `space_update`        | Update description and/or tags                                                                         |
+| `space_delete`        | Delete space + all contents permanently                                                                |
+| `memory_add`          | Add memory with tags (required) and optional links                                                     |
+| `memory_read`         | Read memory content + links (+ auto-promote tier). Use `noPromote:true` for read without side effects. |
+| `memory_update`       | Update name, content, or replace tags                                                                  |
+| `memory_delete`       | Delete memory + all its links                                                                          |
+| `search`              | Full-text search (FTS5). Finds all memories including cold tier. Space required, use `"*"` for all.    |
+| `memory_query`        | Query by metadata (tag, tier, date range). Space required, use `"*"` for all.                          |
+| `status`              | Storage stats (counts per tier, links, spaces)                                                         |
+| `link_create`         | Link two memories by ref (`space:name`). Add a label.                                                  |
+| `link_delete`         | Remove a link between two memories                                                                     |
+| `checkpoint_save`     | Save/update session state (goal, pending, notes)                                                       |
+| `checkpoint_load`     | Recover most recent active checkpoint                                                                  |
+| `checkpoint_done`     | Mark checkpoint complete with summary                                                                  |
+| `checkpoint_list`     | List checkpoints by status                                                                             |
+| `system_instructions` | Get full protocol documentation                                                                        |
 
 ---
 
@@ -326,11 +333,11 @@ If any of these apply: **stop and fix it before continuing.**
 
 ## Anti-Patterns
 
-| Don't | Do |
-|-------|-----|
-| "I'll save it later" | Save immediately — you may not get "later" |
-| "The code explains itself" | Code says what, not why — persist the why |
-| "This is too minor" | If you thought about it, it's worth a memory |
-| "I don't know the related memory ID" | Query first: `memory_query` or `search` return IDs |
-| "I'll just use tags, no links" | Tags are categories. Links are relationships. Use both. |
-| "Let me finish everything first, then persist" | Persist as you go — compaction can happen anytime |
+| Don't                                          | Do                                                      |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| "I'll save it later"                           | Save immediately — you may not get "later"              |
+| "The code explains itself"                     | Code says what, not why — persist the why               |
+| "This is too minor"                            | If you thought about it, it's worth a memory            |
+| "I don't know the related memory ID"           | Query first: `memory_query` or `search` return IDs      |
+| "I'll just use tags, no links"                 | Tags are categories. Links are relationships. Use both. |
+| "Let me finish everything first, then persist" | Persist as you go — compaction can happen anytime       |

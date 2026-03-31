@@ -225,52 +225,57 @@ UPDATE meta SET value = '7' WHERE key = 'schema_version';
 `;
 
 export function initializeDatabase(db: import('bun:sqlite').Database): void {
-    db.exec('PRAGMA journal_mode = WAL;');
-    db.exec('PRAGMA synchronous = NORMAL;');
-    db.exec('PRAGMA busy_timeout = 5000;');
-    db.exec('PRAGMA wal_autocheckpoint = 1000;');
-    db.exec('PRAGMA foreign_keys = ON;');
-    db.exec(SCHEMA_SQL);
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA synchronous = NORMAL;');
+  db.exec('PRAGMA busy_timeout = 5000;');
+  db.exec('PRAGMA wal_autocheckpoint = 1000;');
+  db.exec('PRAGMA foreign_keys = ON;');
+  db.exec(SCHEMA_SQL);
 
-    const meta = db.query('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string } | null;
+  const meta = db.query('SELECT value FROM meta WHERE key = ?').get('schema_version') as {
+    value: string;
+  } | null;
 
-    if (!meta) {
-        // Brand-new database — tables were just created with the current schema
-        db.run('INSERT INTO meta (key, value) VALUES (?, ?)', ['schema_version', String(SCHEMA_VERSION)]);
-        return;
-    }
+  if (!meta) {
+    // Brand-new database — tables were just created with the current schema
+    db.run('INSERT INTO meta (key, value) VALUES (?, ?)', [
+      'schema_version',
+      String(SCHEMA_VERSION),
+    ]);
+    return;
+  }
 
-    const currentVersion = parseInt(meta.value, 10);
+  const currentVersion = parseInt(meta.value, 10);
 
-    if (currentVersion < 2) {
-        // Migrate v1 → v2
-        db.exec(MIGRATE_V1_TO_V2);
-    }
+  if (currentVersion < 2) {
+    // Migrate v1 → v2
+    db.exec(MIGRATE_V1_TO_V2);
+  }
 
-    if (currentVersion < 3) {
-        // Migrate v2 → v3
-        db.exec(MIGRATE_V2_TO_V3);
-    }
+  if (currentVersion < 3) {
+    // Migrate v2 → v3
+    db.exec(MIGRATE_V2_TO_V3);
+  }
 
-    if (currentVersion < 4) {
-        // Migrate v3 → v4
-        db.exec(MIGRATE_V3_TO_V4);
-    }
+  if (currentVersion < 4) {
+    // Migrate v3 → v4
+    db.exec(MIGRATE_V3_TO_V4);
+  }
 
-    if (currentVersion < 5) {
-        // Migrate v4 → v5
-        db.exec(MIGRATE_V4_TO_V5);
-    }
+  if (currentVersion < 5) {
+    // Migrate v4 → v5
+    db.exec(MIGRATE_V4_TO_V5);
+  }
 
-    if (currentVersion < 6) {
-        // Migrate v5 → v6
-        db.exec(MIGRATE_V5_TO_V6);
-    }
+  if (currentVersion < 6) {
+    // Migrate v5 → v6
+    db.exec(MIGRATE_V5_TO_V6);
+  }
 
-    if (currentVersion < 7) {
-        // Migrate v6 → v7
-        db.exec(MIGRATE_V6_TO_V7);
-    }
+  if (currentVersion < 7) {
+    // Migrate v6 → v7
+    db.exec(MIGRATE_V6_TO_V7);
+  }
 
-    // Future migrations: add else-if blocks here for v7→v8, etc.
+  // Future migrations: add else-if blocks here for v7→v8, etc.
 }

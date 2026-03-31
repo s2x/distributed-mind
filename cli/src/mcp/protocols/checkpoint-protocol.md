@@ -11,11 +11,11 @@ The checkpoint system allows AI agents to persist work state across sessions and
 ```typescript
 // MCP tool: checkpoint_save
 checkpoint_save({
-    space: 'my-project',
-    goal: 'Implement user authentication',
-    pending: 'Add OAuth2 provider, fix session validation bug',
-    notes: 'Started working on auth module',
-    relatedRefs: ['JWT-decision', 'auth-architecture'], // link to relevant memories by name
+  space: 'my-project',
+  goal: 'Implement user authentication',
+  pending: 'Add OAuth2 provider, fix session validation bug',
+  notes: 'Started working on auth module',
+  relatedRefs: ['JWT-decision', 'auth-architecture'], // link to relevant memories by name
 });
 ```
 
@@ -30,8 +30,8 @@ checkpoint_save({
 ```typescript
 // MCP tool: checkpoint_load
 checkpoint_load({
-    space: 'my-project',
-    includeHistory: false, // true to also get completed checkpoints
+  space: 'my-project',
+  includeHistory: false, // true to also get completed checkpoints
 });
 ```
 
@@ -46,8 +46,8 @@ checkpoint_load({
 ```typescript
 // MCP tool: checkpoint_done
 checkpoint_done({
-    space: 'my-project',
-    summary: 'Added JWT validation, fixed session expiry check',
+  space: 'my-project',
+  summary: 'Added JWT validation, fixed session expiry check',
 });
 ```
 
@@ -62,8 +62,8 @@ checkpoint_done({
 ```typescript
 // MCP tool: checkpoint_list
 checkpoint_list({
-    space: 'my-project',
-    status: 'active', // or "completed" or "all"
+  space: 'my-project',
+  status: 'active', // or "completed" or "all"
 });
 ```
 

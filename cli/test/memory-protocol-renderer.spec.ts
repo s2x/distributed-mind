@@ -1,31 +1,33 @@
-import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+import { describe, expect, test } from 'bun:test';
+
 import { renderMemoryProtocol } from '../src/cli/memory-protocol';
 
 function readSnapshot(name: string): string {
-    return readFileSync(join(import.meta.dir, 'snapshots', name), 'utf-8');
+  return readFileSync(join(import.meta.dir, 'snapshots', name), 'utf-8');
 }
 
 describe('memory protocol renderer', () => {
-    test('renders OpenCode protocol variant snapshot', () => {
-        const rendered = renderMemoryProtocol('opencode');
-        const snapshot = readSnapshot('memory-protocol.opencode.md');
+  test('renders OpenCode protocol variant snapshot', () => {
+    const rendered = renderMemoryProtocol('opencode');
+    const snapshot = readSnapshot('memory-protocol.opencode.md');
 
-        expect(rendered).toBe(snapshot);
-    });
+    expect(rendered).toBe(snapshot);
+  });
 
-    test('renders Claude protocol variant snapshot', () => {
-        const rendered = renderMemoryProtocol('claude-code');
-        const snapshot = readSnapshot('memory-protocol.claude-code.md');
+  test('renders Claude protocol variant snapshot', () => {
+    const rendered = renderMemoryProtocol('claude-code');
+    const snapshot = readSnapshot('memory-protocol.claude-code.md');
 
-        expect(rendered).toBe(snapshot);
-    });
+    expect(rendered).toBe(snapshot);
+  });
 
-    test('renders Codex protocol variant snapshot', () => {
-        const rendered = renderMemoryProtocol('codex');
-        const snapshot = readSnapshot('memory-protocol.codex.md');
+  test('renders Codex protocol variant snapshot', () => {
+    const rendered = renderMemoryProtocol('codex');
+    const snapshot = readSnapshot('memory-protocol.codex.md');
 
-        expect(rendered).toBe(snapshot);
-    });
+    expect(rendered).toBe(snapshot);
+  });
 });
