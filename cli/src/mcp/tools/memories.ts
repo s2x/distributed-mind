@@ -9,6 +9,26 @@ import { resolveRefWithFallback } from './links';
 // Schemas — Phase 2.2 Redesign
 // =============================================================================
 
+const MemoryQuerySchema = z.object({
+  space: z.string().min(1).describe('Space to query. Use "*" for all spaces.'),
+  search: z
+    .string()
+    .optional()
+    .describe(
+      'Search query using FTS5 syntax. When provided, performs full-text search on name and content.'
+    ),
+  tag: z.string().optional().describe('Filter by tag.'),
+  tier: z.number().int().min(1).max(3).optional().describe('Filter by tier: 1, 2, 3.'),
+  from: z.string().optional().describe('Changed date lower bound (YYYY-MM-DD).'),
+  to: z.string().optional().describe('Changed date upper bound (YYYY-MM-DD).'),
+  limit: z.number().int().min(1).max(500).optional().describe('Page size (default: 25).'),
+  offset: z.number().int().min(0).optional().describe('Zero-based offset (default: 0).'),
+});
+
+const StatusSchema = z.object({
+  space: z.string().optional().describe('Space name for space-specific status.'),
+});
+
 const MemoryAddSchema = z.object({
   space: z.string().min(1).describe('Space to add memory to. Must exist first.'),
   name: z.string().min(1).describe('Memory name/title.'),
@@ -59,13 +79,12 @@ const MemoryDeleteSchema = z.object({
 
 const MEMORY_TOOL_DESCRIPTIONS: Record<string, string> = {
   memory_add:
-    'Add a new memory to a space. Use immediately after important events: decisions, bug fixes, discoveries, config changes. Supports creating links to related memories via links_to (pass "space:name" refs or bare names) — always link when the new memory depends on or extends an existing one.',
+    'Add a memory to a space with tags. Use after decisions, bug fixes, discoveries, or config changes. Returns links_created and links_failed arrays.',
   memory_update:
-    'Update a memory by space and name. Can rename (newName), replace content, or replace tags. If tags is provided, it replaces the entire existing tags array.',
-  memory_delete:
-    'Delete a memory permanently by space and name. Also removes all links to/from this memory.',
+    'Update a memory name, content, or tags. Use when memory content or metadata changes.',
+  memory_delete: 'Permanently delete a memory and all its links.',
   memory_read:
-    'Read a memory with its content and linked context (links_to + linked_by). By default, records access and auto-promotes the tier (T3→T2→T1) — use this when actively working with a memory. Pass noPromote:true to inspect without side effects (no access count bump, no tier promotion).',
+    'Read a memory with links. Auto-promotes tier (T3→T2→T1) unless noPromote:true. Use when actively working with a memory.',
 };
 
 // =============================================================================
@@ -114,20 +133,37 @@ export function createMemoryTools(store: MindStore) {
           );
         }
 
-        // Resolve string refs to numeric IDs for the store
+        // Resolve string refs to numeric IDs for the store (best-effort)
+        // Collect successful and failed links separately
+        const linksCreated: Array<{ source: string; target: string; label: string }> = [];
+        const linksFailed: Array<{ ref: string; reason: string }> = [];
         let linksToIds: number[] | undefined;
+
         if (parsed.links_to && parsed.links_to.length > 0) {
-          linksToIds = parsed.links_to.map(ref => {
-            const resolved = resolveRefWithFallback(store, ref, parsed.space);
-            return resolved.id;
-          });
+          linksToIds = [];
+          for (const ref of parsed.links_to) {
+            try {
+              const resolved = resolveRefWithFallback(store, ref, parsed.space);
+              linksToIds.push(resolved.id);
+              linksCreated.push({
+                source: parsed.name,
+                target: resolved.name,
+                label: 'related',
+              });
+            } catch (e: any) {
+              linksFailed.push({
+                ref,
+                reason: e.message || 'unknown error',
+              });
+            }
+          }
         }
 
         const memory = await store.addMemory(parsed.space, parsed.name, parsed.content, {
           tags: parsed.tags,
           tier: parsed.tier as Tier | undefined,
           pinned: parsed.pinned,
-          linksToIds,
+          linksToIds: linksToIds && linksToIds.length > 0 ? linksToIds : undefined,
         });
         return {
           content: [
@@ -137,6 +173,8 @@ export function createMemoryTools(store: MindStore) {
             },
           ],
           memory: stripId(memory),
+          links_created: linksCreated,
+          links_failed: linksFailed,
         };
       },
     },
@@ -316,6 +354,98 @@ export function createMemoryTools(store: MindStore) {
           linked_by,
           tier_change,
         };
+      },
+    },
+
+    memory_query: {
+      schema: MemoryQuerySchema,
+      description:
+        'Query memories by metadata, date, or full-text search (search param uses FTS5 syntax). Use space="*" for all spaces.',
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      handler: async (args: unknown) => {
+        let parsed;
+        try {
+          parsed = MemoryQuerySchema.parse(args ?? {});
+        } catch (e: any) {
+          if (e.issues?.length) {
+            const spaceError = e.issues.find((err: any) => err.path?.includes('space'));
+            if (spaceError) {
+              throw new Error('space is required');
+            }
+          }
+          throw e;
+        }
+
+        const spaceFilter = parsed.space === '*' ? undefined : parsed.space;
+
+        let memories: any[];
+        let totalCount: number;
+        let search_method: string | undefined;
+
+        if (parsed.search) {
+          const searchResult = await store.searchFallback(parsed.search, {
+            space: spaceFilter,
+            tag: parsed.tag,
+            tier: parsed.tier as Tier | undefined,
+          });
+
+          let filteredResults = searchResult.results;
+          if (parsed.from) {
+            const fromDate = new Date(parsed.from);
+            filteredResults = filteredResults.filter(m => new Date(m.changed_at) >= fromDate);
+          }
+          if (parsed.to) {
+            const toDate = new Date(parsed.to);
+            toDate.setHours(23, 59, 59, 999);
+            filteredResults = filteredResults.filter(m => new Date(m.changed_at) <= toDate);
+          }
+
+          totalCount = filteredResults.length;
+          search_method = searchResult.search_method;
+
+          const offset = parsed.offset ?? 0;
+          const limit = parsed.limit ?? 25;
+          memories = filteredResults.slice(offset, offset + limit);
+        } else {
+          memories = store.queryMemories({
+            space: spaceFilter,
+            tag: parsed.tag,
+            tier: parsed.tier as Tier | undefined,
+            from: parsed.from,
+            to: parsed.to,
+            limit: parsed.limit ?? 25,
+            offset: parsed.offset ?? 0,
+          });
+
+          totalCount = await store.queryMemoriesCount({
+            space: spaceFilter,
+            tag: parsed.tag,
+            tier: parsed.tier as Tier | undefined,
+            from: parsed.from,
+            to: parsed.to,
+          });
+        }
+
+        const response: any = {
+          content: [
+            {
+              type: 'text',
+              text: `Found ${memories.length} memory/memories (total: ${totalCount}).`,
+            },
+          ],
+          memories: memories.map(
+            ({ id: _id, content: _c, rank: _r, similarity: _s, ...rest }: any) => rest
+          ),
+          total: totalCount,
+          limit: parsed.limit ?? 25,
+          offset: parsed.offset ?? 0,
+        };
+
+        if (search_method) {
+          response.search_method = search_method;
+        }
+
+        return response;
       },
     },
   };

@@ -15,7 +15,7 @@ checkpoint_save({
   goal: 'Implement user authentication',
   pending: 'Add OAuth2 provider, fix session validation bug',
   notes: 'Started working on auth module',
-  relatedRefs: ['JWT-decision', 'auth-architecture'], // link to relevant memories by name
+  linked_memories: ['JWT-decision', 'auth-architecture'], // link to relevant memories by name
 });
 ```
 
@@ -31,7 +31,7 @@ checkpoint_save({
 // MCP tool: checkpoint_load
 checkpoint_load({
   space: 'my-project',
-  includeHistory: false, // true to also get completed checkpoints
+  checkpointName: '<checkpoint-name>',
 });
 ```
 
@@ -60,10 +60,15 @@ checkpoint_done({
 ### LIST: To find older checkpoints
 
 ```typescript
-// MCP tool: checkpoint_list
-checkpoint_list({
+// MCP tool: checkpoint_query
+checkpoint_query({
   space: 'my-project',
   status: 'active', // or "completed" or "all"
+  from: '2024-01-01', // optional date range start
+  to: '2024-12-31', // optional date range end
+  tag: 'checkpoint', // optional tag filter
+  limit: 25, // optional max results (default 25)
+  offset: 0, // optional pagination offset
 });
 ```
 
@@ -71,15 +76,19 @@ checkpoint_list({
 
 **This is critical!** When context is compacted:
 
-1. **Immediately after compaction**, call:
+1. **Immediately after compaction**, call `checkpoint_query` to find available checkpoints:
 
 ```typescript
-checkpoint_load({ space: '<current-project>', includeHistory: true });
+checkpoint_query({ space: '<current-project>' });
 ```
 
-2. If there's an active checkpoint, continue that work
+2. Then load the specific checkpoint by name:
 
-3. If not, review completed checkpoints to understand previous context
+```typescript
+checkpoint_load({ space: '<current-project>', checkpointName: '<name>' });
+```
+
+3. If there's an active checkpoint, continue that work
 
 ## Checkpoint Storage
 
@@ -88,7 +97,7 @@ Checkpoints are stored in the same space as project memories:
 - Tags: `checkpoint`, `active` or `completed`
 - Content: JSON with goal, pending, notes, timestamps
 - Tier: T1 (hot) while active, demoted to T2 (warm) when completed
-- Links: Use `relatedRefs` to connect checkpoints to relevant memories by name
+- Links: Use `linked_memories` to connect checkpoints to relevant memories by name
 
 ## Best Practices
 
@@ -96,4 +105,4 @@ Checkpoints are stored in the same space as project memories:
 2. **Update checkpoint** when priorities change
 3. **Complete checkpoint** when finishing significant work
 4. **Always load** at the start of new sessions
-5. **Use relatedRefs** to link checkpoints to relevant memories for better recovery context
+5. **Use linked_memories** to link checkpoints to relevant memories for better recovery context

@@ -99,8 +99,8 @@ mind add <space> <name> "content"
 mind list <space>
 mind read <space> <name>
 mind checkpoint set <space> "goal" "pending"
-mind checkpoint recover <space> --format text|md|json --agent opencode
-mind checkpoint complete <space> <id> "what was done"
+mind checkpoint recover <space> --name <checkpoint-name>
+mind checkpoint complete <space> <name> "what was done"
 mind checkpoint list <space> --status active
 mind search "query"
 mind query --space <space> --from 2026-01-01 --to 2026-12-31 --limit 20 --offset 0
@@ -159,6 +159,7 @@ Example MCP tool usage (for agents):
   "name": "memory_query",
   "arguments": {
     "space": "Credentials",
+    "search": "query terms",
     "from": "2026-03-01",
     "to": "2026-03-31",
     "limit": 25,
@@ -167,11 +168,11 @@ Example MCP tool usage (for agents):
 }
 ```
 
-`memory_query` returns structured results including `items` and pagination info (`limit`, `offset`, `nextOffset`).
+`memory_query` returns structured results including `items` and pagination info (`limit`, `offset`, `nextOffset`). Supports optional `search` for full-text search.
 
 Memory MCP workflows also support bounded composite ergonomics while keeping atomic tools:
 
-- `memory_add` supports optional `pinned` and `links_to_ids` (atomic all-or-nothing).
+- `memory_add` supports optional `pinned` and `links_to` (best-effort — check `links_failed` in response).
 - `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`). Use `noPromote:true` to read without side effects.
 
 Checkpoint MCP tools are also available for session continuity:
@@ -179,9 +180,14 @@ Checkpoint MCP tools are also available for session continuity:
 - `checkpoint_save`
 - `checkpoint_done`
 - `checkpoint_load`
-- `checkpoint_list`
+- `checkpoint_query`
 
-`checkpoint_load` supports `format` (`text|md|json`) and optional `agent` profile selection, and returns a Recovery Pack payload with checkpoint state, recent context hits, and capability-aware fallback guidance.
+`checkpoint_load` requires `checkpointName` (use `checkpoint_query` first to find available checkpoints). Returns checkpoint state with linked_memories in enriched format.
+
+System tools for agent protocol:
+
+- `system_instructions` — returns the complete mind usage protocol
+- `status` — get storage status
 
 ### Agent Setup
 

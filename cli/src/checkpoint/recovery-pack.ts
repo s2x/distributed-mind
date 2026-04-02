@@ -74,9 +74,16 @@ export async function buildRecoveryPack(
   } else {
     const allCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
     let candidates = allCheckpoints.filter(memory => memory.tags.includes('active'));
+
+    // When includeHistory=true, look for session memories in sessions/<repo>
+    // (completed checkpoints are deleted and transformed into session memories)
     if (args.includeHistory) {
-      const completed = allCheckpoints.filter(memory => memory.tags.includes('completed'));
-      candidates = [...candidates, ...completed];
+      const sessionSpaceName = space.startsWith('projects/')
+        ? `sessions/${space.slice('projects/'.length)}`
+        : `sessions/${space}`;
+
+      const sessionMemories = store.listMemories(sessionSpaceName, { tag: 'type:session' });
+      candidates = [...candidates, ...sessionMemories];
     }
 
     candidates.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());

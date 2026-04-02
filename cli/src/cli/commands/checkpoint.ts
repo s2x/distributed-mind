@@ -1,11 +1,7 @@
-import {
-  buildRecoveryPack,
-  renderRecoveryPack,
-  type RecoveryFormat,
-} from '../../checkpoint/recovery-pack';
+import { completeCheckpoint } from '../../checkpoint/checkpoint-done';
 import { style } from '../../helpers/style';
+import { resolveRefWithFallback } from '../../mcp/tools/links';
 import { ArgParser } from '../arg-parser';
-import { isAgent } from '../capabilities';
 
 import type { CommandGroup } from './types';
 
@@ -14,7 +10,10 @@ const p = ArgParser.param.bind(ArgParser);
 const SET = new ArgParser(
   ['checkpoint set|cp set', p('space'), p('goal'), p('pending')],
   'Creates or updates a checkpoint for the current work session',
-  [{ name: 'notes', alias: 'n', hasValue: true }]
+  [
+    { name: 'notes', alias: 'n', hasValue: true },
+    { name: 'linked-memories', alias: 'l', hasValue: true },
+  ]
 );
 
 const COMPLETE = new ArgParser(
@@ -25,12 +24,8 @@ const COMPLETE = new ArgParser(
 
 const RECOVER = new ArgParser(
   ['checkpoint recover|cp recover', p('space')],
-  'Recovers the most recent active checkpoint',
-  [
-    { name: 'history', alias: 'H', hasValue: false },
-    { name: 'format', alias: 'f', hasValue: true },
-    { name: 'agent', alias: 'a', hasValue: true },
-  ]
+  'Recovers a checkpoint by name (use checkpoint list to find available checkpoints)',
+  [{ name: 'name', alias: 'n', hasValue: true }]
 );
 
 const LIST = new ArgParser(
@@ -52,6 +47,9 @@ export const checkpointGroup: CommandGroup = {
         const goal = params.goal;
         const pending = params.pending;
         const notes = flags.notes ? String(flags.notes) : undefined;
+        const linkedMemoriesFlag = flags['linked-memories']
+          ? String(flags['linked-memories'])
+          : undefined;
 
         // Verify the space exists
         if (!store.getSpace(space)) {
@@ -100,6 +98,22 @@ export const checkpointGroup: CommandGroup = {
           });
         }
 
+        // Handle linked_memories: parse comma-separated refs and create links
+        if (linkedMemoriesFlag && checkpoint) {
+          const refs = linkedMemoriesFlag
+            .split(',')
+            .map(r => r.trim())
+            .filter(Boolean);
+          for (const ref of refs) {
+            try {
+              const resolved = resolveRefWithFallback(store, ref, space);
+              store.link(checkpoint.id, resolved.id, 'related');
+            } catch {
+              // Ignore link errors
+            }
+          }
+        }
+
         const status = activeCheckpoint ? 'updated' : 'created';
         logger.logInfo(style(`Checkpoint ${status} in "${space}"`, ['bold', 'green']));
         if (checkpoint) {
@@ -113,7 +127,7 @@ export const checkpointGroup: CommandGroup = {
         const params = COMPLETE.getParams(args);
         const space = params.space;
         const checkpointName = params.name;
-        const whatWasDone = params.what;
+        const summary = params.what ?? '';
 
         let memory;
         if (checkpointName) {
@@ -132,28 +146,14 @@ export const checkpointGroup: CommandGroup = {
           return;
         }
 
-        // Update content with what was done
-        const existingContent = JSON.parse(memory.content);
-        existingContent.whatWasDone = whatWasDone;
-        existingContent.completedAt = new Date().toISOString();
-
-        await store.updateMemory(memory.id, {
-          content: JSON.stringify(existingContent, null, 2),
-        });
-
-        // Update tags
-        store.removeMemoryTag(memory.id, 'active');
-        store.addMemoryTag(memory.id, 'completed');
-
-        // Demote to T2
-        try {
-          store.demote(memory.id);
-        } catch {
-          // Might be at T1 already or at max capacity
-        }
+        // Transform checkpoint into session memory (same behavior as MCP checkpoint_done)
+        const result = await completeCheckpoint(store, space, memory.id, summary);
 
         logger.logInfo(
-          style(`Checkpoint marked as completed and demoted to warm tier`, ['bold', 'green'])
+          style(
+            `Checkpoint transformed into session memory "${result.sessionMemory.name}" in "${result.sessionMemory.space}"`,
+            ['bold', 'green']
+          )
         );
       },
     },
@@ -163,24 +163,68 @@ export const checkpointGroup: CommandGroup = {
         const params = RECOVER.getParams(args);
         const flags = RECOVER.getFlags(args);
         const space = params.space;
-        const includeHistory = flags.history === true;
-        const requestedFormat = String(flags.format ?? 'text') as RecoveryFormat;
-        const requestedAgent = flags.agent ? String(flags.agent) : 'opencode';
+        const checkpointName = flags.name ? String(flags.name) : undefined;
 
-        if (!['text', 'md', 'json'].includes(requestedFormat)) {
-          throw new Error('--format must be one of: text, md, json');
+        if (!checkpointName) {
+          logger.logInfo(
+            style(
+              'Checkpoint name is required. Use "checkpoint list" first to find available checkpoints.',
+              ['yellow']
+            )
+          );
+          return;
         }
-        if (!isAgent(requestedAgent)) {
-          throw new Error(`Unknown --agent value: ${requestedAgent}`);
+
+        // Find checkpoint by name
+        let checkpointMemory = store.getMemory(space, checkpointName);
+        if (!checkpointMemory) {
+          logger.logInfo(style(`Checkpoint "${checkpointName}" not found in "${space}"`, ['red']));
+          return;
+        }
+        checkpointMemory = store.getMemoryById(checkpointMemory.id);
+        if (!checkpointMemory) {
+          logger.logInfo(style(`Checkpoint "${checkpointName}" could not be loaded`, ['red']));
+          return;
         }
 
-        const recoveryPack = await buildRecoveryPack(store, {
-          space,
-          includeHistory,
-          agent: requestedAgent,
-        });
+        // Build linked_memories in enriched format
+        const linked_memories: Array<{
+          name: string;
+          space: string;
+          ref: string;
+          tier: number;
+          tags: string[];
+          pinned: boolean;
+          changed_at: string;
+        }> = [];
 
-        logger.logInfo(renderRecoveryPack(recoveryPack, requestedFormat));
+        const links = store.getLinks(checkpointMemory.id);
+        for (const link of links.slice(0, 5)) {
+          const linkedMem = store.getMemoryById(link.target_id);
+          if (linkedMem) {
+            linked_memories.push({
+              name: linkedMem.name,
+              space: linkedMem.space_name,
+              ref: `${linkedMem.space_name}:${linkedMem.name}`,
+              tier: linkedMem.tier,
+              tags: linkedMem.tags,
+              pinned: linkedMem.pinned,
+              changed_at: linkedMem.changed_at,
+            });
+          }
+        }
+
+        const checkpoint = {
+          space: checkpointMemory.space_name,
+          name: checkpointMemory.name,
+          tier: checkpointMemory.tier,
+          tags: checkpointMemory.tags,
+          content: JSON.parse(checkpointMemory.content),
+          linked_memories,
+          updated_at: checkpointMemory.updated_at,
+        };
+
+        logger.logInfo(JSON.stringify(checkpoint, null, 2));
       },
     },
     {

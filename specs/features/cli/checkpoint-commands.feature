@@ -25,41 +25,38 @@ Feature: CLI Checkpoint Commands
 
   Rule: checkpoint complete command
 
-    Scenario: checkpoint complete marks done
-      Given an active checkpoint exists
+    Scenario: checkpoint complete transforms checkpoint into session memory
+      Given an active checkpoint in "projects/test" with goal "Implement login" and pending "Add OAuth"
       When running "./mind checkpoint complete projects/test my-checkpoint \"Added OAuth\""
-      Then the checkpoint is marked complete
+      Then a session memory is created in "sessions/test"
+      And the checkpoint is deleted from "projects/test"
 
     Scenario: checkpoint done is alias for complete
+      Given an active checkpoint in "projects/test" with goal "Fix bug" and pending "Write tests"
       When running "./mind checkpoint done projects/test my-checkpoint \"Summary\""
-      Then the checkpoint is marked complete
+      Then a session memory is created in "sessions/test"
+      And the checkpoint is deleted from "projects/test"
 
   Rule: checkpoint recover command
 
-    Scenario: checkpoint recover returns recovery pack
+    Scenario: checkpoint recover requires --name flag
       Given an active checkpoint with goal "Login feature"
       When running "./mind checkpoint recover projects/test"
-      Then the recovery pack is displayed
+      Then an error is shown about checkpoint name being required
+      And it suggests using "checkpoint list" first
+
+    Scenario: checkpoint recover outputs checkpoint as JSON
+      Given an active checkpoint with goal "Login feature" and pending "Add OAuth"
+      When running "./mind checkpoint recover projects/test --name"
+      Then the checkpoint is displayed as JSON
       And it includes the goal and pending items
-
-    Scenario: checkpoint recover --history includes past checkpoints
-      When running "./mind checkpoint recover projects/test --history"
-      Then completed checkpoints are included
-
-    Scenario: checkpoint recover --format md
-      When running "./mind checkpoint recover projects/test --format md"
-      Then the output is in markdown format
-
-    Scenario: checkpoint recover --format json
-      When running "./mind checkpoint recover projects/test --format json"
-      Then the output is in JSON format
 
   Rule: checkpoint list command
 
-    Scenario: checkpoint list shows all checkpoints
-      Given checkpoints "active" and "done-1" exist
+    Scenario: checkpoint list shows active checkpoints
+      Given an active checkpoint exists
       When running "./mind checkpoint list projects/test"
-      Then both checkpoints are listed
+      Then the active checkpoint is listed
 
     Scenario: checkpoint list --status active
       When running "./mind checkpoint list projects/test --status active"
@@ -67,7 +64,7 @@ Feature: CLI Checkpoint Commands
 
     Scenario: checkpoint list --status completed
       When running "./mind checkpoint list projects/test --status completed"
-      Then only completed checkpoints are shown
+      Then no checkpoints are shown (completed checkpoints are deleted, not tagged)
 
   Rule: cp alias
 
@@ -76,5 +73,7 @@ Feature: CLI Checkpoint Commands
       Then the checkpoint is created
 
     Scenario: cp done works as alias
+      Given an active checkpoint in "projects/test" with goal "Alias test" and pending "Verify"
       When running "./mind cp done projects/test my-checkpoint \"Summary\""
-      Then the checkpoint is marked complete
+      Then a session memory is created in "sessions/test"
+      And the checkpoint is deleted from "projects/test"

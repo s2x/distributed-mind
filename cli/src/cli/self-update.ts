@@ -5,7 +5,7 @@ interface ReleaseInfo {
   tag_name: string;
 }
 
-const DEFAULT_REPO = 'Gentleman-Programming/mind';
+const DEFAULT_REPO = 'GabrielMartinMoran/mind';
 
 function getRootPath(): string {
   return path.resolve(import.meta.dir, '..', '..', '..');

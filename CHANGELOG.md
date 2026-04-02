@@ -29,7 +29,21 @@ Example:
 
 ### Changed
 
+- **BREAKING**: `relatedRefs` in `checkpoint_save` renamed to `linked_memories` for consistency with other memory link naming.
+- **BREAKING**: `checkpoint_load` response now returns `linked_memories` in memory_read format (enriched: name, space, ref, tier, tags, pinned, changed_at) instead of simple links array.
+- Added `--linked-memories` flag to CLI `checkpoint set` command (comma-separated memory refs).
+
 - Tier system simplified: T4 (frozen) removed, T3 now unlimited. All T4 memories automatically migrate to T3 on startup.
+- **BREAKING**: `checkpoint_list` MCP tool renamed to `checkpoint_query` with extended filters (`from`, `to`, `tag`, `limit`, `offset`). Agents must update to use `checkpoint_query`.
+- **BREAKING**: `search` MCP tool removed. Use `memory_query` with `search` parameter for full-text search instead.
+- **BREAKING**: `checkpoint_done` now transforms the checkpoint into a session memory in `sessions/<repo>` and deletes the checkpoint. Previously it only marked the checkpoint as complete.
+- **BREAKING**: CLI `checkpoint complete` now behaves identically to MCP `checkpoint_done` — transforms checkpoint into session memory in `sessions/<repo>` and deletes the original. Previously it only marked complete and demoted to T2.
+- **BREAKING**: `links_to` in `memory_add` is now best-effort. The response includes `links_created` and `links_failed` arrays. Agents should check `links_failed` to see if any links couldn't be created.
+- **BREAKING**: `checkpoint_load` lost the `agent` param and gained `checkpointName` param (optional, loads most recent active if omitted). Response stripped to `checkpoint` + `context_hits` only (no more capability_profile, degradation, guidance).
+- **BREAKING**: `checkpoint_query` response now includes `goal` and `pending` preview fields for each checkpoint.
+- **BREAKING**: `checkpoint_load` now requires `checkpointName` (no silent fallback to most recent). Agents must call `checkpoint_query` first to find available checkpoints, then `checkpoint_load` with the specific name. CLI `checkpoint recover` also requires `--checkpointName` flag; shows helpful error if omitted.
+- **BREAKING**: `checkpoint_load` removed `includeHistory` and `format` parameters. Response no longer includes `context_hits`. Returns only `checkpoint` with `linked_memories` enriched.
+- **BREAKING**: CLI `checkpoint recover` removed `--history` and `--format` flags. Output is always JSON checkpoint representation.
 
 ### Fixed
 

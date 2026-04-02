@@ -126,6 +126,15 @@ export interface MindStore {
   // Query memories by metadata/date with pagination
   queryMemories(filter?: MemoryQueryFilter): MemorySummary[];
 
+  // Count memories matching the given filters (without fetching all rows)
+  queryMemoriesCount(filter: {
+    space?: string;
+    tag?: string;
+    tier?: number;
+    from?: string;
+    to?: string;
+  }): Promise<number>;
+
   // Graph view (includes T1..T3 only)
   getSpaceGraph(space: string, opts?: { limit?: number; maxLimit?: number }): SpaceGraphResult;
 

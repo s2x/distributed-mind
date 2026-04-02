@@ -1344,6 +1344,51 @@ export function createSqliteStore(dbPath: string): MindStore {
     }));
   }
 
+  async function queryMemoriesCount(filter: {
+    space?: string;
+    tag?: string;
+    tier?: number;
+    from?: string;
+    to?: string;
+  }): Promise<number> {
+    let sql = 'SELECT COUNT(*) as count FROM memories m';
+    const joinParams: any[] = [];
+    const conditions: string[] = [];
+    const whereParams: any[] = [];
+
+    if (filter?.tag) {
+      sql += ' JOIN memory_tags mt ON mt.memory_id = m.id AND mt.tag = ?';
+      joinParams.push(normalizeTag(filter.tag));
+    }
+
+    if (filter?.space) {
+      conditions.push('m.space_name = ?');
+      whereParams.push(filter.space);
+    }
+
+    if (filter?.tier !== undefined) {
+      conditions.push('m.tier = ?');
+      whereParams.push(filter.tier);
+    }
+
+    if (filter?.from) {
+      conditions.push('m.changed_at >= ?');
+      whereParams.push(normalizeDateBound(filter.from, false));
+    }
+
+    if (filter?.to) {
+      conditions.push('m.changed_at <= ?');
+      whereParams.push(normalizeDateBound(filter.to, true));
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    const row = db.query(sql).get(...joinParams, ...whereParams) as { count: number };
+    return row.count;
+  }
+
   function getSpaceGraph(
     space: string,
     opts?: { limit?: number; maxLimit?: number }
@@ -1726,6 +1771,7 @@ export function createSqliteStore(dbPath: string): MindStore {
     search: searchMemories,
     searchFallback,
     queryMemories,
+    queryMemoriesCount,
     getSpaceGraph,
     getStatus,
     importFromJson,

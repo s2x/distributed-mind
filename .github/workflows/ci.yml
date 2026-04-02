@@ -2,38 +2,38 @@ name: CI
 
 on:
   push:
-    branches: [ '*' ]
+    branches: ['*']
   pull_request:
-    branches: [ '*' ]
+    branches: ['*']
 
 jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-          
+
       - name: Install dependencies
         run: bun install
-        
+
       - name: Type check
         run: bun tsc --noEmit
-        
+
       - name: Check formatting (prettier)
         run: bun run format --check || npx prettier --check .
-        
+
       - name: Lint
         run: bun run lint
-        
+
       - name: Dependency audit
         run: npm audit --audit-level=high || true
-        
+
       - name: Run tests
         run: bun test cli/test web/test

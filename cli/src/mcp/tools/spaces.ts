@@ -6,11 +6,9 @@ const SpaceCreateSchema = z.object({
   name: z
     .string()
     .min(1)
-    .describe(
-      'Space name. Use hierarchical format: projects/project-name, user/preferences, global/config.'
-    ),
+    .describe('Space name. Use projects/<repo>, user/preferences, or sessions/<repo>.'),
   description: z.string().min(1).describe('Description of the space purpose.'),
-  tags: z.array(z.string()).min(1).describe('Tags for the space. At least 1 tag required.'),
+  tags: z.array(z.string()).min(1).describe('Tags (at least 1 required).'),
 });
 
 const SpaceListSchema = z.object({
@@ -24,10 +22,7 @@ const SpaceGetSchema = z.object({
 const SpaceUpdateSchema = z.object({
   name: z.string().min(1).describe('Space name to update.'),
   description: z.string().optional().describe('New description.'),
-  tags: z
-    .array(z.string())
-    .optional()
-    .describe('New tags array. Replaces all existing tags if provided.'),
+  tags: z.array(z.string()).optional().describe('New tags array (replaces all existing).'),
 });
 
 const SpaceDeleteSchema = z.object({
@@ -36,14 +31,11 @@ const SpaceDeleteSchema = z.object({
 
 const SPACE_TOOL_DESCRIPTIONS: Record<string, string> = {
   space_create:
-    'Create a new space with required tags. Use hierarchical names: projects/<repo-name>, user/preferences, sessions/<repo-name>.',
-  space_list:
-    'List all spaces, optionally filtered by tag. Use at session start to discover existing project spaces.',
-  space_get: 'Get space details including description, tags, and hot (T1+T2) memories preview.',
-  space_update:
-    'Update space description and/or tags. Tags array replaces existing tags if provided.',
-  space_delete:
-    'Delete a space and ALL its memories, links, and checkpoints permanently. Cannot be undone.',
+    'Create a new space with required tags. Use hierarchical names: projects/<repo>, user/preferences, sessions/<repo>.',
+  space_list: 'List all spaces, optionally filtered by tag.',
+  space_get: 'Get space details, tags, and hot memories preview (T1+T2, excludes checkpoints).',
+  space_update: 'Update a space description and/or replace its tags.',
+  space_delete: 'Permanently delete a space and ALL its memories, links, and checkpoints.',
 };
 
 export function createSpaceTools(store: MindStore) {

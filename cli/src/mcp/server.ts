@@ -15,8 +15,8 @@ import type { MindStore } from '../store/mind-store';
 import { createCheckpointTools } from './tools/checkpoint';
 import { createLinkTools } from './tools/links';
 import { createMemoryTools } from './tools/memories';
-import { createSearchTools } from './tools/search';
 import { createSpaceTools } from './tools/spaces';
+import { createStatusTools } from './tools/status';
 import { createSystemTools } from './tools/system';
 
 type ToolAnnotations = {
@@ -50,7 +50,7 @@ function createMcpServer(store: MindStore): Server {
     ...createSpaceTools(store),
     ...createMemoryTools(store),
     ...createLinkTools(store),
-    ...createSearchTools(store),
+    ...createStatusTools(store),
     ...createCheckpointTools(store),
     ...createSystemTools(),
   };

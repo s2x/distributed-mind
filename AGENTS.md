@@ -59,8 +59,8 @@ User → ./mind <command> [args] [--flag value]
 | MindStore interface   | `cli/src/store/mind-store.ts`                                        | Abstract interface for all data operations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | SQLite store          | `cli/src/store/sqlite-store.ts`                                      | Full `MindStore` implementation using `bun:sqlite`. Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Schema                | `cli/src/store/schema.ts`                                            | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 5 (migrates v1→v2→v3→v4→v5).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| MCP server            | `cli/src/mcp/server.ts`                                              | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes tools across spaces, memories, links, search, checkpoints, and system categories.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| MCP tools             | `cli/src/mcp/tools/`                                                 | Tool implementations: `spaces.ts`, `memories.ts`, `links.ts`, `search.ts`, `checkpoint.ts`, `system.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| MCP server            | `cli/src/mcp/server.ts`                                              | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes tools across spaces, memories, links, checkpoints, and system categories.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| MCP tools             | `cli/src/mcp/tools/`                                                 | Tool implementations: `spaces.ts`, `memories.ts`, `links.ts`, `checkpoint.ts`, `status.ts`, `system.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | API server            | `cli/src/api/server.ts`                                              | Bun HTTP server that serves `/api/*` routes and static web files from `web/` (SPA shell in `web/public/index.html`, frontend modules in `web/src`, styles in `web/styles`, assets in `web/assets`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | API router            | `cli/src/api/router.ts`                                              | Route matcher/dispatcher for API endpoints.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | API routes            | `cli/src/api/routes/*.ts`                                            | Atomic REST route declarations grouped by domain (`spaces`, `memories`, `search`, `status`, `logs`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -278,9 +278,9 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 | Status (global)     | `status`              | —                                           | —                              | —                                                                     | Show storage info and per-tier breakdown.                                                                                                                         |
 | Status (space)      | `status`              | —                                           | `<space>`                      | —                                                                     | Show tier breakdown for a specific space.                                                                                                                         |
 | List tags           | `tags`                | `tgs`                                       | —                              | `--spaces`, `--memories`                                              | List all tags in the system (defaults to both).                                                                                                                   |
-| Checkpoint set      | `checkpoint set`      | `cp set`                                    | `<space>` `<goal>` `<pending>` | `--notes`                                                             | Create or update an active checkpoint in the project space.                                                                                                       |
-| Checkpoint complete | `checkpoint complete` | `cp complete`, `checkpoint done`, `cp done` | `<space>` `<name>` `<what>`    | —                                                                     | Complete a checkpoint, mark tags, and demote tier.                                                                                                                |
-| Checkpoint recover  | `checkpoint recover`  | `cp recover`                                | `<space>`                      | `--history`, `--format`, `--agent`                                    | Recover integrated Recovery Pack via checkpoint interface (optionally include history; output `text\|md\|json`; capability profile selected by agent).            |
+| Checkpoint set      | `checkpoint set`      | `cp set`                                    | `<space>` `<goal>` `<pending>` | `--notes`, `--linked-memories`                                        | Create or update an active checkpoint in the project space.                                                                                                       |
+| Checkpoint complete | `checkpoint complete` | `cp complete`, `checkpoint done`, `cp done` | `<space>` `<name>` `<what>`    | —                                                                     | Complete a checkpoint and transform it into a session memory in sessions/<repo>. The checkpoint is deleted and a session memory is created.                       |
+| Checkpoint recover  | `checkpoint recover`  | `cp recover`                                | `<space>`                      | `--format`, `--name`                                                  | Recover checkpoint by name (use `checkpoint list` first to find available checkpoints; output `text\|md\|json`).                                                  |
 | Checkpoint list     | `checkpoint list`     | `cp list`                                   | `<space>`                      | `--status`                                                            | List checkpoints from the project space (filtered by `checkpoint` tag).                                                                                           |
 | Guide               | `guide`               | `g`                                         | —                              | —                                                                     | Show usage guide (human mode).                                                                                                                                    |
 | Guide (mode)        | `guide`               | `g`                                         | `<mode>`                       | —                                                                     | Show guide (`agent` or `human`).                                                                                                                                  |
@@ -291,55 +291,55 @@ Reads `data/brain.json` (or `$MIND_DATA_DIR/brain.json`) and imports all spaces 
 
 ### 4.9 MCP Tools
 
-The MCP server exposes 20 tools for agent integration:
+The MCP server exposes 18 tools for agent integration:
 
 #### Spaces (5 tools)
 
-| Tool           | Description                                                   |
-| -------------- | ------------------------------------------------------------- |
-| `space.create` | Create a new space (requires `tags`)                          |
-| `space.list`   | List all spaces                                               |
-| `space.get`    | Get a space by name; returns `hot_memories` preview (T1 + T2) |
-| `space.update` | Update a space description                                    |
-| `space.delete` | Delete a space and all its memories                           |
+| Tool           | Description                                               |
+| -------------- | --------------------------------------------------------- |
+| `space_create` | Create a new space (requires `tags`)                      |
+| `space_list`   | List all spaces                                           |
+| `space_get`    | Get a space by name; returns hot memories preview (T1+T2) |
+| `space_update` | Update a space description                                |
+| `space_delete` | Delete a space and all its memories                       |
 
 #### Memories (4 tools)
 
-| Tool            | Description                                                                                                                              |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `memory.add`    | Add a memory to a space (requires `tags`); supports `links_to` refs                                                                      |
-| `memory.read`   | Read + record access (auto-promote); returns `links_to`, `linked_by`, `tier_change`. Use `noPromote:true` for read without side effects. |
-| `memory.update` | Update a memory name/content by space and name                                                                                           |
-| `memory.delete` | Delete a memory by space/name                                                                                                            |
+| Tool            | Description                                                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `memory_add`    | Add a memory to a space (requires `tags`); `links_to` is best-effort and returns `links_created` and `links_failed` arrays         |
+| `memory_read`   | Read + record access (auto-promote); returns links_to, linked_by, tier_change. Use noPromote:true to inspect without side effects. |
+| `memory_update` | Update a memory name/content by space and name                                                                                     |
+| `memory_delete` | Delete a memory by space/name                                                                                                      |
 
-#### Search (2 tools)
+#### Query (1 tool)
 
-| Tool           | Description                                                               |
-| -------------- | ------------------------------------------------------------------------- |
-| `search`       | Full-text search with flexible parser (FTS5 → LIKE → embeddings fallback) |
-| `memory.query` | Unified memory listing                                                    |
+| Tool           | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
+| `memory_query` | Unified memory listing (use `search` parameter for full-text search) |
 
 #### Links (2 tools)
 
 | Tool          | Description                                    |
 | ------------- | ---------------------------------------------- |
-| `link.create` | Create a directional link between two memories |
-| `link.delete` | Delete a directional link                      |
+| `link_create` | Create a directional link between two memories |
+| `link_delete` | Delete a directional link                      |
 
 #### Checkpoint (4 tools)
 
-| Tool              | Description                                               |
-| ----------------- | --------------------------------------------------------- |
-| `checkpoint.save` | Create or update a checkpoint (renamed from `set`)        |
-| `checkpoint.load` | Recover latest active checkpoint (renamed from `recover`) |
-| `checkpoint.list` | List checkpoints for a space                              |
-| `checkpoint.done` | Mark a checkpoint complete (renamed from `complete`)      |
+| Tool               | Description                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `checkpoint_save`  | Create or update a checkpoint (goal, pending, notes, linked_memories).                |
+| `checkpoint_load`  | Restore a specific checkpoint by name. Returns linked_memories in memory_read format. |
+| `checkpoint_query` | Query checkpoints with filters: status, date range, tag, limit/offset                 |
+| `checkpoint_done`  | Transform checkpoint to session memory in `sessions/<repo>` and delete the checkpoint |
 
-#### System (1 tool)
+#### System (2 tools)
 
-| Tool            | Description        |
-| --------------- | ------------------ |
-| `system.status` | Get storage status |
+| Tool                  | Description                                         |
+| --------------------- | --------------------------------------------------- |
+| `status`              | Get storage status                                  |
+| `system_instructions` | Returns the complete mind usage protocol for agents |
 
 ### 4.10 Mind Memory Protocol
 
@@ -359,9 +359,9 @@ When using mind via MCP, follow these conventions:
 - `cat:preference` — user preference
 - `cat:config` — configuration
 
-**Space hierarchy (USE REPO NAME):**
+**Space hierarchy (use repo name):**
 
-> **IMPORTANT**: For software projects, use the actual repository/directory name as the space name (e.g., `projects/mind`, `projects/arcana-web`). This makes your memories discoverable by future agents.
+> For software projects, use the repository/directory name as the space name (e.g., `projects/mind`, `projects/arcana-web`). This makes memories discoverable by future agents.
 
 - `projects/<name>` — one space per project
 - `user/preferences` — global user preferences
@@ -375,13 +375,13 @@ When using mind via MCP, follow these conventions:
 - T2 (warm) — default for new memories
 - T3 (cold) — unlimited
 
-**Continuity rule:** link directly relevant memories for recovery continuity. `memory_add` with `links_to` is atomic all-or-nothing.
+**Continuity rule:** link directly relevant memories for recovery continuity. `memory_add` with `links_to` is best-effort — check `links_failed` in the response.
 
 ---
 
 ## 5. Keeping this document updated
 
-**If you are an AI agent or a maintainer modifying this repo, you must keep AGENTS.md in sync with the code.**
+**If you modify this repo, keep AGENTS.md in sync with the code.**
 
 **Changelog policy (mandatory):**
 

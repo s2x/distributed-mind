@@ -5,40 +5,30 @@ import type { MindStore } from '../../store/mind-store';
 const LinkCreateSchema = z.object({
   sourceRef: z
     .string()
-    .describe(
-      'Source memory reference in "space:name" format or just "name" (uses source memory\'s space).'
-    ),
+    .describe('Source memory ref ("space:name" or bare "name" uses source space).'),
   targetRef: z
     .string()
-    .describe(
-      'Target memory reference in "space:name" format or just "name" (uses source memory\'s space if bare).'
-    ),
+    .describe('Target memory ref ("space:name" or bare "name" uses source space).'),
   label: z
     .string()
     .optional()
-    .describe(
-      'Relationship label describing the link (e.g., "depends_on", "caused_by", "extends", "contradicts").'
-    ),
+    .describe('Relationship label (e.g., "depends_on", "caused_by", "extends").'),
 });
 
 const LinkDeleteSchema = z.object({
   sourceRef: z
     .string()
-    .describe(
-      'Source memory reference of the link to remove in "space:name" format or just "name".'
-    ),
+    .describe('Source memory ref of the link to remove ("space:name" or bare "name").'),
   targetRef: z
     .string()
-    .describe(
-      'Target memory reference of the link to remove in "space:name" format or just "name".'
-    ),
+    .describe('Target memory ref of the link to remove ("space:name" or bare "name").'),
 });
 
 const LINK_TOOL_DESCRIPTIONS: Record<string, string> = {
   link_create:
-    'Create a directional link between two memories so future agents can trace related decisions without searching. Use when a memory depends on, extends, or contradicts another (e.g., a bugfix caused by a prior decision, a discovery that updates a pattern). Requires source and target memory references in "space:name" format or bare names (same space).',
+    'Create a directional link between two memories. Use when a memory depends on, extends, or relates to another.',
   link_delete:
-    'Remove a directional link between two memories. The memories themselves are not affected.',
+    'Remove a directional link between two memories. The memories themselves are unaffected.',
 };
 
 /**

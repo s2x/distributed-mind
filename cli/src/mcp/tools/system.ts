@@ -11,7 +11,7 @@ export function createSystemTools() {
     system_instructions: {
       schema: SystemInstructionsSchema,
       description:
-        'CALL THIS FIRST before using any other mind tool. Returns the complete mind usage protocol: space naming, tagging, linking, tier system, and session workflow. Without this, you will use the tools incorrectly.',
+        'Returns the complete mind usage protocol: space naming, tagging, linking, tier system, and session workflow. Must be called before using any other mind tool in a new session.',
       annotations: { readOnlyHint: true },
       handler: async () => {
         return {

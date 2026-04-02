@@ -42,7 +42,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       expect(res.checkpoint?.tags).toContain('active');
     });
 
-    test('2.5.1b checkpoint_save creates checkpoint with relatedRefs (string refs)', async () => {
+    test('2.5.1b checkpoint_save creates checkpoint with linked_memories (string refs)', async () => {
       const tools = createCheckpointTools(store);
 
       // Create a memory to link
@@ -53,7 +53,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       const res = await tools.checkpoint_save.handler({
         space: 'test-space',
         goal: 'Implement auth',
-        relatedRefs: ['my-memory'],
+        linked_memories: ['my-memory'],
       });
 
       expect(res.checkpoint).toBeDefined();
@@ -64,7 +64,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       expect(links.some(l => l.target_id === mem.id)).toBe(true);
     });
 
-    test('2.5.1c checkpoint_save with relatedRefs using space:name format', async () => {
+    test('2.5.1c checkpoint_save with linked_memories using space:name format', async () => {
       const tools = createCheckpointTools(store);
 
       // Create a memory to link
@@ -75,7 +75,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       const res = await tools.checkpoint_save.handler({
         space: 'test-space',
         goal: 'Implement auth',
-        relatedRefs: ['test-space:my-memory'],
+        linked_memories: ['test-space:my-memory'],
       });
 
       expect(res.checkpoint).toBeDefined();
@@ -114,20 +114,21 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
   // checkpoint_load
   // ==========================================================================
   describe('checkpoint.load', () => {
-    test('2.5.2 checkpoint_load retrieves active checkpoint', async () => {
+    test('2.5.2 checkpoint_load retrieves checkpoint by name', async () => {
       const tools = createCheckpointTools(store);
 
       // First create a checkpoint
-      await tools.checkpoint_save.handler({
+      const saved = await tools.checkpoint_save.handler({
         space: 'test-space',
         goal: 'My goal',
         pending: 'Pending work',
         notes: 'Some notes',
       });
 
-      // Now load it
+      // Now load it by name
       const res = await tools.checkpoint_load.handler({
         space: 'test-space',
+        checkpointName: saved.checkpoint!.name,
       });
 
       expect(res.checkpoint).toBeDefined();
@@ -137,23 +138,52 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       expect(res.checkpoint?.content.notes).toBe('Some notes');
     });
 
-    test('2.5.2b checkpoint_load returns recovery guidance when no active checkpoint', async () => {
+    test('2.5.2b checkpoint_load without checkpointName throws error', async () => {
       const tools = createCheckpointTools(store);
 
-      const res = await tools.checkpoint_load.handler({
+      await expect(
+        tools.checkpoint_load.handler({
+          space: 'test-space',
+        })
+      ).rejects.toThrow('checkpointName is required');
+    });
+
+    test('2.5.2c checkpoint_load returns checkpoint with linked_memories (includeHistory removed)', async () => {
+      const tools = createCheckpointTools(store);
+
+      // Create a memory to link
+      await store.addMemory('test-space', 'auth', 'JWT auth', { tags: ['test'] });
+
+      // Create a checkpoint with linked_memories
+      const created = await tools.checkpoint_save.handler({
         space: 'test-space',
+        goal: 'My goal',
+        pending: 'Pending work',
+        linked_memories: ['auth'],
       });
 
-      expect(res.checkpoint).toBeNull();
-      expect(res.note).toContain('No active checkpoint');
+      // Load the checkpoint
+      const res = await tools.checkpoint_load.handler({
+        space: 'test-space',
+        checkpointName: created.checkpoint!.name,
+      });
+
+      // Response should have checkpoint with linked_memories
+      expect(res.checkpoint).toBeDefined();
+      expect(res.checkpoint?.content?.goal).toBe('My goal');
+      // linked_memories should be present
+      expect(res.checkpoint?.linked_memories).toBeDefined();
+      expect(res.checkpoint?.linked_memories?.length).toBeGreaterThan(0);
+      // context_hits should NOT be present (removed)
+      expect((res as any).context_hits).toBeUndefined();
     });
   });
 
   // ==========================================================================
-  // checkpoint_list
+  // checkpoint_query
   // ==========================================================================
-  describe('checkpoint.list', () => {
-    test('2.5.3 checkpoint_list returns checkpoints', async () => {
+  describe('checkpoint.query', () => {
+    test('2.5.3 checkpoint_query returns checkpoints', async () => {
       const tools = createCheckpointTools(store);
 
       // Create a checkpoint
@@ -162,7 +192,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
         goal: 'First goal',
       });
 
-      const res = await tools.checkpoint_list.handler({
+      const res = await tools.checkpoint_query.handler({
         space: 'test-space',
       });
 
@@ -171,10 +201,10 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       expect(res.checkpoints.length).toBeGreaterThan(0);
     });
 
-    test('2.5.3b checkpoint_list filters by status', async () => {
+    test('2.5.3b checkpoint_query shows active checkpoints and no completed ones (Phase 2: checkpoint_done deletes checkpoint)', async () => {
       const tools = createCheckpointTools(store);
 
-      // Create checkpoint and mark it complete
+      // Create checkpoint and transform it via checkpoint_done
       const created = await tools.checkpoint_save.handler({
         space: 'test-space',
         goal: 'Goal to complete',
@@ -186,26 +216,28 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
         summary: 'Work done',
       });
 
-      const activeOnly = await tools.checkpoint_list.handler({
+      // Active checkpoints should be 0 (checkpoint was deleted, not completed)
+      const activeOnly = await tools.checkpoint_query.handler({
         space: 'test-space',
         status: 'active',
       });
+      expect(activeOnly.checkpoints.length).toBe(0);
 
-      const completedOnly = await tools.checkpoint_list.handler({
+      // Completed checkpoints should also be 0 (checkpoint was DELETED, not marked completed)
+      // This is the key Phase 2 behavior change: checkpoint_done transforms to session memory
+      const completedOnly = await tools.checkpoint_query.handler({
         space: 'test-space',
         status: 'completed',
       });
-
-      expect(activeOnly.checkpoints.every((c: any) => c.tags.includes('active'))).toBe(true);
-      expect(completedOnly.checkpoints.every((c: any) => c.tags.includes('completed'))).toBe(true);
+      expect(completedOnly.checkpoints.length).toBe(0);
     });
   });
 
   // ==========================================================================
-  // checkpoint_done
+  // checkpoint_done — Phase 2: Option B (transform to session memory)
   // ==========================================================================
-  describe('checkpoint.done', () => {
-    test('2.5.4 checkpoint_done marks checkpoint as completed', async () => {
+  describe('checkpoint.done (Phase 2: Option B)', () => {
+    test('2.5.4 checkpoint_done transforms checkpoint into session memory in sessions/<repo>', async () => {
       const tools = createCheckpointTools(store);
 
       // Create a checkpoint
@@ -213,37 +245,111 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
         space: 'test-space',
         goal: 'Goal to complete',
       });
+      const checkpointName = created.checkpoint!.name;
 
       const res = await tools.checkpoint_done.handler({
         space: 'test-space',
-        checkpointName: created.checkpoint!.name,
+        checkpointName: checkpointName,
         summary: 'Finished auth implementation',
       });
 
-      expect(res.content[0]?.text).toContain('completed');
-      expect(res.checkpoint?.tags).toContain('completed');
-      expect(res.checkpoint?.tags).not.toContain('active');
+      // Phase 2: Response should contain session_memory info
+      expect(res.session_memory).toBeDefined();
+      expect(res.session_memory?.space).toBe('sessions/test-space');
+      expect(res.session_memory?.name).toContain('session-');
+      expect(res.session_memory?.tags).toContain('type:session');
+      expect(res.session_memory?.tags).toContain('cat:summary');
+
+      // Original checkpoint should be deleted
+      expect(store.getMemory('test-space', checkpointName)).toBeNull();
+
+      // Session memory should exist in sessions space
+      const sessionMem = store.getMemory('sessions/test-space', res.session_memory!.name);
+      expect(sessionMem).toBeDefined();
+      expect(sessionMem?.tags).toContain('type:session');
+      expect(sessionMem?.tags).toContain('cat:summary');
     });
 
-    test('2.5.4b checkpoint_done demotes checkpoint to warm tier', async () => {
+    test('2.5.4b checkpoint_done creates session memory with correct content', async () => {
       const tools = createCheckpointTools(store);
 
       // Create a checkpoint (T1 by default)
       const created = await tools.checkpoint_save.handler({
         space: 'test-space',
-        goal: 'Goal',
+        goal: 'Implement feature X',
+        pending: 'Write tests',
+        notes: 'Some implementation notes',
       });
       expect(created.checkpoint?.tier).toBe(1);
+      const checkpointName = created.checkpoint!.name;
 
-      // Complete it
+      // Transform it
+      const res = await tools.checkpoint_done.handler({
+        space: 'test-space',
+        checkpointName: checkpointName,
+        summary: 'Feature X is done',
+      });
+
+      // Session memory should exist in sessions space
+      const sessionMem = store.getMemory('sessions/test-space', res.session_memory!.name);
+      expect(sessionMem).toBeDefined();
+
+      // Content should include checkpoint data plus summary
+      const content = JSON.parse(sessionMem!.content);
+      expect(content.goal).toBe('Implement feature X');
+      expect(content.pending).toBe('Write tests');
+      expect(content.notes).toBe('Some implementation notes');
+      expect(content.whatWasDone).toBe('Feature X is done');
+      expect(content.originalCheckpoint).toBe(checkpointName);
+
+      // Original checkpoint should be deleted
+      expect(store.getMemory('test-space', checkpointName)).toBeNull();
+    });
+
+    test('2.5.4c checkpoint_done twice returns error on second call', async () => {
+      const tools = createCheckpointTools(store);
+
+      // Create and transform checkpoint
+      const created = await tools.checkpoint_save.handler({
+        space: 'test-space',
+        goal: 'Goal',
+      });
+
+      await tools.checkpoint_done.handler({
+        space: 'test-space',
+        checkpointName: created.checkpoint!.name,
+        summary: 'Done',
+      });
+
+      // Second call should fail - no active checkpoint
+      await expect(
+        tools.checkpoint_done.handler({
+          space: 'test-space',
+        })
+      ).rejects.toThrow('No active checkpoint found');
+    });
+
+    test('2.5.4d checkpoint_done auto-creates sessions space if not exists', async () => {
+      const tools = createCheckpointTools(store);
+
+      // Ensure sessions space doesn't exist
+      expect(store.getSpace('sessions/test-space')).toBeNull();
+
+      // Create and transform checkpoint
+      const created = await tools.checkpoint_save.handler({
+        space: 'test-space',
+        goal: 'Goal',
+      });
+
       const res = await tools.checkpoint_done.handler({
         space: 'test-space',
         checkpointName: created.checkpoint!.name,
         summary: 'Done',
       });
 
-      // Should be demoted to T2 (warm)
-      expect(res.checkpoint?.tier).toBe(2);
+      // Sessions space should be auto-created
+      expect(store.getSpace('sessions/test-space')).toBeDefined();
+      expect(res.session_memory?.space).toBe('sessions/test-space');
     });
   });
 

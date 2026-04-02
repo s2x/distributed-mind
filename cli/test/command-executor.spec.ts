@@ -565,7 +565,7 @@ describe('Command Executor — Checkpoint', () => {
     expect(logs.some(l => l.message.includes('updated'))).toBe(true);
   });
 
-  test('should recover active checkpoint', async () => {
+  test('should recover checkpoint by name', async () => {
     store = createTestStore();
     const logger = mockedLogger();
     store.createSpace('myproject', 'A project', ['test']);
@@ -577,63 +577,24 @@ describe('Command Executor — Checkpoint', () => {
       logger
     );
 
-    // Recover it
-    await executeCommand(['checkpoint', 'recover', 'myproject'], store, logger);
+    // Get checkpoint name
+    const memories = store.listMemories('myproject', { tag: 'checkpoint' });
+    const cpName = memories[0]!.name;
+
+    // Recover it by name
+    await executeCommand(['checkpoint', 'recover', 'myproject', '--name', cpName], store, logger);
 
     const logs = logger.getLogs();
-    expect(logs.some(l => l.message.includes('Active checkpoint'))).toBe(true);
-    expect(logs.some(l => l.message.includes('My goal'))).toBe(true);
-    expect(logs.some(l => l.message.includes('My pending'))).toBe(true);
-  });
-
-  test('should recover checkpoint in markdown format', async () => {
-    store = createTestStore();
-    const logger = mockedLogger();
-    store.createSpace('myproject', 'A project', ['test']);
-
-    await executeCommand(
-      ['checkpoint', 'set', 'myproject', 'Ship feature', 'Close pending qa'],
-      store,
-      logger
-    );
-    await executeCommand(
-      ['checkpoint', 'recover', 'myproject', '--format', 'md', '--agent', 'opencode'],
-      store,
-      logger
-    );
-
-    const logs = logger.getLogs();
-    expect(logs.some(l => l.message.includes('# Recovery Pack'))).toBe(true);
-    expect(logs.some(l => l.message.includes('Ship feature'))).toBe(true);
-  });
-
-  test('should recover checkpoint in json format with capability profile', async () => {
-    store = createTestStore();
-    const logger = mockedLogger();
-    store.createSpace('myproject', 'A project', ['test']);
-
-    await executeCommand(
-      ['checkpoint', 'set', 'myproject', 'Ship feature', 'Close pending qa'],
-      store,
-      logger
-    );
-    await executeCommand(
-      ['checkpoint', 'recover', 'myproject', '--format', 'json', '--agent', 'codex'],
-      store,
-      logger
-    );
-
-    const payload = logger
-      .getLogs()
-      .map(l => l.message)
-      .find(message => message.includes('"capability_profile"'));
-
+    // Should output JSON with checkpoint info
+    const payload = logs.map(l => l.message).find(m => m.includes('"name"'));
     expect(payload).toBeDefined();
-    expect(payload).toContain('"L1_MCP"');
-    expect(payload).toContain('"fallback"');
+    expect(payload).toContain('My goal');
+    expect(payload).toContain('My pending');
+    // Should NOT contain context_hits
+    expect(payload).not.toContain('context_hits');
   });
 
-  test('should return empty when no checkpoint to recover', async () => {
+  test('should show helpful error when checkpoint name is omitted', async () => {
     store = createTestStore();
     const logger = mockedLogger();
     store.createSpace('myproject', 'A project', ['test']);
@@ -641,7 +602,8 @@ describe('Command Executor — Checkpoint', () => {
     await executeCommand(['checkpoint', 'recover', 'myproject'], store, logger);
 
     const logs = logger.getLogs();
-    expect(logs.some(l => l.message.includes('No active checkpoint'))).toBe(true);
+    expect(logs.some(l => l.message.includes('Checkpoint name is required'))).toBe(true);
+    expect(logs.some(l => l.message.includes('checkpoint list'))).toBe(true);
   });
 
   test('should complete a checkpoint', async () => {
@@ -654,21 +616,26 @@ describe('Command Executor — Checkpoint', () => {
     const memories = store.listMemories('myproject', { tag: 'checkpoint' });
     const cpName = memories[0]!.name;
 
-    // Complete it
+    // Complete it - transforms to session memory and deletes checkpoint
     await executeCommand(
       ['checkpoint', 'complete', 'myproject', cpName, 'Fixed the bug'],
       store,
       logger
     );
 
-    // Check it was completed
+    // Check the original checkpoint is deleted
     const updated = store.getMemory('myproject', cpName);
-    expect(updated!.tags).toContain('completed');
-    expect(updated!.tags).not.toContain('active');
-    expect(updated!.tier).toBe(2); // Demoted to T2
+    expect(updated).toBeNull();
+
+    // Check session memory was created in sessions/myproject
+    const sessionsMemories = store.listMemories('sessions/myproject', {});
+    expect(sessionsMemories.length).toBeGreaterThan(0);
+    const sessionMem = sessionsMemories.find(m => m.tags.includes('type:session'));
+    expect(sessionMem).toBeDefined();
+    expect(sessionMem!.tags).toContain('cat:summary');
 
     const logs = logger.getLogs();
-    expect(logs.some(l => l.message.includes('completed'))).toBe(true);
+    expect(logs.some(l => l.message.includes('transformed into session memory'))).toBe(true);
   });
 
   test('should list checkpoints', async () => {
@@ -678,17 +645,14 @@ describe('Command Executor — Checkpoint', () => {
 
     // Create checkpoint
     await executeCommand(['checkpoint', 'set', 'myproject', 'Goal', 'Pending'], store, logger);
-    const memories = store.listMemories('myproject', { tag: 'checkpoint' });
-    const cpName = memories[0]!.name;
 
-    // Complete it
-    await executeCommand(['checkpoint', 'complete', 'myproject', cpName, 'Done'], store, logger);
-
-    // List all
+    // List active checkpoints
     await executeCommand(['checkpoint', 'list', 'myproject'], store, logger);
 
     const logs = logger.getLogs();
     expect(logs.some(l => l.message.includes('Checkpoints for'))).toBe(true);
+    // Should show 1 active checkpoint
+    expect(logs.some(l => l.message.includes('checkpoint-'))).toBe(true);
   });
 
   test('checkpoint_save does not create separate session space', async () => {
