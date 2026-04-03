@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { renderMemoryProtocol } from '../src/cli/memory-protocol';
-import { runSetup } from '../src/cli/setup';
+import { buildOpenCodeAutomationPlugin, runSetup } from '../src/cli/setup';
 
 let previousHome = '';
 let tempHome = '';
@@ -258,6 +258,65 @@ describe('OpenCode setup integration', () => {
       const chunk = pluginText.slice(handlerStart, handlerStart + 2000);
       expect(chunk).toContain('try');
       expect(chunk).toContain('catch');
+    }
+  });
+
+  test('generated plugin has valid JavaScript syntax', async () => {
+    const mindBinPath = join(import.meta.dir, '..', '..', 'mind');
+    const pluginContent = buildOpenCodeAutomationPlugin(mindBinPath);
+
+    // Write to temp file for Bun.build
+    const tmpPath = join(tmpdir(), `mind-automation-test-${Date.now()}.js`);
+    await Bun.write(tmpPath, pluginContent);
+
+    try {
+      // Validate syntax without executing
+      const result = await Bun.build({
+        entrypoints: [tmpPath],
+        evaluate: false,
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) {
+        console.error('Plugin syntax errors:', result.logs);
+      }
+      expect(result.logs.length).toBe(0);
+    } finally {
+      // Cleanup
+      await Bun.file(tmpPath).delete();
+    }
+  });
+
+  test('plugin syntax validation catches embedded newline errors', async () => {
+    // Corrupted plugin with literal newline in regex (the actual bug pattern)
+    const corruptedPlugin = `
+export const handlers = {
+  test: () => {
+    const x = 'hello'.replace(/
+/g, '');
+  }
+};
+`;
+
+    const tmpPath = join(tmpdir(), `mind-automation-corrupt-${Date.now()}.js`);
+    await Bun.write(tmpPath, corruptedPlugin);
+
+    try {
+      let buildFailed = false;
+      try {
+        const result = await Bun.build({
+          entrypoints: [tmpPath],
+          evaluate: false,
+        });
+        buildFailed = !result.success;
+      } catch {
+        // Bun.build throws "Bundle failed" on syntax errors
+        buildFailed = true;
+      }
+
+      expect(buildFailed).toBe(true);
+    } finally {
+      await Bun.file(tmpPath).delete();
     }
   });
 });

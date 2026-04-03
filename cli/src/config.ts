@@ -11,7 +11,14 @@ const resolvedDataDir = path.isAbsolute(dataDir) ? dataDir : path.join(repoRoot,
  */
 const dbPath = process.env.MIND_DB_PATH ?? path.join(resolvedDataDir, 'mind.db');
 
+/**
+ * MIND_PORT sets the default web server port (default: 30303).
+ * CLI --port flag overrides this; MIND_PORT env var overrides the default.
+ */
+export const DEFAULT_PORT = 30303;
+
 export const CONFIG = {
+  defaultPort: DEFAULT_PORT,
   dataDir: resolvedDataDir,
   dbPath,
   /** Legacy JSON path for migration */

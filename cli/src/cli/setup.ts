@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import { homedir } from 'os';
 import * as path from 'path';
 
+import { DEFAULT_PORT } from '../config';
+
 import {
   type CapabilityMap,
   type SupportedAgent,
@@ -23,7 +25,6 @@ interface AgentConfig {
 }
 
 const DEFAULT_MCP_PORT = 7438;
-const DEFAULT_WEB_PORT = 3000;
 
 const OPENCODE_MEMORY_PROTOCOL_FILENAME = 'mind-memory-protocol.md';
 
@@ -246,7 +247,7 @@ function nowIso() {
 }
 
 function clampText(value, maxChars) {
-  const normalized = String(value ?? '').replace(/[ \t\n\r]+/g, ' ').trim();
+  const normalized = String(value ?? '').replace(/[ \\\\t\\\\n\\\\r]+/g, ' ').trim();
   if (normalized.length <= maxChars) {
     return normalized;
   }
@@ -494,7 +495,7 @@ export const MindAutomationPlugin = async (ctx) => {
 
         checkpointForEvent(payload, 'Pre-compaction checkpoint capture and signal preservation');
         const recovered = recoverCheckpointContext(getProjectSpace(ctx));
-        const escaped = (recovered ?? '').replace(/\n/g, '\\n');
+        const escaped = (recovered ?? '').replace(/\\n/g, '\\n');
 
         if (Array.isArray(output?.context)) {
           output.context.push(
@@ -527,7 +528,7 @@ export const MindAutomationPlugin = async (ctx) => {
         const lastIdx = output.system.length - 1;
         const projectSpace = getProjectSpace(ctx);
         const recovered = recoverCheckpointContext(projectSpace);
-        const escaped = (recovered ?? '').replace(/\n/g, '\\n');
+        const escaped = (recovered ?? '').replace(/\\n/g, '\\n');
 
         if (escaped) {
           state.handled[dedupeKey] = Date.now();
@@ -797,7 +798,7 @@ function getMcpPort(): number {
 }
 
 function getWebPort(): number {
-  return Number(process.env.PORT ?? DEFAULT_WEB_PORT);
+  return Number(process.env.MIND_PORT ?? DEFAULT_PORT);
 }
 
 export async function startMcpDetached(): Promise<void> {
@@ -993,6 +994,7 @@ function printCapabilityDiagnostics(agentName: string, capabilities: CapabilityM
   console.log(formatCapabilityLine('L3_HOOKS', capabilities.L3_HOOKS));
 }
 
+export { buildOpenCodeAutomationPlugin };
 export async function runSetup(agent: SupportedAgent): Promise<void> {
   const cfg = getAgentConfig(agent);
   if (!cfg) {

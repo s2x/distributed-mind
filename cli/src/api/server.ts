@@ -46,7 +46,7 @@ function resolveStaticFile(pathname: string): Response {
 }
 
 export async function runApiServer(port?: number, existingStore?: MindStore): Promise<void> {
-  const httpPort = port ?? Number(process.env.PORT ?? 3000);
+  const httpPort = port ?? Number(process.env.MIND_PORT ?? CONFIG.defaultPort);
   const idleTimeout = Number(process.env.MIND_API_IDLE_TIMEOUT ?? 30);
 
   if (!existingStore) {
