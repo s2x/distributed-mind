@@ -358,17 +358,17 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
   // ==========================================================================
   test('2.5.5 checkpoint_set no longer exists', async () => {
     const tools = createCheckpointTools(store);
-    expect(tools.checkpoint_set).toBeUndefined();
+    expect((tools as any).checkpoint_set).toBeUndefined();
   });
 
   test('2.5.6 checkpoint_complete no longer exists', async () => {
     const tools = createCheckpointTools(store);
-    expect(tools.checkpoint_complete).toBeUndefined();
+    expect((tools as any).checkpoint_complete).toBeUndefined();
   });
 
   test('2.5.7 checkpoint_recover no longer exists', async () => {
     const tools = createCheckpointTools(store);
-    expect(tools.checkpoint_recover).toBeUndefined();
+    expect((tools as any).checkpoint_recover).toBeUndefined();
   });
 
   // ==========================================================================

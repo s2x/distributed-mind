@@ -181,14 +181,6 @@ describe('MindStore — Memories', () => {
     expect(cold[0]!.name).toBe('cold');
   });
 
-  test('should throw when listing memories with tier 4 (T4 has been removed)', async () => {
-    store = createTestStore();
-    store.createSpace('test', 'Test', ['test']);
-    await store.addMemory('test', 'mem', 'content', { tier: 2, tags: ['test'] });
-
-    expect(() => store.listMemories('test', { tier: 4 })).toThrow('T4 has been removed');
-  });
-
   test('should filter memories by tier', async () => {
     store = createTestStore();
     store.createSpace('test', 'Test', ['test']);

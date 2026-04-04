@@ -117,14 +117,14 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
 
       const link = res.links_to[0];
       expect(link).toBeDefined();
-      expect(link.id).toBeUndefined();
-      expect(link.ref).toBe('test-space:target1');
-      expect(link.name).toBe('target1');
-      expect(link.space).toBe('test-space');
-      expect(link.tier).toBe(target.tier);
-      expect(link.tags).toContain('cat:pattern');
-      expect(link.pinned).toBe(true);
-      expect(typeof link.changed_at).toBe('string');
+      expect((link as any).id).toBeUndefined();
+      expect(link!.ref).toBe('test-space:target1');
+      expect(link!.name).toBe('target1');
+      expect(link!.space).toBe('test-space');
+      expect(link!.tier).toBe(target.tier);
+      expect(link!.tags).toContain('cat:pattern');
+      expect(link!.pinned).toBe(true);
+      expect(typeof link!.changed_at).toBe('string');
     });
   });
 
@@ -148,9 +148,9 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
       });
 
       expect(res.tier_change).toBeDefined();
-      expect(res.tier_change.from).toBe(2);
-      expect(res.tier_change.to).toBe(1);
-      expect(res.tier_change.reason).toBe('auto-promote on read');
+      expect(res.tier_change!.from).toBe(2);
+      expect(res.tier_change!.to).toBe(1);
+      expect(res.tier_change!.reason).toBe('auto-promote on read');
     });
 
     test('2.2.6 memory.read of memory in T1 returns tier_change with reason "already at T1"', async () => {
@@ -169,9 +169,9 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
       });
 
       expect(res.tier_change).toBeDefined();
-      expect(res.tier_change.from).toBe(1);
-      expect(res.tier_change.to).toBe(1);
-      expect(res.tier_change.reason).toBe('already at T1');
+      expect(res.tier_change!.from).toBe(1);
+      expect(res.tier_change!.to).toBe(1);
+      expect(res.tier_change!.reason).toBe('already at T1');
     });
 
     test('2.2.7 memory.read of pinned memory does not promote (reason indicates pinned)', async () => {
@@ -192,9 +192,9 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
       });
 
       expect(res.tier_change).toBeDefined();
-      expect(res.tier_change.from).toBe(2);
-      expect(res.tier_change.to).toBe(2); // Not promoted
-      expect(res.tier_change.reason).toContain('pin');
+      expect(res.tier_change!.from).toBe(2);
+      expect(res.tier_change!.to).toBe(2); // Not promoted
+      expect(res.tier_change!.reason).toContain('pin');
     });
 
     test('memory.read returns links_to and linked_by', async () => {
@@ -297,37 +297,37 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
   describe('Removed tools — memory_get, memory_get_by_id, memory_list', () => {
     test('2.2.0 memory_get no longer exists (tool removed — use memory_read with noPromote:true instead)', async () => {
       const tools = createMemoryTools(store);
-      expect(tools.memory_get).toBeUndefined();
+      expect((tools as any).memory_get).toBeUndefined();
     });
 
     test('2.2.11 memory_get_by_id no longer exists (tool not found)', async () => {
       const tools = createMemoryTools(store);
-      expect(tools.memory_get_by_id).toBeUndefined();
+      expect((tools as any).memory_get_by_id).toBeUndefined();
     });
 
     test('2.2.12 memory_list no longer exists (tool not found)', async () => {
       const tools = createMemoryTools(store);
-      expect(tools.memory_list).toBeUndefined();
+      expect((tools as any).memory_list).toBeUndefined();
     });
 
     test('memory_tag_add no longer exists (tool not found)', async () => {
       const tools = createMemoryTools(store);
-      expect(tools.memory_tag_add).toBeUndefined();
+      expect((tools as any).memory_tag_add).toBeUndefined();
     });
 
     test('memory_tag_remove no longer exists (tool not found)', async () => {
       const tools = createMemoryTools(store);
-      expect(tools.memory_tag_remove).toBeUndefined();
+      expect((tools as any).memory_tag_remove).toBeUndefined();
     });
 
     test('memory_tags_list no longer exists (tool not found)', async () => {
       const tools = createMemoryTools(store);
-      expect(tools.memory_tags_list).toBeUndefined();
+      expect((tools as any).memory_tags_list).toBeUndefined();
     });
 
     test('memory_patch no longer exists (tool not found)', async () => {
       const tools = createMemoryTools(store);
-      expect(tools.memory_patch).toBeUndefined();
+      expect((tools as any).memory_patch).toBeUndefined();
     });
   });
 });

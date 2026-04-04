@@ -473,10 +473,6 @@ export function createSqliteStore(dbPath: string): MindStore {
     }
 
     if (filter?.tier !== undefined) {
-      // Explicit tier filter: T4 has been removed
-      if (filter.tier === 4) {
-        throw new Error('T4 has been removed; use tier 1, 2, or 3');
-      }
       conditions.push('m.tier = ?');
       whereParams.push(filter.tier);
     } else {

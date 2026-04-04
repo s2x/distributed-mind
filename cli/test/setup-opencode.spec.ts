@@ -189,7 +189,7 @@ describe('OpenCode setup integration', () => {
 
     // Find the actual text between the quotes
     const recoveryTextMatch = pluginText.match(/RECOVERY_TEXT\s*=\s*[`']([^`'"]+)[`'"]/);
-    if (recoveryTextMatch) {
+    if (recoveryTextMatch && recoveryTextMatch[1]) {
       const recoveryText = recoveryTextMatch[1];
       expect(recoveryText.length).toBeGreaterThanOrEqual(150);
       expect(recoveryText.length).toBeLessThanOrEqual(250);
@@ -273,7 +273,6 @@ describe('OpenCode setup integration', () => {
       // Validate syntax without executing
       const result = await Bun.build({
         entrypoints: [tmpPath],
-        evaluate: false,
       });
 
       expect(result.success).toBe(true);
@@ -306,7 +305,6 @@ export const handlers = {
       try {
         const result = await Bun.build({
           entrypoints: [tmpPath],
-          evaluate: false,
         });
         buildFailed = !result.success;
       } catch {

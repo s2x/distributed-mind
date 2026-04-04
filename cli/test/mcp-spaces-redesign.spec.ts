@@ -91,12 +91,12 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
 
       const hot = res.hot_memories[0];
       expect(hot).toBeDefined();
-      expect(hot.id).toBeUndefined();
-      expect(hot.name).toBe('hot1');
-      expect(hot.tier).toBe(1);
-      expect(hot.tags).toContain('cat:decision');
-      expect(hot.pinned).toBe(true);
-      expect(typeof hot.updated_at).toBe('string');
+      expect((hot as any).id).toBeUndefined();
+      expect(hot!.name).toBe('hot1');
+      expect(hot!.tier).toBe(1);
+      expect(hot!.tags).toContain('cat:decision');
+      expect(hot!.pinned).toBe(true);
+      expect(typeof hot!.updated_at).toBe('string');
     });
 
     test('space.get returns hot_memories empty when no hot memories', async () => {
@@ -161,21 +161,21 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
       store = createTestStore();
       const tools = createSpaceTools(store);
 
-      expect(tools.space_rename).toBeUndefined();
+      expect((tools as any).space_rename).toBeUndefined();
     });
 
     test('2.1.8 space_tag_add no longer exists (tool not found)', async () => {
       store = createTestStore();
       const tools = createSpaceTools(store);
 
-      expect(tools.space_tag_add).toBeUndefined();
+      expect((tools as any).space_tag_add).toBeUndefined();
     });
 
     test('2.1.9 space_tag_remove no longer exists (tool not found)', async () => {
       store = createTestStore();
       const tools = createSpaceTools(store);
 
-      expect(tools.space_tag_remove).toBeUndefined();
+      expect((tools as any).space_tag_remove).toBeUndefined();
     });
   });
 });

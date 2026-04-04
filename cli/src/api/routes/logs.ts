@@ -32,16 +32,13 @@ export const logRoutes: RouteDefinition[] = [
       const from = url.searchParams.get('from') ?? undefined;
       const to = url.searchParams.get('to') ?? undefined;
       const level = url.searchParams.get('level') as 'info' | 'warn' | 'error' | undefined;
-      const limit = url.searchParams.get('limit')
-        ? parseInt(url.searchParams.get('limit'), 10)
-        : undefined;
-      const offset = url.searchParams.get('offset')
-        ? parseInt(url.searchParams.get('offset'), 10)
-        : undefined;
+      const limitStr = url.searchParams.get('limit');
+      const limit = limitStr ? parseInt(limitStr, 10) : undefined;
+      const offsetStr = url.searchParams.get('offset');
+      const offset = offsetStr ? parseInt(offsetStr, 10) : undefined;
       const order = url.searchParams.get('order') as 'asc' | 'desc' | undefined;
-      const since = url.searchParams.get('since')
-        ? parseInt(url.searchParams.get('since'), 10)
-        : undefined;
+      const sinceStr = url.searchParams.get('since');
+      const since = sinceStr ? parseInt(sinceStr, 10) : undefined;
 
       try {
         const result = store.queryLogs({
@@ -72,9 +69,8 @@ export const logRoutes: RouteDefinition[] = [
       const { store, url } = ctx;
 
       const source = url.searchParams.get('source') ?? undefined;
-      const lastId = url.searchParams.get('lastId')
-        ? parseInt(url.searchParams.get('lastId'), 10)
-        : 0;
+      const lastIdStr = url.searchParams.get('lastId');
+      const lastId = lastIdStr ? parseInt(lastIdStr, 10) : 0;
 
       // Generate unique session ID
       const sessionId = `log_${Date.now()}_${Math.random().toString(36).slice(2)}`;

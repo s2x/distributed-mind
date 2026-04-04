@@ -536,7 +536,7 @@ describe('MCP Memory Tools - links_to Best-Effort (Phase 1a)', () => {
     const newMem = store.getMemory('proj', 'new-memory')!;
     const links = store.getLinks(newMem.id);
     expect(links.length).toBe(1);
-    expect(links[0]?.target_id).toBe(store.getMemory('proj', 'existing-memory')?.id);
+    expect(links[0]?.target_id).toBe(store.getMemory('proj', 'existing-memory')!.id);
   });
 
   test('memory_add with all invalid links still creates the memory', async () => {
@@ -632,7 +632,7 @@ describe('MCP Memory Tools - search parameter in memory_query (Phase 1b)', () =>
     expect(res.memories).toBeDefined();
     expect(res.memories.length).toBeGreaterThan(0);
     // Should find the memory with JWT in content
-    expect(res.memories.some(m => m.name === 'auth-jwt')).toBe(true);
+    expect(res.memories.some((m: { name: string }) => m.name === 'auth-jwt')).toBe(true);
     expect(res.search_method).toBe('fts5');
   });
 
@@ -740,7 +740,7 @@ describe('MCP Checkpoint Tools - Session Transformation (Phase 2)', () => {
     // Get the session memory
     const sessionMemories = store.queryMemories({ space: 'sessions/mind' });
     expect(sessionMemories.length).toBe(1);
-    const sessionMemory = sessionMemories[0];
+    const sessionMemory = sessionMemories[0]!;
     expect(sessionMemory.tags).toContain('type:session');
     expect(sessionMemory.tags).toContain('cat:summary');
 
@@ -780,8 +780,8 @@ describe('MCP Checkpoint Tools - Session Transformation (Phase 2)', () => {
     // Get the session memory
     const sessionMemories = store.queryMemories({ space: 'sessions/mind' });
     expect(sessionMemories.length).toBe(1);
-    expect(sessionMemories[0].tags).toContain('type:session');
-    expect(sessionMemories[0].tags).toContain('cat:summary');
+    expect(sessionMemories[0]!.tags).toContain('type:session');
+    expect(sessionMemories[0]!.tags).toContain('cat:summary');
   });
 
   test('calling checkpoint_done twice returns error on second call', async () => {

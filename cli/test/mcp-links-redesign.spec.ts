@@ -26,13 +26,13 @@ describe('Phase 2.4: Links Tools Redesign', () => {
         label: 'relates_to',
       });
 
-      expect(res.content[0].text).toContain('mem1');
-      expect(res.content[0].text).toContain('mem2');
-      expect(res.content[0].text).toContain('relates_to');
+      expect(res.content[0]!.text).toContain('mem1');
+      expect(res.content[0]!.text).toContain('mem2');
+      expect(res.content[0]!.text).toContain('relates_to');
 
       const links = store.getLinks(mem1.id);
       expect(links.length).toBe(1);
-      expect(links[0].target_id).toBe(mem2.id);
+      expect(links[0]!.target_id).toBe(mem2.id);
     });
 
     test('2.4.2: link.create accepts "name" shorthand (same space)', async () => {
@@ -48,12 +48,12 @@ describe('Phase 2.4: Links Tools Redesign', () => {
         targetRef: 'mem2',
       });
 
-      expect(res.content[0].text).toContain('mem1');
-      expect(res.content[0].text).toContain('mem2');
+      expect(res.content[0]!.text).toContain('mem1');
+      expect(res.content[0]!.text).toContain('mem2');
 
       const links = store.getLinks(mem1.id);
       expect(links.length).toBe(1);
-      expect(links[0].target_id).toBe(mem2.id);
+      expect(links[0]!.target_id).toBe(mem2.id);
     });
 
     test('2.4.3: link.create with invalid ref format throws "invalid memory reference"', async () => {
@@ -99,7 +99,7 @@ describe('Phase 2.4: Links Tools Redesign', () => {
         targetRef: 'proj:mem2',
       });
 
-      expect(res.content[0].text).toContain('Unlinked');
+      expect(res.content[0]!.text).toContain('Unlinked');
 
       const links = store.getLinks(mem1.id);
       expect(links.length).toBe(0);
@@ -118,7 +118,7 @@ describe('Phase 2.4: Links Tools Redesign', () => {
         targetRef: 'mem2',
       });
 
-      expect(res.content[0].text).toContain('Unlinked');
+      expect(res.content[0]!.text).toContain('Unlinked');
 
       const links = store.getLinks(mem1.id);
       expect(links.length).toBe(0);
@@ -132,7 +132,7 @@ describe('Phase 2.4: Links Tools Redesign', () => {
 
       const tools = createLinkTools(store);
       // links_list should not exist as a tool
-      expect(tools.links_list).toBeUndefined();
+      expect((tools as any).links_list).toBeUndefined();
     });
   });
 });

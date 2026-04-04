@@ -125,7 +125,11 @@ export function createMemoryTools(store: MindStore) {
         } catch (e: any) {
           // Improve error message for tags
           const msg = e.message || '';
-          if (parsed === undefined && msg.includes('tags')) {
+          // Check Zod issues for tags error rather than using unassigned parsed
+          const isTagsError = (e.issues || []).some((issue: { path: string[] }) =>
+            issue.path.includes('tags')
+          );
+          if (isTagsError && msg.includes('tags')) {
             throw new Error('tags is required and must be a non-empty array');
           }
           throw new Error(

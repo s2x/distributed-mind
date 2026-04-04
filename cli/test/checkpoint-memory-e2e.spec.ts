@@ -158,7 +158,7 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     expect(newMem).toBeDefined();
     const links = store.getLinks(newMem!.id);
     expect(links).toHaveLength(1);
-    expect(links[0].target_id).toBe(store.getMemory('projects/test-repo', 'valid-memory')!.id);
+    expect(links[0]!.target_id).toBe(store.getMemory('projects/test-repo', 'valid-memory')!.id);
   });
 
   // ==========================================================================
@@ -169,7 +169,7 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     const memoryTools = createMemoryTools(store);
 
     // Verify there's no 'search' tool in the memory tools
-    expect(memoryTools.search).toBeUndefined();
+    expect((memoryTools as any).search).toBeUndefined();
 
     // Also verify memory_query exists and accepts search parameter
     expect(typeof memoryTools.memory_query).toBe('object');
@@ -382,8 +382,8 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     expect(links.length).toBe(1);
 
     const relatedMem = store.getMemory('projects/test-repo', 'related-memory');
-    expect(links[0].target_id).toBe(relatedMem!.id);
-    expect(links[0].label).toBe('related');
+    expect(links[0]!.target_id).toBe(relatedMem!.id);
+    expect(links[0]!.label).toBe('related');
   });
 
   // ==========================================================================
@@ -453,6 +453,6 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     // The session memory should have a link to base-memory
     expect(sessionLinks.length).toBe(1);
     const baseMem = store.getMemory('projects/test-repo', 'base-memory');
-    expect(sessionLinks[0].target_id).toBe(baseMem!.id);
+    expect(sessionLinks[0]!.target_id).toBe(baseMem!.id);
   });
 });

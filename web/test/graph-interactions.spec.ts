@@ -15,9 +15,9 @@ import {
 } from '../src/features/graph/interactions.js';
 
 // Minimal JSDOM-like mock for testing isGraphNodeTarget
-const createMockCircle = role => ({
+const createMockCircle = (role: string) => ({
   tagName: 'circle',
-  getAttribute: attr => (attr === 'role' ? role : null),
+  getAttribute: (attr: string) => (attr === 'role' ? role : null),
 });
 
 const createMockSvg = () => ({
@@ -38,7 +38,7 @@ describe('isGraphNodeTarget logic (extracted for testing)', () => {
    * This mirrors the logic in app.js isGraphNodeTarget function
    * @param {any} target
    */
-  function isGraphNodeTarget(target) {
+  function isGraphNodeTarget(target: any) {
     if (!target) return false;
     const tagName = target.tagName?.toLowerCase?.() ?? '';
     return tagName === 'circle' && target.getAttribute?.('role') === 'button';
@@ -50,7 +50,7 @@ describe('isGraphNodeTarget logic (extracted for testing)', () => {
   });
 
   test('returns false for circle without role attribute', () => {
-    const circle = createMockCircle(null);
+    const circle = createMockCircle('');
     expect(isGraphNodeTarget(circle)).toBe(false);
   });
 
