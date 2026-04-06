@@ -11,27 +11,33 @@ const resolvedDataDir = path.isAbsolute(dataDir) ? dataDir : path.join(repoRoot,
  */
 const dbPath = process.env.MIND_DB_PATH ?? path.join(resolvedDataDir, 'mind.db');
 
+/**
+ * MIND_PORT sets the default web server port (default: 30303).
+ * CLI --port flag overrides this; MIND_PORT env var overrides the default.
+ */
+export const DEFAULT_PORT = 30303;
+
 export const CONFIG = {
-    dataDir: resolvedDataDir,
-    dbPath,
-    /** Legacy JSON path for migration */
-    legacyJsonPath: path.join(resolvedDataDir, 'brain.json'),
-    /** Log retention in minutes (default: 6 hours = 360 minutes). Override with MIND_LOG_RETENTION_MINUTES. */
-    logRetentionMinutes: parseInt(process.env.MIND_LOG_RETENTION_MINUTES ?? '360', 10),
-    /** RAG: Enable semantic search with OpenAI embeddings */
-    rag: {
-        enabled: process.env.MIND_RAG === 'true',
-        apiKey: process.env.OPENAI_API_KEY ?? null,
-        model: 'text-embedding-3-small',
-    },
+  defaultPort: DEFAULT_PORT,
+  dataDir: resolvedDataDir,
+  dbPath,
+  /** Legacy JSON path for migration */
+  legacyJsonPath: path.join(resolvedDataDir, 'brain.json'),
+  /** Log retention in minutes (default: 6 hours = 360 minutes). Override with MIND_LOG_RETENTION_MINUTES. */
+  logRetentionMinutes: parseInt(process.env.MIND_LOG_RETENTION_MINUTES ?? '360', 10),
+  /** RAG: Enable semantic search with OpenAI embeddings */
+  rag: {
+    enabled: process.env.MIND_RAG === 'true',
+    apiKey: process.env.OPENAI_API_KEY ?? null,
+    model: 'text-embedding-3-small',
+  },
 };
 
 /**
  * Max non-pinned memories per space per tier.
- * T4 is unlimited (not included here).
+ * T3 is unlimited (not included here).
  */
-export const TIER_LIMITS: Record<1 | 2 | 3, number> = {
-    1: 25,
-    2: 50,
-    3: 100,
+export const TIER_LIMITS: Record<1 | 2, number> = {
+  1: 25,
+  2: 50,
 };

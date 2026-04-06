@@ -27,14 +27,38 @@ Example:
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: `relatedRefs` in `checkpoint_save` renamed to `linked_memories` for consistency with other memory link naming.
+- **BREAKING**: `checkpoint_load` response now returns `linked_memories` in memory_read format (enriched: name, space, ref, tier, tags, pinned, changed_at) instead of simple links array.
+- Added `--linked-memories` flag to CLI `checkpoint set` command (comma-separated memory refs).
+
+- Tier system simplified: T4 (frozen) removed, T3 now unlimited. All T4 memories automatically migrate to T3 on startup.
+- **BREAKING**: `checkpoint_list` MCP tool renamed to `checkpoint_query` with extended filters (`from`, `to`, `tag`, `limit`, `offset`). Agents must update to use `checkpoint_query`.
+- **BREAKING**: `search` MCP tool removed. Use `memory_query` with `search` parameter for full-text search instead.
+- **BREAKING**: `checkpoint_done` now transforms the checkpoint into a session memory in `sessions/<repo>` and deletes the checkpoint. Previously it only marked the checkpoint as complete.
+- **BREAKING**: CLI `checkpoint complete` now behaves identically to MCP `checkpoint_done` — transforms checkpoint into session memory in `sessions/<repo>` and deletes the original. Previously it only marked complete and demoted to T2.
+- **BREAKING**: `links_to` in `memory_add` is now best-effort. The response includes `links_created` and `links_failed` arrays. Agents should check `links_failed` to see if any links couldn't be created.
+- **BREAKING**: `checkpoint_load` lost the `agent` param and gained `checkpointName` param (optional, loads most recent active if omitted). Response stripped to `checkpoint` + `context_hits` only (no more capability_profile, degradation, guidance).
+- **BREAKING**: `checkpoint_query` response now includes `goal` and `pending` preview fields for each checkpoint.
+- **BREAKING**: `checkpoint_load` now requires `checkpointName` (no silent fallback to most recent). Agents must call `checkpoint_query` first to find available checkpoints, then `checkpoint_load` with the specific name. CLI `checkpoint recover` also requires `--checkpointName` flag; shows helpful error if omitted.
+- **BREAKING**: `checkpoint_load` removed `includeHistory` and `format` parameters. Response no longer includes `context_hits`. Returns only `checkpoint` with `linked_memories` enriched.
+- **BREAKING**: CLI `checkpoint recover` removed `--history` and `--format` flags. Output is always JSON checkpoint representation.
+
+### Fixed
+
+- Automatic schema migration from v6 to v7 on startup (idempotent, transaction-wrapped)
+
 ## [1.2.1] - 2026-03-27
 
 ### Fixed
+
 - Fixed checkpoint recovery context rendering in Claude Code L3 hooks — newlines in recovered context are now properly escaped to prevent Markdown formatting issues.
 
 ## [1.2.0] - 2026-03-24
 
 ### MCP Redesign
+
 - Reduced from 30 to 20 tools
 - Tags now required on space.create and memory.add
 - space.get returns hot_memories preview (T1 + T2)
@@ -47,6 +71,7 @@ Example:
 - Removed: space_rename, space_tag_add, space_tag_remove, memory_get_by_id, memory_list, memory_tag_add, memory_tag_remove, memory_tags_list, memory_patch, memory_promote, memory_demote, memory_pin, memory_unpin, links_list
 
 ### Changed
+
 - memory_read now supports `noPromote:true` parameter for read-without-side-effects (replaces removed memory_get tool)
 - Removed `memory_get` MCP tool (consolidated into `memory_read` with `noPromote:true`)
 - search with flexible parser (FTS5 → LIKE → embeddings fallback)
@@ -58,12 +83,14 @@ Example:
 ## [1.1.1] - 2026-03-13
 
 ### Fixed
+
 - Fixed Neural Map left-click drag closing memory panel and deselecting memory — drag now behaves consistently with right-click drag (no close/deselect on drag release).
 - Fixed Neural Map node click not opening side panel (regression from pointer capture).
 
 ## [1.1.0] - 2026-03-12
 
 ### Changed
+
 - Replaced SSE streaming with polling for real-time logs in the web UI. Logs now update every 2 seconds via `/api/logs?since={lastLogId}` instead of EventSource SSE.
 
 ### Added
@@ -133,14 +160,14 @@ Example:
 - Added default-on, non-blocking OpenCode prudent automation setup that writes a managed plugin (`~/.config/opencode/plugins/mind-automation.js`) with session start scaffolding, compaction continuity hooks, and prudent session summaries with deterministic anti-noise caps.
 - Added setup capability diagnostics coverage in `cli/test/setup-capabilities.spec.ts`, including explicit Cursor `unverified` assertions for L2/L3 and fallback visibility checks.
 - Added checkpoint system for session persistence and recovery:
-    - `checkpoint set` / `cp set` - Create/update a checkpoint
-    - `checkpoint complete` / `cp complete` - Mark checkpoint as completed
-    - `checkpoint recover` / `cp recover` - Recover latest active checkpoint
-    - `checkpoint list` / `cp list` - List all checkpoints for a space
+  - `checkpoint set` / `cp set` - Create/update a checkpoint
+  - `checkpoint complete` / `cp complete` - Mark checkpoint as completed
+  - `checkpoint recover` / `cp recover` - Recover latest active checkpoint
+  - `checkpoint list` / `cp list` - List all checkpoints for a space
 - Added hidden spaces feature:
-    - `mind update <space> --hidden` - Mark space as hidden
-    - `mind update <space> --no-hidden` - Unmark space as hidden
-    - `mind list --hidden` - Show hidden spaces
+  - `mind update <space> --hidden` - Mark space as hidden
+  - `mind update <space> --no-hidden` - Unmark space as hidden
+  - `mind list --hidden` - Show hidden spaces
 - Added MCP checkpoint tools: `checkpoint_set`, `checkpoint_complete`, `checkpoint_recover`, `checkpoint_list`
 - Added checkpoint space organization: `<space>:sessions` for storing checkpoints
 - Added regression coverage for protocol-resource wiring in setup and MCP system tools: `cli/test/setup-opencode.spec.ts` and `cli/test/system-tools.spec.ts`.

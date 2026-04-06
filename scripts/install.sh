@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${MIND_INSTALL_REPO:-Gentleman-Programming/mind}"
+REPO="${MIND_INSTALL_REPO:-GabrielMartinMoran/mind}"
 REF="${MIND_INSTALL_REF:-latest}"
 INSTALL_DIR="${MIND_INSTALL_DIR:-$HOME/.local/share/mind}"
 BIN_DIR="${MIND_BIN_DIR:-$HOME/.local/bin}"

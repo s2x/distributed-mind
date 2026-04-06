@@ -5,177 +5,168 @@ After this, you can proceed with space_create, memory_add, etc.
 
 ---
 
-## IMPORTANT: Create Space First
-Before adding memories, you MUST create a space with `space_create`.
-Memory tools will fail with "Space X does not exist" if the space hasn't been created.
-
----
-
-## ⚠️ CRITICAL: Space Naming Convention
+## Space Naming Convention
 
 **For software projects, use the directory/repo name as the space name.**
 
 This is VITAL for future agents to find your knowledge. If you use arbitrary names like "my-project" or "test123", future agents won't know where to search.
 
-### ✅ DO:
-- `projects/mind` — if the repo/directory is named "mind"
-- `projects/arcana-web` — if the repo is "arcana-web"
-- `projects/api-gateway` — if the directory is "api-gateway"
+### DO:
 
-### ❌ DON'T:
+- `projects/mind` — actual repo name
+- `projects/arcana-web` — actual repo name
+- `projects/api-gateway` — actual directory name
+
+### DON'T:
+
 - `projects/my-awesome-app` — too vague
 - `projects/work-stuff` — unclear
 - `projects/test123` — meaningless
 
-**Why**: Future agents will search by repo/directory name. Using the actual name makes your memories discoverable.
+**Why**: Future agents search by repo/directory name. Using the actual name makes your memories discoverable.
 
 ---
 
-## Tag Conventions (suggested)
+## Before Adding Memories
 
-**Custom tags are allowed.** The following are RECOMMENDED conventions to keep things organized, but you can create any tag you need.
+You MUST create a space with `space_create` before adding memories. Memory tools fail with "Space X does not exist" if the space hasn't been created.
 
-### Required prefixes (for spaces):
+---
+
+## Tag Conventions
+
+**Custom tags are allowed.** The following are RECOMMENDED:
+
+### Space tags:
+
 - `type:project` — code project spaces
 - `type:user` — user preferences/settings
+- `type:session` — session summaries
 - `type:config` — cross-project configuration
 - `type:learning` — learned knowledge
-- `type:session` — session summaries
 
-### Category tags (for memories):
+### Memory tags:
+
 - `cat:decision` — architectural decision
 - `cat:bugfix` — bug fix
-- `cat:pattern` — established pattern
-- `cat:discovery` — technical discovery
+- `cat:pattern` — established convention
+- `cat:discovery` — technical finding
 - `cat:preference` — user preference
-- `cat:config` — specific configuration
-- `cat:summary` — session summary (use with type:session)
+- `cat:config` — configuration
+- `cat:summary` — session summary (with type:session)
 
-Before creating a new tag, search existing memories first (`search` or `memory_query`) to check for duplicate conventions.
+Before creating a new tag, query existing memories first: `memory_query { space: "*", search: "<topic>" }`.
 
 ---
 
 ## Space Structure
 
 Organize memories into hierarchical spaces:
-- `projects/<REPO_NAME>` — one space per project (use the actual repo/directory name!)
+
+- `projects/<REPO_NAME>` — one space per project (use actual repo/directory name)
 - `user/preferences` — global user preferences
 - `user/patterns` — work patterns and conventions
 - `global/config` — cross-project configuration
-- `sessions/<REPO_NAME>` — session summaries (use repo name too!)
+- `sessions/<REPO_NAME>` — session summaries
 
 ---
 
-## When to Save (mandatory)
+## When to Save Memories
 
 Call `memory_add` IMMEDIATELY after:
+
 - Bug fix completed
 - Architecture decision made
 - Non-obvious technical discovery
 - Configuration or environment change
-- Pattern established (naming, structure, convention)
+- Pattern established
 - User preference learned
-- Any important context you want to preserve for future sessions
 
-**When to link memories**: When adding a memory that depends on, extends, or contradicts another existing memory, pass `links_to` with references to related memories in `"space:name"` format (or bare `"name"` for same space). This lets future agents trace related decisions without searching. Common cases:
-- A bugfix that relates to a prior decision
-- A discovery that updates a previous pattern
-- A config change driven by an earlier finding
-- Two memories about the same feature or subsystem
-
-Pass memory references to `links_to` in `memory_add`, or use `link_create` for existing memories.
-
-Composite operations are atomic all-or-nothing: if one step fails, no partial write is persisted (`memory_add` with `links_to`).
+**When to link**: When a memory depends on, extends, or contradicts another. Pass `links_to` with `"space:name"` references. `links_to` is best-effort — always check `links_failed` in the response. The memory is always created even if some links fail.
 
 ---
 
-## Memory Content Format (strongly recommended)
+## Memory Content Format
 
-Use this format for maximum usefulness to future agents:
+Use this format:
 
 **What**: One sentence — what was done
-**Why**: What motivated it (user request, bug, performance, etc.)
+**Why**: What motivated it
 **Where**: Files or paths affected
-**Learned**: Gotchas, edge cases, decisions (omit if none)
+**Learned**: Gotchas or edge cases (omit if none)
 
 Example:
+
+```
 **What**: Switched from sessions to JWT for authentication
 **Why**: Session storage doesn't scale across multiple server instances
 **Where**: src/middleware/auth.ts, src/routes/login.ts
-**Learned**: Must set httpOnly and secure flags on cookies; refresh tokens need separate rotation logic
+**Learned**: Must set httpOnly and secure flags on cookies
+```
 
 ---
 
-## Tier System (CPU-cache style)
+## Tier System
 
-Tiers help manage memory priority and auto-eviction:
+| Tier | Name | Use Case                   | Limit/space |
+| ---- | ---- | -------------------------- | ----------- |
+| T1   | hot  | Critical active info       | 25          |
+| T2   | warm | Default for new memories   | 50          |
+| T3   | cold | Reference info (unlimited) | unlimited   |
 
-| Tier | Name | Use Case | Limit/space |
-|------|------|----------|-------------|
-| T1 | hot | Critical active info (decisions, current preferences) | 25 |
-| T2 | warm | Default for new memories | 50 |
-| T3 | cold | Reference info (past discoveries, bugs, patterns) | 100 |
-| T4 | frozen | Archive, accessible via search and memory_query | unlimited |
+**Behaviors:**
 
-### Behaviors:
-- **Auto-promote**: Reading a memory (`memory_read`) moves it up one tier (T4→T3→T2→T1)
-- **Pin**: Set `pinned: true` on `memory_add` to make a memory immune to auto-promotion AND LRU eviction
-- **LRU eviction**: When a tier is full, the least-recently-used non-pinned memory moves down one tier
-- **T4 is special**: Returned by `search` and `memory_query` (with explicit `tier: 4` or no tier filter), but not shown in `space_get` hot memories preview.
+- **Auto-promote**: `memory_read` moves memory up one tier (T3→T2→T1)
+- **Pin**: Set `pinned: true` to make a memory immune to promotion and eviction
+- **LRU eviction**: When a tier is full, least-recently-used non-pinned memory moves down one tier
 
 ---
 
-## Tools Overview
+## Tool Quick Reference
 
-| Category | Tools |
-|----------|-------|
-| Spaces | space_create, space_list, space_get, space_update, space_delete |
-| Memories | memory_add, memory_update, memory_delete, memory_read |
-| Links | link_create, link_delete |
-| Search | search, memory_query, status |
-| Checkpoint | checkpoint_save, checkpoint_done, checkpoint_load, checkpoint_list |
+| Category   | Tools                                                               |
+| ---------- | ------------------------------------------------------------------- |
+| Spaces     | space_create, space_list, space_get, space_update, space_delete     |
+| Memories   | memory_add, memory_update, memory_delete, memory_read               |
+| Links      | link_create, link_delete                                            |
+| Query      | memory_query (use `search` parameter for full-text search)          |
+| Checkpoint | checkpoint_save, checkpoint_done, checkpoint_load, checkpoint_query |
+
+**Note**: `search` tool has been removed — use `memory_query { search: "..." }` instead.
 
 ---
 
 ## Pagination
 
-For tools that return lists (`memory_query`, `search`), results are paginated:
+For list tools (`memory_query`):
+
 - `limit`: Number of results (default 25, max 500)
-- `offset`: Zero-based index (default 0)
-- Use `offset + limit` for next page
-
-Response includes `pagination` object with `nextOffset` when more results exist.
-
----
-
-## Common Errors
-
-- "Space X does not exist": Create the space first with `space_create`
-- "Memory with id X does not exist": Use `memory_query` or `search` to get valid IDs
-- "T1 is full": Unpin some memories to allow LRU eviction, or let the system auto-evict
+- `offset`: Zero-based index
+- Response includes `pagination.nextOffset` when more results exist
 
 ---
 
 ## Session Workflow
 
-1. **Start**: Recover context: `checkpoint_load`, then `space_get` (use repo name!)
-2. **Work**: Add memories as you go: `memory_add` with tags and `links_to`
-3. **Query**: Find context: `memory_query`, `search`
-4. **Checkpoint**: Save work progress: `checkpoint_save` (keep fresh as you go)
-5. **Close**: Complete checkpoint: `checkpoint_done`, then session summary via `memory_add` to `sessions/<REPO_NAME>`
+1. **Start**: `checkpoint_query` to find checkpoints, then `checkpoint_load { checkpointName: "<name>" }` to restore a specific one, then `space_get` (use repo name)
+2. **Work**: Add memories as you go with `memory_add` — include tags and `links_to`
+3. **Query**: Find context with `memory_query { search: "<keywords>" }`
+4. **Checkpoint**: Save progress with `checkpoint_save`
+5. **Close**: `checkpoint_done` — transforms checkpoint to session memory in `sessions/<REPO_NAME>` and deletes the checkpoint
 
 ---
 
 ## Example Workflow
 
-# 1. Create a project space (USE THE REPO NAME!)
+```javascript
+// 1. Create a project space (use repo name!)
 space_create {
-  name: "projects/mind",  # <-- actual repo name
+  name: "projects/mind",
   description: "Mind project decisions and patterns",
   tags: ["type:project"]
 }
 
-# 2. Add a decision memory
+// 2. Add a decision memory
 memory_add {
   space: "projects/mind",
   name: "JWT over sessions for auth",
@@ -183,30 +174,35 @@ memory_add {
   tags: ["cat:decision"]
 }
 
-# 3. Add a related discovery, linked to the decision by name
+// 3. Add a related discovery with link
 memory_add {
   space: "projects/mind",
   name: "Refresh token rotation needed",
-  content: "**What**: JWT requires refresh token rotation logic...\n**Why**: Caused by JWT decision...",
+  content: "**What**: JWT requires refresh token rotation...",
   tags: ["cat:discovery"],
-  links_to: ["JWT over sessions for auth"]  # <-- bare name, same space
+  links_to: ["JWT over sessions for auth"]  // bare name, same space
 }
 
-# 4. Later, query for decisions
+// 4. Query decisions
 memory_query { space: "projects/mind", tag: "cat:decision" }
 
-# 5. Read a memory to see its linked context
-memory_read { space: "projects/mind", name: "JWT over sessions for auth" }
-# → returns content + links_to + linked_by (with "space:name" refs)
+// 5. Search memories
+memory_query { space: "projects/mind", search: "authentication" }
 
-# 6. Search across all spaces (including T4 frozen)
-search { query: "authentication" }
-
-# 7. End of session: summarize (use repo name!)
+// 6. Session end: summarize
 memory_add {
-  space: "sessions/mind",  # <-- repo name
+  space: "sessions/mind",
   name: "session-2026-03-07",
-  content: "## Goal: Implement MCP improvements\n## Discoveries: ...",
+  content: "## Goal: ...\n## Accomplished: ...\n## Decisions: ...",
   tags: ["type:session", "cat:summary"],
-  links_to: ["projects/mind:JWT over sessions for auth", "projects/mind:Refresh token rotation needed"]
+  links_to: ["projects/mind:JWT over sessions for auth"]
 }
+```
+
+---
+
+## Common Errors
+
+- "Space X does not exist": Create the space first with `space_create`
+- "Memory with id X does not exist": Use `memory_query` to get valid IDs
+- "T1 is full": Unpin some memories or let the system auto-evict

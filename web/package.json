@@ -1,8 +1,8 @@
 {
-    "name": "mind-web",
-    "private": true,
-    "type": "module",
-    "scripts": {
-        "test": "bun test test"
-    }
+  "name": "mind-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test test"
+  }
 }

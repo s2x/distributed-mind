@@ -39,3 +39,6 @@ brain.json
 data/
 
 .claude/settings.local.json
+
+.husky/
+.lintstagedrc.json

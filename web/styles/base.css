@@ -1,23 +1,23 @@
 *,
 *::before,
 *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-    height: 100vh;
-    overflow: hidden;
+  height: 100vh;
+  overflow: hidden;
 }
 
 ::-webkit-scrollbar {
-    width: 6px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
-    background: transparent;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 3px;
+  background: rgba(0, 240, 255, 0.4);
+  border-radius: 3px;
 }

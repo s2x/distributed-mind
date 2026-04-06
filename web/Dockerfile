@@ -13,4 +13,4 @@ WORKDIR /app/web
 
 EXPOSE 3000
 
-CMD ["bun", "run", "server.ts"]
+CMD ["bun", "run", "cli/src/api/server.ts"]

@@ -1,225 +1,418 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Mind</title>
-        <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
-        <link rel="stylesheet" href="/styles/main.css" />
-    </head>
-    <body>
-        <div id="app">
-            <!-- Sidebar -->
-            <aside id="sidebar">
-                <header class="sidebar-header">
-                    <span class="logo"><img src="/assets/logo.svg" class="logo-img" alt="Mind" /> Mind</span>
-                    <button
-                        id="btn-new-space"
-                        class="btn btn-sm btn-primary"
-                        title="New space"
-                        aria-label="Create new space"
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f1117" />
+    <title>Mind</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+    <link rel="stylesheet" href="/styles/main.css" />
+  </head>
+  <body>
+    <!-- Sidebar overlay for mobile -->
+    <div id="sidebar-overlay" class="overlay-hidden"></div>
+    <div id="app">
+      <!-- Sidebar -->
+      <aside id="sidebar">
+        <header class="sidebar-header">
+          <button
+            id="hamburger-btn"
+            class="btn btn-sm btn-ghost"
+            aria-label="Open menu"
+            aria-expanded="false"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 18 18"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M3 5h12M3 9h12M3 13h12"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <span class="logo"><img src="/assets/logo.svg" class="logo-img" alt="Mind" /> Mind</span>
+          <button
+            id="btn-new-space"
+            class="btn btn-sm btn-primary"
+            title="New space"
+            aria-label="Create new space"
+          >
+            +
+          </button>
+        </header>
+        <div class="search-bar">
+          <input
+            id="global-search"
+            type="search"
+            placeholder="Search memories…"
+            autocomplete="off"
+          />
+        </div>
+        <ul id="space-list"></ul>
+        <label class="sidebar-toggle" title="Show hidden spaces (checkpoints, sessions)">
+          <input type="checkbox" id="toggle-hidden-spaces" /> Show hidden
+        </label>
+        <div id="status-panel">
+          <div class="status-row">
+            <span class="status-label">Storage</span>
+            <span id="status-spaces">—</span>
+          </div>
+          <div class="status-tiers" id="status-tiers"></div>
+          <a href="/logs" id="nav-logs" class="nav-link">
+            <svg
+              style="
+                display: inline-flex;
+                width: 14px;
+                height: 14px;
+                vertical-align: middle;
+                margin-right: 6px;
+              "
+              viewBox="0 0 16 16"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <rect
+                x="2"
+                y="2"
+                width="12"
+                height="12"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <path
+                d="M5 6h6M5 8h6M5 10h4"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+            Logs
+          </a>
+        </div>
+      </aside>
+
+      <!-- Main panel -->
+      <main id="main">
+        <div id="empty-state" class="empty-state">
+          <p>Select a space or create one.</p>
+        </div>
+
+        <!-- Search results -->
+        <div id="search-results" class="hidden">
+          <header class="panel-header">
+            <h2 id="search-heading">Search results</h2>
+            <button class="btn btn-sm btn-ghost" id="btn-close-search">
+              <svg
+                style="
+                  display: inline-flex;
+                  width: 14px;
+                  height: 14px;
+                  vertical-align: middle;
+                  margin-right: 4px;
+                "
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 4l8 8M12 4l-8 8"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+              Close
+            </button>
+          </header>
+          <ul id="search-list" class="memory-list"></ul>
+        </div>
+
+        <!-- Logs page -->
+        <div id="logs-page" class="hidden">
+          <header class="panel-header">
+            <h2>
+              <svg
+                style="
+                  display: inline-flex;
+                  width: 16px;
+                  height: 16px;
+                  vertical-align: middle;
+                  margin-right: 6px;
+                "
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <rect
+                  x="2"
+                  y="2"
+                  width="12"
+                  height="12"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                />
+                <path
+                  d="M5 6h6M5 8h6M5 10h4"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+              Operation Logs
+            </h2>
+            <div class="logs-controls">
+              <label class="logs-filter">
+                <input type="checkbox" id="log-source-cli" value="cli" checked /> CLI
+              </label>
+              <label class="logs-filter">
+                <input type="checkbox" id="log-source-mcp" value="mcp" checked /> MCP
+              </label>
+              <label class="logs-filter">
+                <input type="checkbox" id="log-source-api" value="api" checked /> API
+              </label>
+              <input
+                type="text"
+                id="log-search"
+                class="log-search-input"
+                placeholder="Search logs..."
+              />
+              <select id="log-order" class="log-order-select">
+                <option value="desc">Newest first</option>
+                <option value="asc">Oldest first</option>
+              </select>
+              <label class="logs-live-toggle">
+                <input type="checkbox" id="log-live" checked /> Live
+              </label>
+              <label class="logs-follow-toggle">
+                <input type="checkbox" id="log-follow" checked /> Follow
+              </label>
+              <button id="btn-refresh-logs" class="btn btn-sm btn-ghost">Refresh</button>
+              <button id="btn-clear-logs" class="btn btn-sm btn-danger">Clear All</button>
+            </div>
+          </header>
+          <div id="logs-connection-status" class="logs-connection-status hidden">● Live</div>
+          <ul id="logs-list" class="logs-list"></ul>
+          <div id="logs-pagination" class="logs-pagination">
+            <span id="logs-count"></span>
+            <button id="btn-load-more-logs" class="btn btn-sm btn-ghost">Load More</button>
+          </div>
+        </div>
+
+        <!-- Space detail -->
+        <div id="space-detail" class="hidden">
+          <header class="panel-header">
+            <div class="space-meta">
+              <h2 id="space-title" class="editable" title="Click to rename"></h2>
+              <p id="space-desc" class="editable muted" title="Click to edit description"></p>
+              <div id="space-tags-row" class="tag-row"></div>
+            </div>
+            <div class="panel-actions">
+              <button id="btn-view-list" class="btn btn-sm btn-ghost is-active" aria-pressed="true">
+                List
+              </button>
+              <button id="btn-view-map" class="btn btn-sm btn-ghost" aria-pressed="false">
+                Neural Map
+              </button>
+              <button id="btn-add-memory" class="btn btn-sm btn-primary">+ Memory</button>
+              <button id="btn-delete-space" class="btn btn-sm btn-danger">Delete space</button>
+            </div>
+          </header>
+
+          <!-- Tier containers -->
+          <div id="tiers">
+            <section class="tier-section" data-tier="1">
+              <h3 class="tier-heading tier-1">T1 — Hot</h3>
+              <ul class="memory-list" data-tier="1"></ul>
+            </section>
+            <section class="tier-section" data-tier="2">
+              <h3 class="tier-heading tier-2">T2 — Warm</h3>
+              <ul class="memory-list" data-tier="2"></ul>
+            </section>
+            <section class="tier-section" data-tier="3">
+              <h3 class="tier-heading tier-3">T3 — Cold</h3>
+              <ul class="memory-list" data-tier="3"></ul>
+            </section>
+          </div>
+
+          <div id="graph-view" class="hidden">
+            <div class="graph-toolbar">
+              <button id="btn-graph-zoom-in" class="btn btn-sm btn-ghost" aria-label="Zoom in">
+                +
+              </button>
+              <button id="btn-graph-zoom-out" class="btn btn-sm btn-ghost" aria-label="Zoom out">
+                −
+              </button>
+              <button id="btn-graph-reset" class="btn btn-sm btn-ghost">Reset View</button>
+              <span id="graph-meta" class="muted"></span>
+            </div>
+            <div id="graph-canvas-wrap">
+              <svg
+                id="graph-svg"
+                viewBox="0 0 1000 1000"
+                role="img"
+                aria-label="Neural map graph"
+              ></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Memory detail panel -->
+        <div id="memory-panel" class="hidden">
+          <header class="panel-header">
+            <div class="panel-title-row">
+              <button id="btn-mem-close" class="btn btn-sm btn-ghost btn-back" aria-label="Go back">
+                <svg
+                  style="display: inline-flex; width: 16px; height: 16px"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M10 3L5 8l5 5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <h3 id="mem-title"></h3>
+              <button
+                id="btn-mem-close-inline"
+                class="btn btn-sm btn-ghost"
+                aria-label="Close memory details"
+                style="display: none"
+              >
+                <svg
+                  style="display: inline-flex; width: 16px; height: 16px"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M4 4l8 8M12 4l-8 8"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="panel-subheader">
+              <div class="memory-meta">
+                <span id="mem-tier-badge" class="tier-badge"></span>
+                <div id="mem-tags-row" class="tag-row"></div>
+              </div>
+              <div class="panel-actions">
+                <button id="btn-mem-promote" class="btn btn-sm btn-ghost" title="Promote tier">
+                  ↑ Promote
+                </button>
+                <button id="btn-mem-demote" class="btn btn-sm btn-ghost" title="Demote tier">
+                  ↓ Demote
+                </button>
+                <button id="btn-mem-pin" class="btn btn-sm btn-ghost" title="Pin/Unpin">
+                  <span class="pin-button-icon">
+                    <svg
+                      class="icon-pin"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
                     >
-                        +
-                    </button>
-                </header>
-                <div class="search-bar">
-                    <input id="global-search" type="search" placeholder="Search memories…" autocomplete="off" />
-                </div>
-                <ul id="space-list"></ul>
-                <label class="sidebar-toggle" title="Show hidden spaces (checkpoints, sessions)">
-                    <input type="checkbox" id="toggle-hidden-spaces" /> Show hidden
-                </label>
-                <div id="status-panel">
-                    <div class="status-row">
-                        <span class="status-label">Storage</span>
-                        <span id="status-spaces">—</span>
-                    </div>
-                    <div class="status-tiers" id="status-tiers"></div>
-                    <a href="/logs" id="nav-logs" class="nav-link">📋 Logs</a>
-                </div>
-            </aside>
-
-            <!-- Main panel -->
-            <main id="main">
-                <div id="empty-state" class="empty-state">
-                    <p>Select a space or create one.</p>
-                </div>
-
-                <!-- Search results -->
-                <div id="search-results" class="hidden">
-                    <header class="panel-header">
-                        <h2 id="search-heading">Search results</h2>
-                        <button class="btn btn-sm btn-ghost" id="btn-close-search">✕ Close</button>
-                    </header>
-                    <ul id="search-list" class="memory-list"></ul>
-                </div>
-
-                <!-- Logs page -->
-                <div id="logs-page" class="hidden">
-                    <header class="panel-header">
-                        <h2>📋 Operation Logs</h2>
-                        <div class="logs-controls">
-                            <label class="logs-filter">
-                                <input type="checkbox" id="log-source-cli" value="cli" checked /> CLI
-                            </label>
-                            <label class="logs-filter">
-                                <input type="checkbox" id="log-source-mcp" value="mcp" checked /> MCP
-                            </label>
-                            <label class="logs-filter">
-                                <input type="checkbox" id="log-source-api" value="api" checked /> API
-                            </label>
-                            <input type="text" id="log-search" class="log-search-input" placeholder="Search logs..." />
-                            <select id="log-order" class="log-order-select">
-                                <option value="desc">Newest first</option>
-                                <option value="asc">Oldest first</option>
-                            </select>
-                            <label class="logs-live-toggle">
-                                <input type="checkbox" id="log-live" checked /> Live
-                            </label>
-                            <label class="logs-follow-toggle">
-                                <input type="checkbox" id="log-follow" checked /> Follow
-                            </label>
-                            <button id="btn-refresh-logs" class="btn btn-sm btn-ghost">Refresh</button>
-                            <button id="btn-clear-logs" class="btn btn-sm btn-danger">Clear All</button>
-                        </div>
-                    </header>
-                    <div id="logs-connection-status" class="logs-connection-status hidden">● Live</div>
-                    <ul id="logs-list" class="logs-list"></ul>
-                    <div id="logs-pagination" class="logs-pagination">
-                        <span id="logs-count"></span>
-                        <button id="btn-load-more-logs" class="btn btn-sm btn-ghost">Load More</button>
-                    </div>
-                </div>
-
-                <!-- Space detail -->
-                <div id="space-detail" class="hidden">
-                    <header class="panel-header">
-                        <div class="space-meta">
-                            <h2 id="space-title" class="editable" title="Click to rename"></h2>
-                            <p id="space-desc" class="editable muted" title="Click to edit description"></p>
-                            <div id="space-tags-row" class="tag-row"></div>
-                        </div>
-                        <div class="panel-actions">
-                            <button id="btn-view-list" class="btn btn-sm btn-ghost is-active" aria-pressed="true">
-                                List
-                            </button>
-                            <button id="btn-view-map" class="btn btn-sm btn-ghost" aria-pressed="false">
-                                Neural Map
-                            </button>
-                            <button id="btn-add-memory" class="btn btn-sm btn-primary">+ Memory</button>
-                            <button id="btn-delete-space" class="btn btn-sm btn-danger">Delete space</button>
-                        </div>
-                    </header>
-
-                    <!-- Tier containers -->
-                    <div id="tiers">
-                        <section class="tier-section" data-tier="1">
-                            <h3 class="tier-heading tier-1">🔴 T1 — Hot</h3>
-                            <ul class="memory-list" data-tier="1"></ul>
-                        </section>
-                        <section class="tier-section" data-tier="2">
-                            <h3 class="tier-heading tier-2">🟡 T2 — Warm</h3>
-                            <ul class="memory-list" data-tier="2"></ul>
-                        </section>
-                        <section class="tier-section" data-tier="3">
-                            <h3 class="tier-heading tier-3">🔵 T3 — Cold</h3>
-                            <ul class="memory-list" data-tier="3"></ul>
-                        </section>
-                    </div>
-
-                    <div id="graph-view" class="hidden">
-                        <div class="graph-toolbar">
-                            <button id="btn-graph-zoom-in" class="btn btn-sm btn-ghost" aria-label="Zoom in">+</button>
-                            <button id="btn-graph-zoom-out" class="btn btn-sm btn-ghost" aria-label="Zoom out">
-                                −
-                            </button>
-                            <button id="btn-graph-reset" class="btn btn-sm btn-ghost">Reset View</button>
-                            <span id="graph-meta" class="muted"></span>
-                        </div>
-                        <div id="graph-canvas-wrap">
-                            <svg id="graph-svg" viewBox="0 0 1000 1000" role="img" aria-label="Neural map graph"></svg>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Memory detail panel -->
-                <div id="memory-panel" class="hidden">
-                    <header class="panel-header">
-                        <div class="panel-title-row">
-                            <h3 id="mem-title"></h3>
-                            <button id="btn-mem-close" class="btn btn-sm btn-ghost" aria-label="Close memory details">
-                                ✕
-                            </button>
-                        </div>
-                        <div class="panel-subheader">
-                            <div class="memory-meta">
-                                <span id="mem-tier-badge" class="tier-badge"></span>
-                                <div id="mem-tags-row" class="tag-row"></div>
-                            </div>
-                            <div class="panel-actions">
-                                <button id="btn-mem-promote" class="btn btn-sm btn-ghost" title="Promote tier">
-                                    ↑ Promote
-                                </button>
-                                <button id="btn-mem-demote" class="btn btn-sm btn-ghost" title="Demote tier">
-                                    ↓ Demote
-                                </button>
-                                <button id="btn-mem-pin" class="btn btn-sm btn-ghost" title="Pin/Unpin">📌</button>
-                                <button id="btn-mem-edit" class="btn btn-sm btn-secondary">Edit</button>
-                                <button id="btn-mem-delete" class="btn btn-sm btn-danger">Delete</button>
-                            </div>
-                        </div>
-                    </header>
-                    <div id="mem-content" class="mem-content"></div>
-                    <div id="mem-edit-area" class="hidden">
-                        <textarea id="mem-edit-input" rows="12"></textarea>
-                        <div class="edit-actions">
-                            <button id="btn-mem-save" class="btn btn-primary">Save</button>
-                            <button id="btn-mem-cancel-edit" class="btn btn-ghost">Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-
-        <!-- Modal: new space -->
-        <div id="modal-new-space" class="modal-backdrop hidden">
-            <div class="modal">
-                <h2>New space</h2>
-                <label>Name<input id="new-space-name" type="text" placeholder="my-space" /></label>
-                <label>Description<input id="new-space-desc" type="text" placeholder="Short description" /></label>
-                <label
-                    >Tags (comma-separated)<input id="new-space-tags" type="text" placeholder="project, work"
-                /></label>
-                <div class="modal-actions">
-                    <button id="modal-space-cancel" class="btn btn-ghost">Cancel</button>
-                    <button id="modal-space-create" class="btn btn-primary">Create</button>
-                </div>
+                      <rect
+                        x="4"
+                        y="2"
+                        width="8"
+                        height="6"
+                        rx="1.5"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                      />
+                      <path
+                        d="M8 8v5"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+                <button id="btn-mem-edit" class="btn btn-sm btn-secondary">Edit</button>
+                <button id="btn-mem-delete" class="btn btn-sm btn-danger">Delete</button>
+              </div>
             </div>
-        </div>
-
-        <!-- Modal: new memory -->
-        <div id="modal-new-memory" class="modal-backdrop hidden">
-            <div class="modal">
-                <h2>New memory</h2>
-                <label>Name<input id="new-mem-name" type="text" placeholder="memory-name" /></label>
-                <label>Tags (comma-separated)<input id="new-mem-tags" type="text" placeholder="backend, auth" /></label>
-                <label
-                    >Tier
-                    <select id="new-mem-tier">
-                        <option value="1">🔴 T1 — Hot</option>
-                        <option value="2" selected>🟡 T2 — Warm</option>
-                        <option value="3">🔵 T3 — Cold</option>
-                    </select>
-                </label>
-                <label>Content<textarea id="new-mem-content" rows="8" placeholder="Memory content…"></textarea></label>
-                <div class="modal-actions">
-                    <button id="modal-mem-cancel" class="btn btn-ghost">Cancel</button>
-                    <button id="modal-mem-create" class="btn btn-primary">Add</button>
-                </div>
+          </header>
+          <div id="mem-content" class="mem-content"></div>
+          <div id="mem-edit-area" class="hidden">
+            <textarea id="mem-edit-input" rows="12"></textarea>
+            <div class="edit-actions">
+              <button id="btn-mem-save" class="btn btn-primary">Save</button>
+              <button id="btn-mem-cancel-edit" class="btn btn-ghost">Cancel</button>
             </div>
+          </div>
         </div>
+      </main>
+    </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-        <script type="module" src="/src/app.js"></script>
-    </body>
+    <!-- Modal: new space -->
+    <div id="modal-new-space" class="modal-backdrop hidden">
+      <div class="modal">
+        <h2>New space</h2>
+        <label>Name<input id="new-space-name" type="text" placeholder="my-space" /></label>
+        <label
+          >Description<input id="new-space-desc" type="text" placeholder="Short description"
+        /></label>
+        <label
+          >Tags (comma-separated)<input id="new-space-tags" type="text" placeholder="project, work"
+        /></label>
+        <div class="modal-actions">
+          <button id="modal-space-cancel" class="btn btn-ghost">Cancel</button>
+          <button id="modal-space-create" class="btn btn-primary">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: new memory -->
+    <div id="modal-new-memory" class="modal-backdrop hidden">
+      <div class="modal">
+        <h2>New memory</h2>
+        <label>Name<input id="new-mem-name" type="text" placeholder="memory-name" /></label>
+        <label
+          >Tags (comma-separated)<input id="new-mem-tags" type="text" placeholder="backend, auth"
+        /></label>
+        <label
+          >Tier
+          <select id="new-mem-tier">
+            <option value="1">T1 — Hot</option>
+            <option value="2" selected>T2 — Warm</option>
+            <option value="3">T3 — Cold</option>
+          </select>
+        </label>
+        <label
+          >Content<textarea id="new-mem-content" rows="8" placeholder="Memory content…"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button id="modal-mem-cancel" class="btn btn-ghost">Cancel</button>
+          <button id="modal-mem-create" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script type="module" src="/src/app.js"></script>
+  </body>
 </html>
