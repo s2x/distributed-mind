@@ -6,6 +6,8 @@ Mind is a persistent memory system for developers and AI agents.
 
 It helps you store what matters (decisions, bugfixes, notes, patterns, tasks), organize it, and retrieve it instantly across sessions.
 
+![Mind Preview](./assets/video/web-preview.gif)
+
 ## What Is Mind?
 
 Mind is a Bun + TypeScript project that provides:

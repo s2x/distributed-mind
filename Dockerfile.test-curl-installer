@@ -1,0 +1,31 @@
+FROM debian:stable-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    tar \
+    bash \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set HOME before bun install since debian:stable-slim may not have it set
+ENV HOME=/root
+
+# Install bun (required for mind)
+RUN curl -fsSL https://bun.sh/install | bash
+
+ENV BUN_INSTALL=/root/.bun
+ENV PATH="$BUN_INSTALL/bin:/root/.local/bin:$PATH"
+
+# Download install script and patch it to use --ignore-scripts to skip husky prepare script
+RUN curl -fsSL https://raw.githubusercontent.com/GabrielMartinMoran/mind/main/scripts/install.sh -o /tmp/install.sh
+RUN sed -i 's/bun install --production/bun install --production --ignore-scripts/' /tmp/install.sh
+
+# Run the modified curl one-liner installer
+RUN bash /tmp/install.sh
+
+# Verify mind is in PATH
+RUN which mind
+
+# Verify mind runs correctly
+CMD ["mind", "help"]
