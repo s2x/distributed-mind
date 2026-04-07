@@ -27,6 +27,23 @@ Example:
 
 ## [Unreleased]
 
+### Added
+
+- `mind setup vscode` - VSCode support with platform-specific MCP config path
+- Skill installation for cursor, codex, windsurf, gemini-cli, vscode
+
+### Changed
+
+- All agents now use stdio transport (command + args) instead of HTTP (url)
+- `mind setup claude-code` uses official `claude mcp add` CLI when available, falls back to `~/.claude/settings.json`
+- `getMindScriptPath()` now finds bun in common locations ($HOME/.bun/bin, /usr/local/bin, etc.)
+- MCP server config schema: `{type: "stdio", command: path, args: ["mcp"], env: {}}`
+
+### Fixed
+
+- Claude Code MCP config schema (was causing "Does not adhere to MCP server configuration schema" error)
+- Deep merge for claude-code fallback config (preserves existing config in ~/.claude/settings.json)
+
 ## [1.3.0] - 2026-04-06
 
 ### Changed

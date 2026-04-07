@@ -74,6 +74,35 @@ cd mind
 bun install
 ```
 
+### Setup for agents
+
+After installation, configure mind for your preferred agent:
+
+```bash
+# Claude Code
+mind setup claude-code
+
+# OpenCode
+mind setup opencode
+
+# Cursor
+mind setup cursor
+
+# Codex
+mind setup codex
+
+# Windsurf
+mind setup windsurf
+
+# Gemini CLI
+mind setup gemini-cli
+
+# VSCode
+mind setup vscode
+```
+
+Supported agents: `claude-code`, `opencode`, `cursor`, `codex`, `windsurf`, `gemini-cli`, `vscode`
+
 ## Quick Start
 
 ```bash
@@ -200,9 +229,8 @@ mind setup cursor
 mind setup windsurf
 mind setup codex
 mind setup gemini-cli
+mind setup vscode
 ```
-
-> Note: **OpenClaw** is currently **Experimental** (status declaration only). There is no `mind setup openclaw` wiring yet.
 
 `mind setup` (without agent) now prints a capability matrix per integration using a 3-level model:
 
@@ -231,7 +259,7 @@ Status labels used here:
 | Windsurf    | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
 | Gemini CLI  | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
 | OpenClaw    | Experimental | L1 `unverified`, L2 `unsupported`, L3 `unsupported` (status-only declaration; safe fallback only; no setup wiring) |
-| VSCode      | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
+| VSCode      | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
 | Antigravity | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
 | Kiro        | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
 

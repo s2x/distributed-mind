@@ -119,9 +119,9 @@ Neural Map API/UI touchpoints:
 - **bun:sqlite FTS5 bug:** bun:sqlite (v1.2.10) cannot handle FTS5 `content=table` sync triggers — any UPDATE or DELETE on the source table errors with "N values for M columns". **Workaround:** `memories_fts` is a standalone FTS5 table (no `content=` option, no triggers). FTS is synced manually in `sqlite-store.ts` via `ftsInsert`, `ftsUpdate`, `ftsDelete` helpers called from `addMemory`, `updateMemory`, `deleteMemory`, `deleteMemoryByName`, `deleteSpace`, and `importFromJson`.
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
 - **Config / storage path:** `cli/src/config.ts` resolves `CONFIG.dbPath` from `MIND_DB_PATH` env var (full path override) or `MIND_DATA_DIR` env var + `mind.db` (defaults to `data/` at repo root). The web server uses `MIND_DATA_DIR` (or `/data` in Docker). `data/` is in `.gitignore`. HTTP idle timeouts are configurable via `MIND_MCP_IDLE_TIMEOUT` (default 120s) and `MIND_API_IDLE_TIMEOUT` (default 30s). Log retention is configurable via `MIND_LOG_RETENTION_MINUTES` (default 10080 minutes = 7 days). Web server port is controlled via `MIND_PORT` (default: 30303).
-- **Setup capability model:** each agent adapter declares L1 (MCP), L2 (instruction/protocol injection), and L3 (hooks/session automation) with status `supported`, `unsupported`, or `unverified`, plus confidence/evidence/fallback notes printed during `mind setup` flows. No silent capability skip.
+- **Setup capability model:** each agent adapter declares L1 (MCP), L2 (instruction/protocol injection), and L3 (hooks/session automation) with status `supported`, `unsupported`, or `unverified`, plus confidence/evidence/fallback notes printed during `mind setup` flows. All agents now use stdio transport (command + args) for MCP wiring, not HTTP URL. No silent capability skip.
 - **Claude setup behavior:** `mind setup claude-code` deep-merges `~/.claude/settings.json`, writes/refreshes `~/.claude/instructions/mind-memory-protocol.md`, and upserts a managed block in `~/.claude/CLAUDE.md` pointing to that protocol. Managed-block/hook wiring now self-heals dirty duplicate entries on reruns, and setup removes known legacy per-agent protocol files to prevent regressions. L3 hook automation is opt-in (`MIND_SETUP_CLAUDE_ENABLE_HOOKS=true`) and non-blocking; failures fall back to manual workflow guidance.
-- **Capability declarations beyond wired adapters:** capability matrix includes `openclaw` as an **experimental** declaration (status-only, no setup wiring) and `vscode` / `antigravity` / `kiro` as roadmap-only entries (status declarations only, no setup wiring).
+- **Capability declarations beyond wired adapters:** capability matrix includes `openclaw` as an **experimental** declaration (status-only, no setup wiring) and `antigravity` / `kiro` as roadmap-only entries (status declarations only, no setup wiring). VSCode is a fully supported agent.
 - **OpenCode setup behavior:** `mind setup opencode` deep-merges existing JSON config (preserving unknown keys), configures `mcp.mind` as local command transport (`type: "local"`, `command: ["<path-to-mind>", "mcp"]`), writes/refreshes `~/.config/opencode/instructions/mind-memory-protocol.md`, and ensures that exact path is present exactly once as the first entry in the OpenCode `instructions` list. Reruns sanitize dirty instruction lists (dedupe + remove known legacy protocol paths/files). L3 prudent session/compaction automation is default-on and non-blocking: setup writes a managed plugin at `~/.config/opencode/plugins/mind-automation.js` that handles `session.created`, `session.compacted`, `experimental.session.compacting`, and prudent session-end summaries with deterministic caps/idempotency.
 - **Cursor setup behavior:** `mind setup cursor` deep-merges `~/.cursor/mcp.json` for L1 MCP and configures global managed L3 hooks in `~/.cursor/hooks.json` (events: `sessionStart`, `preCompact`, `stop`) backed by an executable managed script at `~/.cursor/hooks/mind-session-continuity.sh`. Hook setup deduplicates dirty managed entries on reruns and remains non-blocking with explicit safe fallback messaging.
 - **Codex setup behavior:** `mind setup codex` appends (if missing) a local MCP stanza in `~/.codex/config.toml` with `command = "<path-to-mind>"` and `args = ["mcp"]` (stdio/local transport, no forced HTTP args), and upserts a managed protocol block in `~/.codex/AGENTS.md` non-destructively. Reruns collapse duplicate managed blocks and remove known legacy per-agent protocol files.
@@ -199,7 +199,8 @@ Add to your agent's MCP config:
 {
   "mcpServers": {
     "mind": {
-      "url": "http://localhost:7438/mcp"
+      "command": ["/path/to/mind", "mcp"],
+      "enabled": true
     }
   }
 }
@@ -211,12 +212,13 @@ Add to your agent's MCP config:
 ./mind setup claude-code   # Auto-configure Claude Code
 ./mind setup opencode      # Auto-configure OpenCode
 ./mind setup cursor        # Auto-configure Cursor
-./mind setup windsurf     # Auto-configure Windsurf
 ./mind setup codex        # Auto-configure Codex
+./mind setup windsurf     # Auto-configure Windsurf
 ./mind setup gemini-cli   # Auto-configure Gemini CLI
+./mind setup vscode       # Auto-configure VSCode
 ```
 
-`./mind setup` (without an agent) prints an explicit capability matrix for all supported adapters plus non-wired declarations. It now prints full per-level status/confidence/evidence/fallback diagnostics for each listed adapter. OpenClaw is intentionally marked **experimental** (unverified/unsupported, no setup wiring). Cursor remains L2 `unverified` and now has implemented L3 global hooks automation; Codex now reports implemented L2 managed instruction injection while L3 remains unsupported.
+`./mind setup` (without an agent) prints an explicit capability matrix for all supported adapters plus non-wired declarations. It now prints full per-level status/confidence/evidence/fallback diagnostics for each listed adapter. OpenClaw is intentionally marked **experimental** (unverified/unsupported, no setup wiring). Cursor remains L2 `unverified` and now has implemented L3 global hooks automation; Codex now reports implemented L2 managed instruction injection while L3 remains unsupported. VSCode is now a supported agent with platform-specific MCP config path.
 
 ### 4.6 Running tests
 

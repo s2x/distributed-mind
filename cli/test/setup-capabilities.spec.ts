@@ -95,7 +95,7 @@ describe('Setup capability model', () => {
     expect(agentNames).toContain('openclaw');
 
     const vscode = matrix.find(entry => entry.agent === 'vscode');
-    expect(vscode?.capabilities.L1_MCP.status).toBe('unverified');
+    expect(vscode?.capabilities.L1_MCP.status).toBe('supported');
     expect(vscode?.capabilities.L2_INSTRUCTIONS.status).toBe('unsupported');
     expect(vscode?.capabilities.L3_HOOKS.status).toBe('unsupported');
 
@@ -125,7 +125,10 @@ describe('Setup capability model', () => {
 
     const configPath = join(tempHome, '.cursor', 'mcp.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, any>;
-    expect(config.mcpServers.mind.url).toBe('http://localhost:7438/mcp');
+    expect(config.mcpServers.mind.type).toBe('stdio');
+    expect(config.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(config.mcpServers.mind.args).toEqual(['mcp']);
+    expect(config.mcpServers.mind.env).toEqual({});
 
     const hooksPath = join(tempHome, '.cursor', 'hooks.json');
     const hooks = JSON.parse(readFileSync(hooksPath, 'utf-8')) as Record<string, any>;
@@ -230,7 +233,10 @@ describe('Setup capability model', () => {
 
     const configPath = join(tempHome, '.windsurf', 'mcp.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, any>;
-    expect(config.mcpServers.mind.url).toBe('http://localhost:7438/mcp');
+    expect(config.mcpServers.mind.type).toBe('stdio');
+    expect(config.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(config.mcpServers.mind.args).toEqual(['mcp']);
+    expect(config.mcpServers.mind.env).toEqual({});
 
     const capabilities = getAgentCapabilities('windsurf');
     expect(capabilities.L2_INSTRUCTIONS.status).toBe('unsupported');
@@ -350,16 +356,21 @@ describe('Setup capability model', () => {
   test('keeps Claude L3 hooks opt-in by default', async () => {
     await runSetup('claude-code');
 
-    const configPath = join(tempHome, '.claude', 'settings.json');
+    // When claude CLI is unavailable, setup falls back to ~/.claude.json
+    const configPath = join(tempHome, '.claude.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, any>;
 
-    expect(config.mcpServers.mind.url).toBe('http://localhost:7438/mcp');
+    expect(config.mcpServers.mind.type).toBe('stdio');
+    expect(config.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(config.mcpServers.mind.args).toEqual(['mcp']);
+    expect(config.mcpServers.mind.env).toEqual({});
     expect(config.hooks).toBeUndefined();
   });
 
   test('keeps Claude setup non-destructive and managed block idempotent across runs', async () => {
     const claudeDir = join(tempHome, '.claude');
-    const settingsPath = join(claudeDir, 'settings.json');
+    const readPath = join(claudeDir, 'settings.json'); // where setup reads existing config
+    const writePath = join(tempHome, '.claude.json'); // where setup writes fallback config
     const claudeMdPath = join(claudeDir, 'CLAUDE.md');
 
     const existingConfig = {
@@ -382,16 +393,20 @@ describe('Setup capability model', () => {
     ].join('\n');
 
     mkdirSync(claudeDir, { recursive: true });
-    writeFileSync(settingsPath, JSON.stringify(existingConfig, null, 2));
+    writeFileSync(readPath, JSON.stringify(existingConfig, null, 2));
     writeFileSync(claudeMdPath, existingClaudeMd);
 
     await runSetup('claude-code');
     await runSetup('claude-code');
 
-    const mergedConfig = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<string, any>;
+    // Config is read from settings.json, merged, and written to ~/.claude.json (fallback)
+    const mergedConfig = JSON.parse(readFileSync(writePath, 'utf-8')) as Record<string, any>;
     expect(mergedConfig.theme).toBe('dark');
     expect(mergedConfig.mcpServers.github.url).toBe('http://localhost:9999/mcp');
-    expect(mergedConfig.mcpServers.mind.url).toBe('http://localhost:7438/mcp');
+    expect(mergedConfig.mcpServers.mind.type).toBe('stdio');
+    expect(mergedConfig.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(mergedConfig.mcpServers.mind.args).toEqual(['mcp']);
+    expect(mergedConfig.mcpServers.mind.env).toEqual({});
 
     const claudeMd = readFileSync(claudeMdPath, 'utf-8');
     expect(claudeMd).toContain('# Custom Intro');
@@ -401,6 +416,119 @@ describe('Setup capability model', () => {
     const managedEndCount = claudeMd.split('<!-- mind managed protocol end -->').length - 1;
     expect(managedStartCount).toBe(1);
     expect(managedEndCount).toBe(1);
+  });
+
+  test('removes legacy url field from mind MCP config for stdio transport agents', async () => {
+    // Test claude-code
+    const claudeDir = join(tempHome, '.claude');
+    const claudeSettingsPath = join(claudeDir, 'settings.json');
+    const claudeFallbackPath = join(tempHome, '.claude.json');
+    mkdirSync(claudeDir, { recursive: true });
+
+    const existingClaudeConfig = {
+      mcpServers: {
+        mind: {
+          url: 'http://localhost:7438/mcp', // OLD - should be removed
+          command: ['/old/path/to/mind', 'mcp'],
+          enabled: true,
+        },
+      },
+    };
+    writeFileSync(claudeSettingsPath, JSON.stringify(existingClaudeConfig, null, 2));
+
+    await runSetup('claude-code');
+
+    // Setup reads from settings.json, merges, and writes to ~/.claude.json (fallback)
+    const claudeConfig = JSON.parse(readFileSync(claudeFallbackPath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    expect(claudeConfig.mcpServers.mind.url).toBeUndefined();
+    expect(claudeConfig.mcpServers.mind.type).toBe('stdio');
+    expect(claudeConfig.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(claudeConfig.mcpServers.mind.args).toEqual(['mcp']);
+    expect(claudeConfig.mcpServers.mind.env).toEqual({});
+
+    // Test cursor
+    const cursorDir = join(tempHome, '.cursor');
+    const cursorMcpPath = join(cursorDir, 'mcp.json');
+    mkdirSync(cursorDir, { recursive: true });
+
+    const existingCursorConfig = {
+      mcpServers: {
+        mind: {
+          url: 'http://localhost:7438/mcp', // OLD - should be removed
+          command: ['/old/path/to/mind', 'mcp'],
+          enabled: true,
+        },
+      },
+    };
+    writeFileSync(cursorMcpPath, JSON.stringify(existingCursorConfig, null, 2));
+
+    await runSetup('cursor');
+
+    const cursorConfig = JSON.parse(readFileSync(cursorMcpPath, 'utf-8')) as Record<string, any>;
+    expect(cursorConfig.mcpServers.mind.url).toBeUndefined();
+    expect(cursorConfig.mcpServers.mind.type).toBe('stdio');
+    expect(cursorConfig.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(cursorConfig.mcpServers.mind.args).toEqual(['mcp']);
+    expect(cursorConfig.mcpServers.mind.env).toEqual({});
+
+    // Test windsurf
+    const windsurfDir = join(tempHome, '.windsurf');
+    const windsurfMcpPath = join(windsurfDir, 'mcp.json');
+    mkdirSync(windsurfDir, { recursive: true });
+
+    const existingWindsurfConfig = {
+      mcpServers: {
+        mind: {
+          url: 'http://localhost:7438/mcp',
+          command: ['/old/path/to/mind', 'mcp'],
+          enabled: true,
+        },
+      },
+    };
+    writeFileSync(windsurfMcpPath, JSON.stringify(existingWindsurfConfig, null, 2));
+
+    await runSetup('windsurf');
+
+    const windsurfConfig = JSON.parse(readFileSync(windsurfMcpPath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    expect(windsurfConfig.mcpServers.mind.url).toBeUndefined();
+    expect(windsurfConfig.mcpServers.mind.type).toBe('stdio');
+    expect(windsurfConfig.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(windsurfConfig.mcpServers.mind.args).toEqual(['mcp']);
+    expect(windsurfConfig.mcpServers.mind.env).toEqual({});
+
+    // Test gemini-cli
+    const geminiDir = join(tempHome, '.gemini');
+    const geminiSettingsPath = join(geminiDir, 'settings.json');
+    mkdirSync(geminiDir, { recursive: true });
+
+    const existingGeminiConfig = {
+      mcpServers: {
+        mind: {
+          url: 'http://localhost:7438/mcp',
+          command: ['/old/path/to/mind', 'mcp'],
+          enabled: true,
+        },
+      },
+    };
+    writeFileSync(geminiSettingsPath, JSON.stringify(existingGeminiConfig, null, 2));
+
+    await runSetup('gemini-cli');
+
+    const geminiConfig = JSON.parse(readFileSync(geminiSettingsPath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    expect(geminiConfig.mcpServers.mind.url).toBeUndefined();
+    expect(geminiConfig.mcpServers.mind.type).toBe('stdio');
+    expect(geminiConfig.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(geminiConfig.mcpServers.mind.args).toEqual(['mcp']);
+    expect(geminiConfig.mcpServers.mind.env).toEqual({});
   });
 
   test('repairs dirty Claude managed blocks and removes legacy protocol files', async () => {
@@ -439,7 +567,8 @@ describe('Setup capability model', () => {
     await runSetup('claude-code');
     await runSetup('claude-code');
 
-    const settingsPath = join(tempHome, '.claude', 'settings.json');
+    // When claude CLI is unavailable, setup falls back to ~/.claude.json
+    const settingsPath = join(tempHome, '.claude.json');
     const config = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<string, any>;
     const stopHooks = config.hooks?.Stop as Array<Record<string, any>>;
     expect(Array.isArray(stopHooks)).toBe(true);
@@ -460,7 +589,7 @@ describe('Setup capability model', () => {
   test('deduplicates dirty Claude hook entries when opt-in is enabled', async () => {
     process.env.MIND_SETUP_CLAUDE_ENABLE_HOOKS = 'true';
     const claudeDir = join(tempHome, '.claude');
-    const settingsPath = join(claudeDir, 'settings.json');
+    const settingsPath = join(tempHome, '.claude.json'); // fallback path when CLI unavailable
     const hookPath = join(tempHome, '.claude', 'hooks', 'mind-session-summary.sh');
 
     mkdirSync(claudeDir, { recursive: true });
@@ -501,5 +630,49 @@ describe('Setup capability model', () => {
     );
 
     expect(managedEntries.length).toBe(1);
+  });
+
+  test('claude CLI not available - falls back to ~/.claude.json with warning', async () => {
+    const warnSpy = spyOn(console, 'warn');
+
+    await runSetup('claude-code');
+
+    // Should write to ~/.claude.json (fallback) since claude CLI is not available
+    const fallbackPath = join(tempHome, '.claude.json');
+    expect(existsSync(fallbackPath)).toBe(true);
+
+    const config = JSON.parse(readFileSync(fallbackPath, 'utf-8')) as Record<string, any>;
+    expect(config.mcpServers.mind.type).toBe('stdio');
+    expect(config.mcpServers.mind.command).toEqual(expect.any(String));
+    expect(config.mcpServers.mind.args).toEqual(['mcp']);
+    expect(config.mcpServers.mind.env).toEqual({});
+
+    // Warning about CLI not found
+    expect(warnSpy.mock.calls.some(call => String(call[0]).includes('claude CLI not found'))).toBe(
+      true
+    );
+
+    // L2/L3 still ran
+    const instructionsPath = join(tempHome, '.claude', 'instructions', 'mind-memory-protocol.md');
+    expect(existsSync(instructionsPath)).toBe(true);
+  });
+
+  test('claude-code setup L2/L3 artifacts created even when CLI fallback is used', async () => {
+    await runSetup('claude-code');
+
+    // L2: instructions file created
+    const instructionsPath = join(tempHome, '.claude', 'instructions', 'mind-memory-protocol.md');
+    expect(existsSync(instructionsPath)).toBe(true);
+
+    // L2: CLAUDE.md managed block created
+    const claudeMdPath = join(tempHome, '.claude', 'CLAUDE.md');
+    expect(existsSync(claudeMdPath)).toBe(true);
+    const claudeMd = readFileSync(claudeMdPath, 'utf-8');
+    expect(claudeMd).toContain('mind managed protocol start');
+    expect(claudeMd).toContain('mind managed protocol end');
+
+    // Fallback config file written
+    const fallbackPath = join(tempHome, '.claude.json');
+    expect(existsSync(fallbackPath)).toBe(true);
   });
 });

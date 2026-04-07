@@ -4,8 +4,9 @@ export type SupportedAgent =
   | 'codex'
   | 'cursor'
   | 'windsurf'
-  | 'gemini-cli';
-export type RoadmapAgent = 'vscode' | 'antigravity' | 'kiro';
+  | 'gemini-cli'
+  | 'vscode';
+export type RoadmapAgent = 'antigravity' | 'kiro';
 export type ExperimentalAgent = 'openclaw';
 export type Agent = SupportedAgent | RoadmapAgent | ExperimentalAgent;
 
@@ -49,7 +50,7 @@ const SUPPORTED_AGENT_CAPABILITIES: SupportedAgentDefinition[] = [
       L1_MCP: {
         status: 'supported',
         confidence: 'high',
-        evidence: 'Writes ~/.claude/settings.json mcpServers.mind URL.',
+        evidence: 'Uses official claude mcp add CLI when available; falls back to ~/.claude.json.',
         fallback: 'N/A',
       },
       L2_INSTRUCTIONS: {
@@ -195,18 +196,15 @@ const SUPPORTED_AGENT_CAPABILITIES: SupportedAgentDefinition[] = [
       },
     },
   },
-];
-
-const ROADMAP_AGENT_CAPABILITIES: Record<RoadmapAgent, CapabilityMatrixEntry> = {
-  vscode: {
+  {
     agent: 'vscode',
-    name: 'VSCode (roadmap)',
+    name: 'VSCode',
     capabilities: {
       L1_MCP: {
-        status: 'unverified',
-        confidence: 'low',
-        evidence: 'Roadmap target only; no adapter implementation merged yet.',
-        fallback: 'Use manual MCP wiring until adapter support is implemented and validated.',
+        status: 'supported',
+        confidence: 'medium',
+        evidence: 'Writes ~/.config/Code/User/mcp.json mcpServers.mind configuration.',
+        fallback: 'N/A',
       },
       L2_INSTRUCTIONS: {
         status: 'unsupported',
@@ -222,6 +220,9 @@ const ROADMAP_AGENT_CAPABILITIES: Record<RoadmapAgent, CapabilityMatrixEntry> = 
       },
     },
   },
+];
+
+const ROADMAP_AGENT_CAPABILITIES: Record<RoadmapAgent, CapabilityMatrixEntry> = {
   antigravity: {
     agent: 'antigravity',
     name: 'Antigravity (roadmap)',
@@ -364,4 +365,8 @@ export function isAgent(value: string): value is Agent {
     value === 'kiro' ||
     value === 'openclaw'
   );
+}
+
+export function getSupportedAgents(): string[] {
+  return Array.from(SUPPORTED_AGENT_BY_ID.keys());
 }

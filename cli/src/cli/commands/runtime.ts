@@ -2,15 +2,16 @@ import { runApiServer } from '../../api/server';
 import { startMcpHttpServer, startMcpServer } from '../../mcp/server';
 import type { MindStore } from '../../store/mind-store';
 import { ArgParser } from '../arg-parser';
+import { getSupportedAgents } from '../capabilities';
 import { runUpdateCommand } from '../self-update';
 import {
-  runSetup,
   listAgents,
+  runSetup,
   startMcpDetached,
-  stopMcp,
   startServeDetached,
-  stopServe,
   statusServers,
+  stopMcp,
+  stopServe,
 } from '../setup';
 
 import type { CommandGroup } from './types';
@@ -34,7 +35,10 @@ const SERVE_START = new ArgParser(['serve|server|web', 'start'], 'Starts web HTT
 const SERVE_STOP = new ArgParser(['serve|server|web', 'stop'], 'Stops web HTTP server');
 
 const SETUP = new ArgParser(['setup|install'], 'Lists supported agents for setup');
-const SETUP_AGENT = new ArgParser(['setup|install', p('agent')], 'Setup agent MCP integration');
+const SETUP_AGENT = new ArgParser(
+  ['setup|install', p('agent')],
+  `Setup agent MCP integration.\n\tSupported agents: ${getSupportedAgents().join(', ')}`
+);
 
 const UPDATE = new ArgParser(['update'], 'Updates mind from GitHub releases', [
   { name: 'check', hasValue: false, description: 'check if update is available' },

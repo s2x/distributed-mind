@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import { homedir } from 'os';
 import * as path from 'path';
@@ -50,6 +50,16 @@ const LEGACY_PROTOCOL_FILENAMES = [
   'mind-memory-protocol.codex.md',
 ];
 
+function getVSCodeUserConfigPath(): string {
+  if (process.platform === 'win32') {
+    return path.join(process.env.APPDATA || '', 'Code', 'User', 'mcp.json');
+  } else if (process.platform === 'darwin') {
+    return path.join(getHomeDir(), 'Library', 'Application Support', 'Code', 'User', 'mcp.json');
+  } else {
+    return path.join(getHomeDir(), '.config', 'Code', 'User', 'mcp.json');
+  }
+}
+
 function getHomeDir(): string {
   return process.env.HOME ?? homedir();
 }
@@ -61,11 +71,49 @@ function ensureDir(dirPath: string): void {
 }
 
 function getMindScriptPath(): string {
+  try {
+    const result = spawnSync('command', ['-v', 'mind'], { encoding: 'utf-8', shell: false });
+    if (result.status === 0 && result.stdout.trim()) {
+      return result.stdout.trim();
+    }
+  } catch {
+    // Fall through to absolute path detection
+  }
+
   const script = path.resolve(__dirname, '..', '..', '..', 'mind');
   if (fs.existsSync(script)) {
     return script;
   }
   return 'mind';
+}
+
+export function tryClaudeMcpAdd(mindPath: string): { ok: boolean; reason?: string } {
+  // Check if claude CLI is available
+  try {
+    const check = spawnSync('command', ['-v', 'claude'], { encoding: 'utf-8', shell: false });
+    if (check.status !== 0) {
+      return { ok: false, reason: 'claude CLI not found in PATH' };
+    }
+  } catch {
+    return { ok: false, reason: 'claude CLI not found in PATH' };
+  }
+
+  // Try claude mcp add
+  try {
+    const result = spawnSync(
+      'claude',
+      ['mcp', 'add', '--transport', 'stdio', '--scope', 'user', 'mind', '--', mindPath, 'mcp'],
+      { encoding: 'utf-8', shell: false, stdio: 'pipe' }
+    );
+
+    if (result.status === 0) {
+      return { ok: true };
+    } else {
+      return { ok: false, reason: result.stderr?.trim() || `exit code ${result.status}` };
+    }
+  } catch (err) {
+    return { ok: false, reason: String(err) };
+  }
 }
 
 function getMindEntryPath(): string {
@@ -916,17 +964,18 @@ export async function statusServers(): Promise<void> {
 }
 
 function getAgentConfig(agent: SupportedAgent): AgentConfig {
-  const mcpUrl = `http://localhost:${getMcpPort()}/mcp`;
-
   const map: Record<SupportedAgent, Omit<AgentConfig, 'capabilities'>> = {
     'claude-code': {
       name: getSupportedAgentDefinition('claude-code').name,
       configPath: path.join(getHomeDir(), '.claude', 'settings.json'),
       format: 'json',
-      build: () => ({
+      build: (_url, mindPath) => ({
         mcpServers: {
           mind: {
-            url: mcpUrl,
+            type: 'stdio',
+            command: mindPath,
+            args: ['mcp'],
+            env: {},
           },
         },
       }),
@@ -955,9 +1004,14 @@ function getAgentConfig(agent: SupportedAgent): AgentConfig {
       name: getSupportedAgentDefinition('cursor').name,
       configPath: path.join(getHomeDir(), '.cursor', 'mcp.json'),
       format: 'json',
-      build: () => ({
+      build: (_url, mindPath) => ({
         mcpServers: {
-          mind: { url: mcpUrl },
+          mind: {
+            type: 'stdio',
+            command: mindPath,
+            args: ['mcp'],
+            env: {},
+          },
         },
       }),
     },
@@ -965,9 +1019,14 @@ function getAgentConfig(agent: SupportedAgent): AgentConfig {
       name: getSupportedAgentDefinition('windsurf').name,
       configPath: path.join(getHomeDir(), '.windsurf', 'mcp.json'),
       format: 'json',
-      build: () => ({
+      build: (_url, mindPath) => ({
         mcpServers: {
-          mind: { url: mcpUrl },
+          mind: {
+            type: 'stdio',
+            command: mindPath,
+            args: ['mcp'],
+            env: {},
+          },
         },
       }),
     },
@@ -975,9 +1034,29 @@ function getAgentConfig(agent: SupportedAgent): AgentConfig {
       name: getSupportedAgentDefinition('gemini-cli').name,
       configPath: path.join(getHomeDir(), '.gemini', 'settings.json'),
       format: 'json',
-      build: () => ({
+      build: (_url, mindPath) => ({
         mcpServers: {
-          mind: { url: mcpUrl },
+          mind: {
+            type: 'stdio',
+            command: mindPath,
+            args: ['mcp'],
+            env: {},
+          },
+        },
+      }),
+    },
+    vscode: {
+      name: getSupportedAgentDefinition('vscode').name,
+      configPath: getVSCodeUserConfigPath(),
+      format: 'json',
+      build: (_url, mindPath) => ({
+        mcpServers: {
+          mind: {
+            type: 'stdio',
+            command: mindPath,
+            args: ['mcp'],
+            env: {},
+          },
         },
       }),
     },
@@ -1003,8 +1082,34 @@ export async function runSetup(agent: SupportedAgent): Promise<void> {
   const mcpUrl = `http://localhost:${getMcpPort()}/mcp`;
   const mindPath = getMindScriptPath();
 
+  // Track claude-code CLI-first approach
+  let claudeCliSucceeded = false;
+  let claudeFallbackWritePath: string | undefined;
+
   if (cfg.format === 'json') {
-    const current = readJson(cfg.configPath);
+    // For claude-code, try official CLI first before building merged config
+    if (agent === 'claude-code') {
+      const cliResult = tryClaudeMcpAdd(mindPath);
+
+      if (cliResult.ok) {
+        console.log('  - mind MCP registered via claude mcp add');
+        claudeCliSucceeded = true;
+      } else {
+        console.warn(`  - claude mcp add: ${cliResult.reason}`);
+        console.warn('  - Falling back to JSON config...');
+        claudeFallbackWritePath = path.join(getHomeDir(), '.claude.json');
+      }
+    }
+
+    // For claude-code fallback path: read from fallback if it exists, otherwise from primary config
+    // This ensures existing config (e.g., theme, github server) is preserved when merging
+    let readPath = cfg.configPath;
+    if (claudeFallbackWritePath) {
+      readPath = fs.existsSync(claudeFallbackWritePath) ? claudeFallbackWritePath : cfg.configPath;
+    } else if (agent !== 'claude-code') {
+      readPath = cfg.configPath;
+    }
+    const current = readJson(readPath);
     const patch = cfg.build(mcpUrl, mindPath) as Record<string, unknown>;
     let merged = deepMerge(current, patch);
 
@@ -1068,9 +1173,83 @@ export async function runSetup(agent: SupportedAgent): Promise<void> {
         const message = error instanceof Error ? error.message : String(error);
         console.log(`- Cursor hooks setup failed safely: ${message}`);
       }
+
+      // Install mind-management skill
+      try {
+        const skillPath = ensureCursorMindManagementSkill();
+        if (skillPath) {
+          console.log(`- mind-management skill available in Cursor`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`- mind-management skill setup failed safely: ${message}`);
+      }
     }
 
-    writeJson(cfg.configPath, merged);
+    if (agent === 'windsurf') {
+      // Install mind-management skill (shared ~/.agents/skills for cross-agent compatibility)
+      try {
+        const skillPath = ensureAgentsMindManagementSkill();
+        if (skillPath) {
+          console.log(`- mind-management skill available in Windsurf`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`- mind-management skill setup failed safely: ${message}`);
+      }
+    }
+
+    if (agent === 'gemini-cli') {
+      // Install mind-management skill
+      try {
+        const skillPath = ensureGeminiMindManagementSkill();
+        if (skillPath) {
+          console.log(`- mind-management skill available in Gemini CLI`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`- mind-management skill setup failed safely: ${message}`);
+      }
+    }
+
+    if (agent === 'vscode') {
+      // Install mind-management skill (shared ~/.agents/skills for cross-agent compatibility)
+      try {
+        const skillPath = ensureAgentsMindManagementSkill();
+        if (skillPath) {
+          console.log(`- mind-management skill available in VSCode`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`- mind-management skill setup failed safely: ${message}`);
+      }
+    }
+
+    // For stdio transport agents, remove any leftover url field that was preserved
+    // by deepMerge from an older HTTP transport config
+    if (
+      agent === 'claude-code' ||
+      agent === 'cursor' ||
+      agent === 'windsurf' ||
+      agent === 'gemini-cli' ||
+      agent === 'vscode'
+    ) {
+      const mcpServers = (merged as Record<string, unknown>).mcpServers as
+        | Record<string, unknown>
+        | undefined;
+      if (mcpServers?.mind) {
+        delete (mcpServers.mind as Record<string, unknown>).url;
+      }
+    }
+
+    // For claude-code: skip write if CLI succeeded (CLI handles MCP registration)
+    // If CLI failed, write to fallback path (~/.claude.json) instead of settings.json
+    if (claudeCliSucceeded) {
+      // CLI handled MCP registration, nothing to write
+    } else {
+      const writePath = claudeFallbackWritePath ?? cfg.configPath;
+      writeJson(writePath, merged);
+    }
   } else {
     const current = readText(cfg.configPath);
     const snippet = cfg.build(mcpUrl, mindPath) as string;
@@ -1085,11 +1264,31 @@ export async function runSetup(agent: SupportedAgent): Promise<void> {
         const message = error instanceof Error ? error.message : String(error);
         console.log(`- Codex managed AGENTS protocol setup failed safely: ${message}`);
       }
+
+      // Install mind-management skill (shared ~/.agents/skills for cross-agent compatibility)
+      try {
+        const skillPath = ensureAgentsMindManagementSkill();
+        if (skillPath) {
+          console.log(`- mind-management skill available in Codex`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`- mind-management skill setup failed safely: ${message}`);
+      }
     }
   }
 
   console.log(`✅ Setup complete for ${cfg.name}`);
-  console.log(`- Config updated: ${cfg.configPath}`);
+  if (claudeCliSucceeded) {
+    // CLI handled MCP registration, no config file write needed
+  } else {
+    const writePath = claudeFallbackWritePath ?? cfg.configPath;
+    if (claudeFallbackWritePath) {
+      console.log(`  - Config written to ~/.claude.json`);
+    } else {
+      console.log(`- Config updated: ${writePath}`);
+    }
+  }
   console.log('- Start MCP server with: `mind mcp start --detached`');
   printCapabilityDiagnostics(cfg.name, cfg.capabilities);
 }
@@ -1145,6 +1344,69 @@ function ensureClaudeMindManagementSkill(): string | null {
   }
 
   const skillsDir = path.join(getHomeDir(), '.claude', 'skills', 'mind-management');
+  const destPath = path.join(skillsDir, 'SKILL.md');
+
+  ensureDir(skillsDir);
+  const skillContent = fs.readFileSync(skillFile, 'utf-8');
+  fs.writeFileSync(destPath, skillContent);
+
+  console.log(`- mind-management skill installed: ${destPath}`);
+  return destPath;
+}
+
+function ensureCursorMindManagementSkill(): string | null {
+  const skillFile = SKILL_MIND_MANAGEMENT_SOURCE;
+
+  if (!fs.existsSync(skillFile)) {
+    console.log(
+      `- mind-management skill not found in bundle (${skillFile}), skipping skill installation`
+    );
+    return null;
+  }
+
+  const skillsDir = path.join(getHomeDir(), '.cursor', 'skills', 'mind-management');
+  const destPath = path.join(skillsDir, 'SKILL.md');
+
+  ensureDir(skillsDir);
+  const skillContent = fs.readFileSync(skillFile, 'utf-8');
+  fs.writeFileSync(destPath, skillContent);
+
+  console.log(`- mind-management skill installed: ${destPath}`);
+  return destPath;
+}
+
+function ensureAgentsMindManagementSkill(): string | null {
+  const skillFile = SKILL_MIND_MANAGEMENT_SOURCE;
+
+  if (!fs.existsSync(skillFile)) {
+    console.log(
+      `- mind-management skill not found in bundle (${skillFile}), skipping skill installation`
+    );
+    return null;
+  }
+
+  const skillsDir = path.join(getHomeDir(), '.agents', 'skills', 'mind-management');
+  const destPath = path.join(skillsDir, 'SKILL.md');
+
+  ensureDir(skillsDir);
+  const skillContent = fs.readFileSync(skillFile, 'utf-8');
+  fs.writeFileSync(destPath, skillContent);
+
+  console.log(`- mind-management skill installed: ${destPath}`);
+  return destPath;
+}
+
+function ensureGeminiMindManagementSkill(): string | null {
+  const skillFile = SKILL_MIND_MANAGEMENT_SOURCE;
+
+  if (!fs.existsSync(skillFile)) {
+    console.log(
+      `- mind-management skill not found in bundle (${skillFile}), skipping skill installation`
+    );
+    return null;
+  }
+
+  const skillsDir = path.join(getHomeDir(), '.gemini', 'skills', 'mind-management');
   const destPath = path.join(skillsDir, 'SKILL.md');
 
   ensureDir(skillsDir);
