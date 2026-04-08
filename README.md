@@ -327,13 +327,15 @@ mind import
 ## Project Structure
 
 ```text
-cli/src/
+src/
   cli/        # CLI parser, command registry, setup/runtime helpers
   mcp/        # MCP command + MCP server + tools
   api/        # HTTP command, router, route modules, API server
   helpers/    # logger, tags, format, rag helpers
   store/      # SQLite schema + MindStore implementation
   mind.ts     # main entrypoint used by mind
+
+test/        # backend/CLI tests
 
 web/src/      # frontend runtime modules (ESM, no build step)
 web/styles/   # split CSS (tokens/base/layout/components/utilities)
@@ -347,7 +349,7 @@ web/test/     # web-only tests
 Run unit tests:
 
 ```bash
-bun test cli/test web/test
+bun test test/ web/test
 ```
 
 Run web-only tests:

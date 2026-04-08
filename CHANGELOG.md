@@ -34,6 +34,26 @@ Example:
 
 ### Changed
 
+- Restructured repository: moved cli/src to src/, cli/test to test/
+
+- **Phase 1-6 Refactoring**: Major architectural refactor across phases 1-6:
+  - **Phase 1**: `sqlite-store.ts` decomposed into 6 repositories in `cli/src/store/repositories/`: `SpaceRepository`, `MemoryRepository`, `LinkRepository`, `TagRepository`, `LogRepository`, `SearchRepository`. `sqlite-store.ts` now acts as a thin composition layer.
+  - **Phase 3**: `setup.ts` consolidated — 5 duplicate agent-detection functions merged into 1 canonical helper. Setup flows for all agents now use shared infrastructure.
+  - **Phase 4**: `memories.ts` MCP tool refactored with extracted helpers. Link transformation now uses shared `mapLinkedSummariesToLinksFormat()` from `link-building.ts`.
+  - **Phase 5**: `checkpoint.ts` MCP tool refactored with extracted helpers for content building/fetching and linked memory formatting.
+  - **Phase 6**: CLI `checkpoint.ts` refactored with extracted helpers for `--linked-memories` flag handling and recover response building.
+  - Shared helpers created in `cli/src/helpers/`: `link-building.ts` and `checkpoint-content.ts`.
+- **Phase 2**: Shared helpers for link-building and checkpoint content extraction in `cli/src/helpers/`:
+  - `link-building.ts`: `buildLinkedMemoriesArray()`, `mapLinkedSummariesToLinksFormat()`, `transformLinkedSummary()`
+  - `checkpoint-content.ts`: `buildCheckpointContent()`, `fetchCheckpointContent()`
+  - MCP `checkpoint.ts` and CLI `checkpoint.ts` now delegate to shared helpers (DRY)
+  - MCP `memories.ts` now uses `mapLinkedSummariesToLinksFormat()` for link transformation
+- **Phase 6**: CLI `checkpoint.ts` refactored:
+  - Extracted `linkMemoriesToCheckpoint()` helper for --linked-memories flag handling
+  - Extracted `buildRecoverableCheckpoint()` helper for recover handler response building
+  - `checkpoint set` handler uses `buildCheckpointContent()` (was already used) and `linkMemoriesToCheckpoint()`
+  - `checkpoint recover` handler uses `buildLinkedMemoriesArray()`, `fetchCheckpointContent()`, and `buildRecoverableCheckpoint()`
+  - Reduced CLI checkpoint.ts from 272 to ~283 lines (added helpers; net improvement in maintainability)
 - All agents now use stdio transport (command + args) instead of HTTP (url)
 - `mind setup claude-code` uses official `claude mcp add` CLI when available, falls back to `~/.claude/settings.json`
 - `getMindScriptPath()` now finds bun in common locations ($HOME/.bun/bin, /usr/local/bin, etc.)

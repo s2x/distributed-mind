@@ -1,10 +1,25 @@
 import { z } from 'zod';
 
 import { completeCheckpoint } from '../../checkpoint/checkpoint-done';
+import { buildCheckpointContent, fetchCheckpointContent } from '../../helpers/checkpoint-content';
+import { buildLinkedMemoriesArray } from '../../helpers/link-building';
 import type { MindStore } from '../../store/mind-store';
-import type { Tier } from '../../types';
+import type { MemorySummary, Tier } from '../../types';
 
 import { resolveRefWithFallback } from './links';
+
+// ── Types ──
+
+/**
+ * Checkpoint summary returned by checkpoint_query.
+ */
+interface CheckpointSummary {
+  name: string;
+  goal: string;
+  pending: string;
+  updatedAt: string;
+  tags: string[];
+}
 
 const CheckpointSaveSchema = z.object({
   space: z.string().min(1).describe('Working space name.'),
@@ -63,8 +78,86 @@ const CHECKPOINT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Find checkpoints by status, date range, or tag. Returns goal and pending preview with pagination.',
 };
 
-function now(): string {
-  return new Date().toISOString().replace('T', ' ').replace('Z', '').split('.')[0]!;
+// ── Helper functions ──
+
+/**
+ * Apply status, tag, and date filters to a list of checkpoint memories.
+ */
+function applyCheckpointFilters(
+  checkpoints: MemorySummary[],
+  status?: string,
+  tag?: string,
+  from?: string,
+  to?: string
+): MemorySummary[] {
+  let filtered = checkpoints;
+
+  if (status && status !== 'all') {
+    filtered = filtered.filter(m => m.tags.includes(status!));
+  }
+
+  if (tag) {
+    filtered = filtered.filter(m => m.tags.includes(tag!));
+  }
+
+  if (from) {
+    const fromDate = new Date(from);
+    filtered = filtered.filter(m => new Date(m.updated_at) >= fromDate);
+  }
+
+  if (to) {
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999); // End of day
+    filtered = filtered.filter(m => new Date(m.updated_at) <= toDate);
+  }
+
+  return filtered;
+}
+
+/**
+ * Sort checkpoints by updated_at descending and apply pagination.
+ */
+function applyCheckpointSortAndPagination(
+  checkpoints: MemorySummary[],
+  offset: number,
+  limit: number
+): { items: MemorySummary[]; total: number } {
+  const sorted = [...checkpoints].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  );
+  const total = sorted.length;
+  const items = sorted.slice(offset, offset + limit);
+  return { items, total };
+}
+
+/**
+ * Fetch full content for paginated checkpoints and parse goal/pending.
+ */
+async function fetchCheckpointSummaries(
+  store: MindStore,
+  checkpoints: MemorySummary[]
+): Promise<CheckpointSummary[]> {
+  return Promise.all(
+    checkpoints.map(m => {
+      const full = store.getMemoryById(m.id);
+      let parsedContent: { goal?: string; pending?: string } = {};
+      if (full?.content) {
+        try {
+          parsedContent = JSON.parse(full.content);
+        } catch {
+          // Ignore parse errors
+        }
+      }
+      const pending = String(parsedContent.pending ?? '');
+      return {
+        name: m.name,
+        goal: parsedContent.goal ?? '',
+        pending: pending.length > 50 ? pending.slice(0, 50) + '…' : pending,
+        updatedAt: m.updated_at,
+        tags: m.tags,
+      };
+    })
+  );
 }
 
 export function createCheckpointTools(store: MindStore) {
@@ -87,18 +180,6 @@ export function createCheckpointTools(store: MindStore) {
           throw new Error(`Space "${space}" not found.`);
         }
 
-        const content = JSON.stringify(
-          {
-            goal: parsed.goal ?? '',
-            pending: parsed.pending ?? '',
-            notes: parsed.notes ?? '',
-            createdAt: now(),
-            updatedAt: now(),
-          },
-          null,
-          2
-        );
-
         const existingCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
         const activeCheckpoint = existingCheckpoints.find(m => m.tags.includes('active'));
 
@@ -106,23 +187,30 @@ export function createCheckpointTools(store: MindStore) {
         if (activeCheckpoint) {
           const memory = store.getMemoryById(activeCheckpoint.id);
           if (memory) {
-            const existingContent = JSON.parse(memory.content);
-            existingContent.goal = parsed.goal ?? '';
-            existingContent.pending = parsed.pending ?? '';
-            existingContent.notes = parsed.notes ?? '';
-            existingContent.updatedAt = now();
-
-            await store.updateMemory(activeCheckpoint.id, {
-              content: JSON.stringify(existingContent, null, 2),
-            });
-            checkpoint = store.getMemoryById(activeCheckpoint.id);
+            const existingContent = fetchCheckpointContent(memory);
+            if (existingContent) {
+              await store.updateMemory(activeCheckpoint.id, {
+                content: buildCheckpointContent(
+                  parsed.goal ?? '',
+                  parsed.pending ?? '',
+                  parsed.notes ?? '',
+                  existingContent.createdAt
+                ),
+              });
+              checkpoint = store.getMemoryById(activeCheckpoint.id);
+            }
           }
         } else {
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          checkpoint = await store.addMemory(space, `checkpoint-${timestamp}`, content, {
-            tags: ['checkpoint', 'active'],
-            tier: 1 as Tier,
-          });
+          checkpoint = await store.addMemory(
+            space,
+            `checkpoint-${timestamp}`,
+            buildCheckpointContent(parsed.goal ?? '', parsed.pending ?? '', parsed.notes ?? ''),
+            {
+              tags: ['checkpoint', 'active'],
+              tier: 1 as Tier,
+            }
+          );
         }
 
         if (parsed.linked_memories && parsed.linked_memories.length > 0 && checkpoint) {
@@ -239,47 +327,23 @@ export function createCheckpointTools(store: MindStore) {
           throw new Error(`Checkpoint "${data.checkpointName}" not found in "${data.space}".`);
         }
         checkpointMemory = store.getMemoryById(checkpointMemory.id);
-
-        // Build linked_memories in memory_read format (enriched)
-        const linked_memories: Array<{
-          name: string;
-          space: string;
-          ref: string;
-          tier: number;
-          tags: string[];
-          pinned: boolean;
-          changed_at: string;
-        }> = [];
-
-        if (checkpointMemory) {
-          const links = store.getLinks(checkpointMemory.id);
-          for (const link of links.slice(0, 5)) {
-            const linkedMem = store.getMemoryById(link.target_id);
-            if (linkedMem) {
-              linked_memories.push({
-                name: linkedMem.name,
-                space: linkedMem.space_name,
-                ref: `${linkedMem.space_name}:${linkedMem.name}`,
-                tier: linkedMem.tier,
-                tags: linkedMem.tags,
-                pinned: linkedMem.pinned,
-                changed_at: linkedMem.changed_at,
-              });
-            }
-          }
+        if (!checkpointMemory) {
+          throw new Error(`Checkpoint "${data.checkpointName}" could not be loaded.`);
         }
 
-        const checkpoint = checkpointMemory
-          ? {
-              space: checkpointMemory.space_name,
-              name: checkpointMemory.name,
-              tier: checkpointMemory.tier as Tier,
-              tags: checkpointMemory.tags,
-              content: JSON.parse(checkpointMemory.content),
-              linked_memories,
-              updated_at: checkpointMemory.updated_at,
-            }
-          : null;
+        // Use shared helpers for building linked_memories and parsing content
+        const linked_memories = buildLinkedMemoriesArray(store, checkpointMemory.id, 5);
+        const checkpointContent = fetchCheckpointContent(checkpointMemory);
+
+        const checkpoint = {
+          space: checkpointMemory.space_name,
+          name: checkpointMemory.name,
+          tier: checkpointMemory.tier as Tier,
+          tags: checkpointMemory.tags,
+          content: checkpointContent,
+          linked_memories,
+          updated_at: checkpointMemory.updated_at,
+        };
 
         return {
           content: [
@@ -314,63 +378,30 @@ export function createCheckpointTools(store: MindStore) {
         }
 
         // Use queryMemories to include ALL tiers (completed checkpoints are demoted)
-        let checkpoints = store.queryMemories({
+        const checkpoints = store.queryMemories({
           space,
           tag: 'checkpoint',
           limit: 500,
         });
 
-        if (parsed.status && parsed.status !== 'all') {
-          checkpoints = checkpoints.filter(m => m.tags.includes(parsed.status!));
-        }
-
-        // Filter by tag if provided
-        if (parsed.tag) {
-          checkpoints = checkpoints.filter(m => m.tags.includes(parsed.tag!));
-        }
-
-        // Filter by date range if provided
-        if (parsed.from) {
-          const fromDate = new Date(parsed.from);
-          checkpoints = checkpoints.filter(m => new Date(m.updated_at) >= fromDate);
-        }
-        if (parsed.to) {
-          const toDate = new Date(parsed.to);
-          toDate.setHours(23, 59, 59, 999); // End of day
-          checkpoints = checkpoints.filter(m => new Date(m.updated_at) <= toDate);
-        }
-
-        // Sort by updated_at descending
-        checkpoints.sort(
-          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        // Apply filters
+        const filtered = applyCheckpointFilters(
+          checkpoints,
+          parsed.status,
+          parsed.tag,
+          parsed.from,
+          parsed.to
         );
 
-        // Apply pagination
-        const total = checkpoints.length;
-        const paginatedCheckpoints = checkpoints.slice(parsed.offset, parsed.offset + parsed.limit);
-
-        // Fetch full content for each checkpoint to parse goal/pending
-        const checkpointDetails = await Promise.all(
-          paginatedCheckpoints.map(async m => {
-            const full = store.getMemoryById(m.id);
-            let parsedContent: { goal?: string; pending?: string } = {};
-            if (full?.content) {
-              try {
-                parsedContent = JSON.parse(full.content);
-              } catch {
-                // Ignore parse errors
-              }
-            }
-            const pending = String(parsedContent.pending ?? '');
-            return {
-              name: m.name,
-              goal: parsedContent.goal ?? '',
-              pending: pending.length > 50 ? pending.slice(0, 50) + '…' : pending,
-              updatedAt: m.updated_at,
-              tags: m.tags,
-            };
-          })
+        // Sort and paginate
+        const { items: paginated, total } = applyCheckpointSortAndPagination(
+          filtered,
+          parsed.offset,
+          parsed.limit
         );
+
+        // Fetch and parse goal/pending for each checkpoint
+        const checkpointSummaries = await fetchCheckpointSummaries(store, paginated);
 
         return {
           content: [
@@ -379,7 +410,7 @@ export function createCheckpointTools(store: MindStore) {
               text: `Found ${total} checkpoint(s).`,
             },
           ],
-          checkpoints: checkpointDetails,
+          checkpoints: checkpointSummaries,
           total,
           limit: parsed.limit,
           offset: parsed.offset,

@@ -1,11 +1,65 @@
+// ── Checkpoint CLI command handlers ──
+
 import { completeCheckpoint } from '../../checkpoint/checkpoint-done';
+import { buildCheckpointContent, fetchCheckpointContent } from '../../helpers/checkpoint-content';
+import type { CheckpointContent } from '../../helpers/checkpoint-content';
+import { buildLinkedMemoriesArray } from '../../helpers/link-building';
+import type { EnrichedLink } from '../../helpers/link-building';
 import { style } from '../../helpers/style';
 import { resolveRefWithFallback } from '../../mcp/tools/links';
+import type { MindStore } from '../../store/mind-store';
+import type { Memory } from '../../types';
 import { ArgParser } from '../arg-parser';
 
 import type { CommandGroup } from './types';
 
 const p = ArgParser.param.bind(ArgParser);
+
+// ── Helper functions ──
+
+/**
+ * Parse comma-separated memory refs and create links from the checkpoint memory.
+ * Silently skips unresolvable refs.
+ */
+function linkMemoriesToCheckpoint(
+  store: MindStore,
+  checkpointId: number,
+  linkedMemoriesFlag: string,
+  space: string
+): void {
+  const refs = linkedMemoriesFlag
+    .split(',')
+    .map(r => r.trim())
+    .filter(Boolean);
+
+  for (const ref of refs) {
+    try {
+      const resolved = resolveRefWithFallback(store, ref, space);
+      store.link(checkpointId, resolved.id, 'related');
+    } catch {
+      // Ignore link errors silently
+    }
+  }
+}
+
+/**
+ * Build a recoverable checkpoint object from a checkpoint memory.
+ */
+function buildRecoverableCheckpoint(
+  checkpointMemory: Memory,
+  linked_memories: EnrichedLink[],
+  checkpointContent: CheckpointContent | null
+) {
+  return {
+    space: checkpointMemory.space_name,
+    name: checkpointMemory.name,
+    tier: checkpointMemory.tier,
+    tags: checkpointMemory.tags,
+    content: checkpointContent,
+    linked_memories,
+    updated_at: checkpointMemory.updated_at,
+  };
+}
 
 const SET = new ArgParser(
   ['checkpoint set|cp set', p('space'), p('goal'), p('pending')],
@@ -57,18 +111,6 @@ export const checkpointGroup: CommandGroup = {
           return;
         }
 
-        // Build checkpoint content as JSON
-        const content = JSON.stringify(
-          {
-            goal,
-            pending,
-            notes: notes || '',
-            createdAt: new Date().toISOString(),
-          },
-          null,
-          2
-        );
-
         // Check if there's already an active checkpoint
         const existingCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
         const activeCheckpoint = existingCheckpoints.find(m => m.tags.includes('active'));
@@ -78,40 +120,36 @@ export const checkpointGroup: CommandGroup = {
           // Update existing active checkpoint
           const memory = store.getMemoryById(activeCheckpoint.id);
           if (memory) {
-            const existingContent = JSON.parse(memory.content);
-            existingContent.goal = goal;
-            existingContent.pending = pending;
-            existingContent.notes = notes || '';
-            existingContent.updatedAt = new Date().toISOString();
-
-            await store.updateMemory(activeCheckpoint.id, {
-              content: JSON.stringify(existingContent, null, 2),
-            });
-            checkpoint = store.getMemoryById(activeCheckpoint.id);
+            const existingContent = fetchCheckpointContent(memory);
+            if (existingContent) {
+              await store.updateMemory(activeCheckpoint.id, {
+                content: buildCheckpointContent(
+                  goal,
+                  pending,
+                  notes || '',
+                  existingContent.createdAt
+                ),
+              });
+              checkpoint = store.getMemoryById(activeCheckpoint.id);
+            }
           }
         } else {
           // Create new checkpoint
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          checkpoint = await store.addMemory(space, `checkpoint-${timestamp}`, content, {
-            tags: ['checkpoint', 'active'],
-            tier: 1,
-          });
+          checkpoint = await store.addMemory(
+            space,
+            `checkpoint-${timestamp}`,
+            buildCheckpointContent(goal, pending, notes || ''),
+            {
+              tags: ['checkpoint', 'active'],
+              tier: 1,
+            }
+          );
         }
 
-        // Handle linked_memories: parse comma-separated refs and create links
+        // Link comma-separated refs to the checkpoint using shared helper
         if (linkedMemoriesFlag && checkpoint) {
-          const refs = linkedMemoriesFlag
-            .split(',')
-            .map(r => r.trim())
-            .filter(Boolean);
-          for (const ref of refs) {
-            try {
-              const resolved = resolveRefWithFallback(store, ref, space);
-              store.link(checkpoint.id, resolved.id, 'related');
-            } catch {
-              // Ignore link errors
-            }
-          }
+          linkMemoriesToCheckpoint(store, checkpoint.id, linkedMemoriesFlag, space);
         }
 
         const status = activeCheckpoint ? 'updated' : 'created';
@@ -187,42 +225,14 @@ export const checkpointGroup: CommandGroup = {
           return;
         }
 
-        // Build linked_memories in enriched format
-        const linked_memories: Array<{
-          name: string;
-          space: string;
-          ref: string;
-          tier: number;
-          tags: string[];
-          pinned: boolean;
-          changed_at: string;
-        }> = [];
-
-        const links = store.getLinks(checkpointMemory.id);
-        for (const link of links.slice(0, 5)) {
-          const linkedMem = store.getMemoryById(link.target_id);
-          if (linkedMem) {
-            linked_memories.push({
-              name: linkedMem.name,
-              space: linkedMem.space_name,
-              ref: `${linkedMem.space_name}:${linkedMem.name}`,
-              tier: linkedMem.tier,
-              tags: linkedMem.tags,
-              pinned: linkedMem.pinned,
-              changed_at: linkedMem.changed_at,
-            });
-          }
-        }
-
-        const checkpoint = {
-          space: checkpointMemory.space_name,
-          name: checkpointMemory.name,
-          tier: checkpointMemory.tier,
-          tags: checkpointMemory.tags,
-          content: JSON.parse(checkpointMemory.content),
+        // Use shared helpers for building linked_memories and parsing content
+        const linked_memories = buildLinkedMemoriesArray(store, checkpointMemory.id, 5);
+        const checkpointContent = fetchCheckpointContent(checkpointMemory);
+        const checkpoint = buildRecoverableCheckpoint(
+          checkpointMemory,
           linked_memories,
-          updated_at: checkpointMemory.updated_at,
-        };
+          checkpointContent
+        );
 
         logger.logInfo(JSON.stringify(checkpoint, null, 2));
       },

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { mapLinkedSummariesToLinksFormat } from '../../helpers/link-building';
 import type { MindStore } from '../../store/mind-store';
 import type { Tier } from '../../types';
 
@@ -105,6 +106,91 @@ interface TierChange {
   from: Tier;
   to: Tier;
   reason: string;
+}
+
+/**
+ * Calculate tier change result after a memory read with promotion.
+ * Handles all tier change logic: pinned check, already at T1, destination full, auto-promote.
+ */
+function calculateTierChange(fromTier: Tier, toTier: Tier, wasPinned: boolean): TierChange | null {
+  // No tier change at all
+  if (fromTier === toTier) {
+    // If pinned, reason is pinned-skipped; if at T1, reason is already-T1; else destination full
+    if (wasPinned) {
+      return { from: fromTier, to: fromTier, reason: 'pinned - promotion skipped' };
+    }
+    if (fromTier === 1) {
+      return { from: 1, to: 1, reason: 'already at T1' };
+    }
+    return { from: fromTier, to: toTier, reason: 'destination full - promotion skipped' };
+  }
+
+  // Tier changed - normal auto-promote
+  return { from: fromTier, to: toTier, reason: 'auto-promote on read' };
+}
+
+/**
+ * Apply date range filters to memory results.
+ */
+function applyDateFilters(
+  results: { changed_at: string }[],
+  from?: string,
+  to?: string
+): typeof results {
+  let filtered = results;
+
+  if (from) {
+    const fromDate = new Date(from);
+    filtered = filtered.filter(m => new Date(m.changed_at) >= fromDate);
+  }
+
+  if (to) {
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999);
+    filtered = filtered.filter(m => new Date(m.changed_at) <= toDate);
+  }
+
+  return filtered;
+}
+
+interface MemoryQueryResponse {
+  content: Array<{ type: 'text'; text: string }>;
+  memories: any[];
+  total: number;
+  limit: number;
+  offset: number;
+  search_method?: string;
+}
+
+/**
+ * Build the memory query response object.
+ */
+function buildMemoryQueryResponse(
+  memories: any[],
+  totalCount: number,
+  search_method: string | undefined,
+  parsed: { limit?: number; offset?: number }
+): MemoryQueryResponse {
+  const response: MemoryQueryResponse = {
+    content: [
+      {
+        type: 'text',
+        text: `Found ${memories.length} memory/memories (total: ${totalCount}).`,
+      },
+    ],
+    memories: memories.map(
+      ({ id: _id, content: _c, rank: _r, similarity: _s, ...rest }: any) => rest
+    ),
+    total: totalCount,
+    limit: parsed.limit ?? 25,
+    offset: parsed.offset ?? 0,
+  };
+
+  if (search_method) {
+    response.search_method = search_method;
+  }
+
+  return response;
 }
 
 // =============================================================================
@@ -254,28 +340,9 @@ export function createMemoryTools(store: MindStore) {
 
         // noPromote: true means read without side effects (like the old memory_get)
         if (parsed.noPromote) {
-          // Get linked memory summaries
+          // Get linked memory summaries and transform to response format
           const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
-
-          const links_to = linkedSummaries.links_to.map(l => ({
-            name: l.name,
-            space: l.space_name,
-            ref: `${l.space_name}:${l.name}`,
-            tier: l.tier,
-            tags: l.tags,
-            pinned: l.pinned,
-            changed_at: l.changed_at,
-          }));
-
-          const linked_by = linkedSummaries.linked_by.map(l => ({
-            name: l.name,
-            space: l.space_name,
-            ref: `${l.space_name}:${l.name}`,
-            tier: l.tier,
-            tags: l.tags,
-            pinned: l.pinned,
-            changed_at: l.changed_at,
-          }));
+          const { links_to, linked_by } = mapLinkedSummariesToLinksFormat(linkedSummaries);
 
           return {
             content: [{ type: 'text', text: `Memory "${parsed.name}" read (no promotion).` }],
@@ -297,57 +364,12 @@ export function createMemoryTools(store: MindStore) {
         const updatedMemory = store.getMemoryById(memory.id);
         const toTier = updatedMemory?.tier ?? fromTier;
 
-        // Calculate tier_change
-        let tier_change: TierChange;
-        if (wasPinned) {
-          tier_change = {
-            from: fromTier,
-            to: fromTier,
-            reason: 'pinned - promotion skipped',
-          };
-        } else if (fromTier === 1) {
-          tier_change = {
-            from: 1,
-            to: 1,
-            reason: 'already at T1',
-          };
-        } else if (fromTier === toTier) {
-          // Tier didn't change (maybe destination was full and all pinned)
-          tier_change = {
-            from: fromTier,
-            to: toTier,
-            reason: 'destination full - promotion skipped',
-          };
-        } else {
-          tier_change = {
-            from: fromTier,
-            to: toTier,
-            reason: 'auto-promote on read',
-          };
-        }
+        // Calculate tier_change using helper
+        const tier_change = calculateTierChange(fromTier, toTier, wasPinned);
 
-        // Get linked memory summaries
+        // Get linked memory summaries and transform to response format
         const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
-
-        const links_to = linkedSummaries.links_to.map(l => ({
-          name: l.name,
-          space: l.space_name,
-          ref: `${l.space_name}:${l.name}`,
-          tier: l.tier,
-          tags: l.tags,
-          pinned: l.pinned,
-          changed_at: l.changed_at,
-        }));
-
-        const linked_by = linkedSummaries.linked_by.map(l => ({
-          name: l.name,
-          space: l.space_name,
-          ref: `${l.space_name}:${l.name}`,
-          tier: l.tier,
-          tags: l.tags,
-          pinned: l.pinned,
-          changed_at: l.changed_at,
-        }));
+        const { links_to, linked_by } = mapLinkedSummariesToLinksFormat(linkedSummaries);
 
         return {
           content: [
@@ -393,16 +415,7 @@ export function createMemoryTools(store: MindStore) {
             tier: parsed.tier as Tier | undefined,
           });
 
-          let filteredResults = searchResult.results;
-          if (parsed.from) {
-            const fromDate = new Date(parsed.from);
-            filteredResults = filteredResults.filter(m => new Date(m.changed_at) >= fromDate);
-          }
-          if (parsed.to) {
-            const toDate = new Date(parsed.to);
-            toDate.setHours(23, 59, 59, 999);
-            filteredResults = filteredResults.filter(m => new Date(m.changed_at) <= toDate);
-          }
+          const filteredResults = applyDateFilters(searchResult.results, parsed.from, parsed.to);
 
           totalCount = filteredResults.length;
           search_method = searchResult.search_method;
@@ -430,26 +443,7 @@ export function createMemoryTools(store: MindStore) {
           });
         }
 
-        const response: any = {
-          content: [
-            {
-              type: 'text',
-              text: `Found ${memories.length} memory/memories (total: ${totalCount}).`,
-            },
-          ],
-          memories: memories.map(
-            ({ id: _id, content: _c, rank: _r, similarity: _s, ...rest }: any) => rest
-          ),
-          total: totalCount,
-          limit: parsed.limit ?? 25,
-          offset: parsed.offset ?? 0,
-        };
-
-        if (search_method) {
-          response.search_method = search_method;
-        }
-
-        return response;
+        return buildMemoryQueryResponse(memories, totalCount, search_method, parsed);
       },
     },
   };

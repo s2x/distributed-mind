@@ -45,7 +45,7 @@ fail() {
 # Prints output and returns it.
 run_mind() {
     local out
-    out=$(bun run "$ROOT_DIR/cli/src/mind.ts" "$@" 2>&1) || {
+    out=$(bun run "$ROOT_DIR/src/mind.ts" "$@" 2>&1) || {
         local exit_code=$?
         echo -e "  ${RED}[mind error — exit $exit_code]${RESET}"
         echo "$out" | sed 's/^/    /'
@@ -57,7 +57,7 @@ run_mind() {
 # Run mind, capture output quietly (don't print), return it.
 # Use for assertions — caller decides whether to print.
 run_mind_quiet() {
-    bun run "$ROOT_DIR/cli/src/mind.ts" "$@" 2>&1 || true
+    bun run "$ROOT_DIR/src/mind.ts" "$@" 2>&1 || true
 }
 
 # ─── Pre-flight checks ───────────────────────────────────────────────

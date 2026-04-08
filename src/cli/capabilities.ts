@@ -317,6 +317,19 @@ export function getSupportedAgentDefinition(agent: SupportedAgent): SupportedAge
   return definition;
 }
 
+// Compact badge format for inline capability display
+export function formatCapabilityBadge(
+  level: CapabilityLevel,
+  capability: CapabilityDeclaration
+): string {
+  const statusIcon =
+    capability.status === 'supported' ? '✅' : capability.status === 'unverified' ? '⚠️' : '❌';
+  const shortLabel =
+    level === 'L1_MCP' ? 'L1 MCP' : level === 'L2_INSTRUCTIONS' ? 'L2 inject' : 'L3 hooks';
+  return `${statusIcon} ${shortLabel}: ${statusIcon} ${capability.status} (${capability.confidence})`;
+}
+
+// Verbose single-line format (for backward compatibility with tests)
 export function formatCapabilityLine(
   level: CapabilityLevel,
   capability: CapabilityDeclaration

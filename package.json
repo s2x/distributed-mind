@@ -1,12 +1,12 @@
 {
   "name": "mind",
   "version": "1.3.0",
-  "module": "cli/src/mind.ts",
+  "module": "src/mind.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "bun test cli/test web/test",
-    "test:cli": "bun test cli/test",
+    "test": "bun test test/ web/test",
+    "test:cli": "bun test test/",
     "test:web": "bun test web/test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

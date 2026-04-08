@@ -50,7 +50,7 @@ describe('OpenCode setup integration', () => {
     expect(parsed.theme).toBe('dark');
     expect(parsed.customKey.keep).toBe(true);
     expect(parsed.mcp.github.command).toBe('npx');
-    const expectedMindPath = join(import.meta.dir, '..', '..', 'mind');
+    const expectedMindPath = join(import.meta.dir, '..', 'mind');
     expect(parsed.mcp.mind.type).toBe('local');
     expect(parsed.mcp.mind.command).toEqual([expectedMindPath, 'mcp']);
     expect(parsed.mcp.mind.enabled).toBe(true);

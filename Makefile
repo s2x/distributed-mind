@@ -12,7 +12,7 @@ web-dev: ## Run the web app locally with Bun
 	cd web && bun run dev
 
 test: ## Run unit tests
-	bun test cli/test web/test
+	bun test test/ web/test
 
 test-web: ## Run web-only tests
 	bun test web/test

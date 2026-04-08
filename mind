@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Find bun executable with fallback locations
 
 find_bun() {
@@ -49,7 +49,7 @@ fi
 
 # Handle --complete flag for shell completion
 if [[ "$1" == "--complete" ]]; then
-  exec "$BUN_CMD" run "${root_path}/cli/src/complete.ts" "${@:2}"
+  exec "$BUN_CMD" run "${root_path}/src/complete.ts" "${@:2}"
 else
-  exec "$BUN_CMD" run "${root_path}/cli/src/mind.ts" "$@"
+  exec "$BUN_CMD" run "${root_path}/src/mind.ts" "$@"
 fi

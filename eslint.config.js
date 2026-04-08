@@ -54,20 +54,20 @@ export default [
     ignores: ['node_modules/**', 'data/**', 'dist/**', '*.js'],
   },
   {
-    files: ['cli/src/mcp/tools/memories.ts'],
+    files: ['src/mcp/tools/memories.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
     },
   },
   {
-    files: ['cli/src/store/mind-store.ts', 'cli/src/types.ts', 'cli/src/api/routes/types.ts'],
+    files: ['src/store/mind-store.ts', 'src/types.ts', 'src/api/routes/types.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
     },
   },
   // Test files have patterns that trigger warnings but are acceptable in tests
   {
-    files: ['cli/test/**/*.ts', 'web/test/**/*.ts'],
+    files: ['test/**/*.ts', 'web/test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/require-await': 'off',

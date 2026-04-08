@@ -96,7 +96,7 @@ if ! command -v bun >/dev/null 2>&1; then
   echo "bun is required to run mind. Install from https://bun.sh"
   exit 1
 fi
-exec bun run "$INSTALL_DIR/cli/src/mind.ts" "\$@"
+exec bun run "$INSTALL_DIR/src/mind.ts" "\$@"
 EOF
   chmod +x "$BIN_DIR/mind"
 

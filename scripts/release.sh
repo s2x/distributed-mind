@@ -232,7 +232,7 @@ main() {
     exit 1
   fi
 
-  run_cmd bun test cli/test
+  run_cmd bun test test/
   write_version "$next_version"
   promote_changelog_release "$next_version"
 

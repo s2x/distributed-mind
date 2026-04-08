@@ -66,21 +66,16 @@ describe('Setup capability model', () => {
     await runSetup('claude-code');
 
     const lines = logSpy.mock.calls.map(call => String(call[0]));
+    // Check for compact capability badges (new format)
     expect(
       lines.some(
-        line =>
-          line.includes('L2 instruction/protocol injection') &&
-          line.includes('supported') &&
-          line.includes('fallback')
+        line => line.includes('L2 inject') && line.includes('supported') && line.includes('high')
       )
     ).toBe(true);
 
     expect(
       lines.some(
-        line =>
-          line.includes('L3 hooks/session/compaction automation') &&
-          line.includes('supported') &&
-          line.includes('fallback')
+        line => line.includes('L3 hooks') && line.includes('supported') && line.includes('medium')
       )
     ).toBe(true);
   });
@@ -113,10 +108,11 @@ describe('Setup capability model', () => {
     listAgents();
 
     const lines = logSpy.mock.calls.map(call => String(call[0]));
-    expect(lines.some(line => line.includes('Capability matrix'))).toBe(true);
-    expect(lines.some(line => line.includes('cursor'))).toBe(true);
-    expect(lines.some(line => line.includes('unverified'))).toBe(true);
-    expect(lines.some(line => line.includes('evidence'))).toBe(true);
+    // New format uses 🧠 Available Agents header and compact badge format
+    expect(lines.some(line => line.includes('🧠 Available Agents'))).toBe(true);
+    expect(lines.some(line => line.includes('Cursor'))).toBe(true);
+    // Capability badges show ⚠️ for unverified status
+    expect(lines.some(line => line.includes('⚠️'))).toBe(true);
   });
 
   test('keeps Cursor L1 setup behavior while configuring managed global hooks artifacts', async () => {
@@ -249,22 +245,13 @@ describe('Setup capability model', () => {
     await runSetup('gemini-cli');
 
     const lines = logSpy.mock.calls.map(call => String(call[0]));
-    expect(
-      lines.some(
-        line =>
-          line.includes('L2 instruction/protocol injection') &&
-          line.includes('unsupported') &&
-          line.includes('fallback:')
-      )
-    ).toBe(true);
-    expect(
-      lines.some(
-        line =>
-          line.includes('L3 hooks/session/compaction automation') &&
-          line.includes('unsupported') &&
-          line.includes('fallback:')
-      )
-    ).toBe(true);
+    // Check for compact capability badges (new format)
+    expect(lines.some(line => line.includes('L2 inject') && line.includes('unsupported'))).toBe(
+      true
+    );
+    expect(lines.some(line => line.includes('L3 hooks') && line.includes('unsupported'))).toBe(
+      true
+    );
   });
 
   test('configures Codex with local stdio MCP command transport', async () => {
