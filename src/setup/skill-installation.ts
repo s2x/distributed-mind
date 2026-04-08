@@ -11,7 +11,8 @@ export type AgentSkillType =
   | 'codex'
   | 'gemini-cli'
   | 'vscode'
-  | 'windsurf';
+  | 'windsurf'
+  | 'antigravity';
 
 // Agent-specific paths for skill installation
 export interface AgentSkillPaths {
@@ -45,6 +46,10 @@ function getAgentSkillPaths(agent: AgentSkillType): AgentSkillPaths {
     case 'gemini-cli':
       return {
         skillsDir: path.join(home, '.gemini', 'skills', 'mind-management'),
+      };
+    case 'antigravity':
+      return {
+        skillsDir: path.join(home, '.gemini', 'antigravity', 'skills', 'mind-management'),
       };
   }
 }

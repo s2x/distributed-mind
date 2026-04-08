@@ -86,7 +86,13 @@ install_mind() {
     mv "$TMP_DIR/data-backup" "$INSTALL_DIR/data"
   fi
 
-  (cd "$INSTALL_DIR" && bun install --production)
+  (cd "$INSTALL_DIR" && bun install --production --ignore-scripts)
+
+  # Copy .env.example to .env if .env doesn't exist
+  if [ ! -f "$INSTALL_DIR/.env" ] && [ -f "$INSTALL_DIR/.env.example" ]; then
+    echo "Creating .env from .env.example..."
+    cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+  fi
 
   mkdir -p "$BIN_DIR"
   cat > "$BIN_DIR/mind" <<EOF
@@ -96,7 +102,7 @@ if ! command -v bun >/dev/null 2>&1; then
   echo "bun is required to run mind. Install from https://bun.sh"
   exit 1
 fi
-exec bun run "$INSTALL_DIR/src/mind.ts" "\$@"
+exec bun run "$INSTALL_DIR/cli/src/mind.ts" "\$@"
 EOF
   chmod +x "$BIN_DIR/mind"
 

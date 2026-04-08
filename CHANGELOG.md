@@ -30,7 +30,13 @@ Example:
 ### Added
 
 - `mind setup vscode` - VSCode support with platform-specific MCP config path
-- Skill installation for cursor, codex, windsurf, gemini-cli, vscode
+- `mind setup antigravity` - Antigravity support with L1 MCP wiring and skill installation at `~/.gemini/antigravity/`
+- Skill installation for cursor, codex, windsurf, gemini-cli, vscode, antigravity
+
+### Removed
+
+- OpenClaw experimental agent (removed from capability matrix)
+- Kiro roadmap agent (removed entirely from capability matrix)
 
 ### Changed
 
@@ -244,7 +250,7 @@ Example:
 - Changed `mind setup codex` MCP args to local stdio command mode (`args = ["mcp"]`) instead of forcing HTTP start flags.
 - Changed `mind setup claude-code` to inject a managed protocol file plus managed block in `~/.claude/CLAUDE.md`, keeping setup idempotent/non-destructive.
 - Added opt-in, non-blocking Claude L3 hook automation behind `MIND_SETUP_CLAUDE_ENABLE_HOOKS=true`, with explicit safe fallback messaging when disabled or unsupported.
-- Added roadmap capability declarations (`vscode`, `antigravity`, `kiro`) to setup matrix output as status-only entries (no setup wiring).
+- Added roadmap capability declarations (`vscode`, `antigravity`) to setup matrix output as status-only entries (no setup wiring).
 - Refactored embedded protocol markdown into canonical files under `cli/src/resources/protocols/` and added shared loader `cli/src/helpers/markdown-resource.ts` for OpenCode/Claude setup injection and MCP `system_instructions` content.
 - Changed `mind setup` matrix listing output to print full per-level status/confidence/evidence/fallback lines for each adapter (not only summarized statuses).
 

@@ -80,26 +80,27 @@ describe('Setup capability model', () => {
     ).toBe(true);
   });
 
-  test('surfaces next-wave roadmap agents in capability matrix without setup wiring', () => {
+  test('no roadmap agents in capability matrix', () => {
     const matrix = getAgentCapabilityMatrix();
     const agentNames = matrix.map(entry => entry.agent);
 
     expect(agentNames).toContain('vscode');
     expect(agentNames).toContain('antigravity');
-    expect(agentNames).toContain('kiro');
-    expect(agentNames).toContain('openclaw');
+    // OpenClaw and Kiro are no longer present (removed from experimental/roadmap)
+    expect(agentNames).not.toContain('openclaw');
+    expect(agentNames).not.toContain('kiro');
 
     const vscode = matrix.find(entry => entry.agent === 'vscode');
     expect(vscode?.capabilities.L1_MCP.status).toBe('supported');
     expect(vscode?.capabilities.L2_INSTRUCTIONS.status).toBe('unsupported');
     expect(vscode?.capabilities.L3_HOOKS.status).toBe('unsupported');
 
-    const openclaw = matrix.find(entry => entry.agent === 'openclaw');
-    expect(openclaw?.name).toContain('experimental');
-    expect(openclaw?.capabilities.L1_MCP.status).toBe('unverified');
-    expect(openclaw?.capabilities.L2_INSTRUCTIONS.status).toBe('unsupported');
-    expect(openclaw?.capabilities.L3_HOOKS.status).toBe('unsupported');
-    expect(openclaw?.capabilities.L1_MCP.fallback.toLowerCase()).toContain('experimental');
+    // Antigravity is now a supported agent with L1 MCP
+    const antigravity = matrix.find(entry => entry.agent === 'antigravity');
+    expect(antigravity?.name).toBe('Antigravity');
+    expect(antigravity?.capabilities.L1_MCP.status).toBe('supported');
+    expect(antigravity?.capabilities.L2_INSTRUCTIONS.status).toBe('unsupported');
+    expect(antigravity?.capabilities.L3_HOOKS.status).toBe('unsupported');
   });
 
   test('setup command output exposes capability statuses and evidence notes', () => {

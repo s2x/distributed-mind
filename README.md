@@ -56,12 +56,6 @@ Then run:
 mind help
 ```
 
-Local alternative (same installer, no curl pipe):
-
-```bash
-make install-local
-```
-
 ### Requirements
 
 - [Bun](https://bun.sh/) 1.2+
@@ -72,6 +66,72 @@ make install-local
 git clone https://github.com/GabrielMartinMoran/mind.git
 cd mind
 bun install
+```
+
+### Post-Installation Configuration
+
+**1. Create your .env file:**
+
+```bash
+cp .env.example .env
+```
+
+Mind ships with a `.env.example` that contains all configurable options. The installer will also do this automatically if `.env` doesn't exist.
+
+**2. Configure environment variables (optional):**
+
+Edit `.env` to customize your setup:
+
+| Variable         | Default   | Description                             |
+| ---------------- | --------- | --------------------------------------- |
+| `MIND_PORT`      | `30303`   | Port for the web server                 |
+| `MIND_DATA_DIR`  | `data/`   | Directory for SQLite database and data  |
+| `MIND_RAG`       | _(empty)_ | Set to `true` to enable semantic search |
+| `OPENAI_API_KEY` | _(empty)_ | Your OpenAI API key (required for RAG)  |
+
+**RAG / Semantic Search Setup:**
+
+To enable AI-powered semantic search:
+
+```bash
+# In .env:
+MIND_RAG=true
+OPENAI_API_KEY=sk-your-key-here
+```
+
+When enabled, memories are embedded using OpenAI's `text-embedding-3-small` model and stored alongside full-text search for hybrid retrieval.
+
+**3. Quick start guide:**
+
+```bash
+# Create a project space
+mind create projects/my-project "My project"
+
+# Add your first memory
+mind add projects/my-project first-memory "This is my first note"
+
+# List memories in a space
+mind list projects/my-project
+
+# Search across all memories
+mind search "first"
+
+# Start the web interface
+mind serve start
+# Open http://localhost:30303
+```
+
+**4. Set up for your agent (optional):**
+
+```bash
+mind setup claude-code   # Claude Code
+mind setup opencode      # OpenCode
+mind setup cursor       # Cursor
+mind setup codex        # Codex
+mind setup windsurf     # Windsurf
+mind setup gemini-cli   # Gemini CLI
+mind setup vscode       # VSCode
+mind setup antigravity  # Antigravity
 ```
 
 ### Setup for agents
@@ -99,9 +159,12 @@ mind setup gemini-cli
 
 # VSCode
 mind setup vscode
+
+# Antigravity
+mind setup antigravity
 ```
 
-Supported agents: `claude-code`, `opencode`, `cursor`, `codex`, `windsurf`, `gemini-cli`, `vscode`
+Supported agents: `claude-code`, `opencode`, `cursor`, `codex`, `windsurf`, `gemini-cli`, `vscode`, `antigravity`
 
 ## Quick Start
 
@@ -250,18 +313,16 @@ Status labels used here:
 - **Experimental**: declaration exists but integration is explicitly unstable/unverified
 - **Roadmap**: planned declaration only, no adapter wiring
 
-| **Agent**   | **Status**   | **Capability reality**                                                                                             |
-| :---------- | :----------- | :----------------------------------------------------------------------------------------------------------------- |
-| OpenCode    | Complete     | L1 `supported`, L2 `supported`, L3 `supported`                                                                     |
-| Claude Code | Complete     | L1 `supported`, L2 `supported`, L3 `supported` (opt-in hooks)                                                      |
-| Codex       | Partial      | L1 `supported`, L2 `supported`, L3 `unsupported`                                                                   |
-| Cursor      | Partial      | L1 `supported`, L2 `unverified`, L3 `supported`                                                                    |
-| Windsurf    | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
-| Gemini CLI  | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
-| OpenClaw    | Experimental | L1 `unverified`, L2 `unsupported`, L3 `unsupported` (status-only declaration; safe fallback only; no setup wiring) |
-| VSCode      | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
-| Antigravity | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
-| Kiro        | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
+| **Agent**   | **Status** | **Capability reality**                                        |
+| :---------- | :--------- | :------------------------------------------------------------ |
+| OpenCode    | Complete   | L1 `supported`, L2 `supported`, L3 `supported`                |
+| Claude Code | Complete   | L1 `supported`, L2 `supported`, L3 `supported` (opt-in hooks) |
+| Codex       | Partial    | L1 `supported`, L2 `supported`, L3 `unsupported`              |
+| Cursor      | Partial    | L1 `supported`, L2 `unverified`, L3 `supported`               |
+| Windsurf    | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
+| Gemini CLI  | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
+| VSCode      | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
+| Antigravity | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
 
 Rollout policy:
 
@@ -271,8 +332,7 @@ Rollout policy:
 - Cursor **L2** remains intentionally **unverified** (no verified global user-rules injection path)
 - Cursor **L3** is implemented with global hooks wiring (`~/.cursor/hooks.json` + managed hook script)
 - Existing integrations outside Wave 1 remain wired in the same capability model with explicit status
-- OpenClaw is listed as **experimental** in capability output (non-breaking declaration, no setup wiring yet)
-- Next-wave roadmap adapters remain declaration-only: **VSCode, Antigravity, Kiro** (non-breaking, no setup wiring yet)
+- Antigravity is now a **supported** agent with L1 MCP wiring and skill installation at `~/.gemini/antigravity/`
 
 `mind setup opencode` is idempotent and non-destructive:
 

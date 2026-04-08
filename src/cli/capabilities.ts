@@ -5,10 +5,10 @@ export type SupportedAgent =
   | 'cursor'
   | 'windsurf'
   | 'gemini-cli'
-  | 'vscode';
-export type RoadmapAgent = 'antigravity' | 'kiro';
-export type ExperimentalAgent = 'openclaw';
-export type Agent = SupportedAgent | RoadmapAgent | ExperimentalAgent;
+  | 'vscode'
+  | 'antigravity';
+export type ExperimentalAgent = never;
+export type Agent = SupportedAgent;
 
 export type CapabilityLevel = 'L1_MCP' | 'L2_INSTRUCTIONS' | 'L3_HOOKS';
 export type CapabilityStatus = 'supported' | 'unsupported' | 'unverified';
@@ -220,23 +220,21 @@ const SUPPORTED_AGENT_CAPABILITIES: SupportedAgentDefinition[] = [
       },
     },
   },
-];
-
-const ROADMAP_AGENT_CAPABILITIES: Record<RoadmapAgent, CapabilityMatrixEntry> = {
-  antigravity: {
+  {
     agent: 'antigravity',
-    name: 'Antigravity (roadmap)',
+    name: 'Antigravity',
     capabilities: {
       L1_MCP: {
-        status: 'unverified',
-        confidence: 'low',
-        evidence: 'Roadmap target only; no adapter implementation merged yet.',
-        fallback: 'Use manual MCP wiring until adapter support is implemented and validated.',
+        status: 'supported',
+        confidence: 'medium',
+        evidence: 'Writes ~/.gemini/antigravity/mcp_config.json mcpServers.mind stdio transport.',
+        fallback: 'N/A',
       },
       L2_INSTRUCTIONS: {
         status: 'unsupported',
         confidence: 'high',
-        evidence: 'No managed protocol injection integration implemented for Antigravity yet.',
+        evidence:
+          'No managed instruction/protocol injection integration implemented for Antigravity yet.',
         fallback: 'Use repository protocol files manually.',
       },
       L3_HOOKS: {
@@ -247,63 +245,7 @@ const ROADMAP_AGENT_CAPABILITIES: Record<RoadmapAgent, CapabilityMatrixEntry> = 
       },
     },
   },
-  kiro: {
-    agent: 'kiro',
-    name: 'Kiro (roadmap)',
-    capabilities: {
-      L1_MCP: {
-        status: 'unverified',
-        confidence: 'low',
-        evidence: 'Roadmap target only; no adapter implementation merged yet.',
-        fallback: 'Use manual MCP wiring until adapter support is implemented and validated.',
-      },
-      L2_INSTRUCTIONS: {
-        status: 'unsupported',
-        confidence: 'high',
-        evidence: 'No managed protocol injection integration implemented for Kiro yet.',
-        fallback: 'Use repository protocol files manually.',
-      },
-      L3_HOOKS: {
-        status: 'unsupported',
-        confidence: 'high',
-        evidence: 'No hooks/session automation implementation for Kiro yet.',
-        fallback: 'Run session continuity steps manually.',
-      },
-    },
-  },
-};
-
-const EXPERIMENTAL_AGENT_CAPABILITIES: Record<ExperimentalAgent, CapabilityMatrixEntry> = {
-  openclaw: {
-    agent: 'openclaw',
-    name: 'OpenClaw (experimental)',
-    capabilities: {
-      L1_MCP: {
-        status: 'unverified',
-        confidence: 'low',
-        evidence:
-          'Experimental declaration only; no adapter implementation merged or validated yet.',
-        fallback:
-          'Treat this experimental integration as unstable and keep using manual MCP wiring until implementation and validation are complete.',
-      },
-      L2_INSTRUCTIONS: {
-        status: 'unsupported',
-        confidence: 'high',
-        evidence:
-          'No managed protocol injection integration implemented for OpenClaw experimental adapter.',
-        fallback:
-          'Use repository protocol files manually; do not assume automated instruction injection.',
-      },
-      L3_HOOKS: {
-        status: 'unsupported',
-        confidence: 'high',
-        evidence: 'No hooks/session automation implementation for OpenClaw experimental adapter.',
-        fallback:
-          'Run session continuity steps manually; no experimental hook support is provided.',
-      },
-    },
-  },
-};
+];
 
 const SUPPORTED_AGENT_BY_ID = new Map(
   SUPPORTED_AGENT_CAPABILITIES.map(entry => [entry.agent, entry])
@@ -338,31 +280,15 @@ export function formatCapabilityLine(
 }
 
 export function getAgentCapabilities(agent: Agent): CapabilityMap {
-  const roadmap = ROADMAP_AGENT_CAPABILITIES[agent as RoadmapAgent];
-  if (roadmap) {
-    return roadmap.capabilities;
-  }
-
-  const experimental = EXPERIMENTAL_AGENT_CAPABILITIES[agent as ExperimentalAgent];
-  if (experimental) {
-    return experimental.capabilities;
-  }
-
-  return getSupportedAgentDefinition(agent as SupportedAgent).capabilities;
+  return getSupportedAgentDefinition(agent).capabilities;
 }
 
 export function getAgentCapabilityMatrix(): CapabilityMatrixEntry[] {
-  const configuredAgents = SUPPORTED_AGENT_CAPABILITIES.map(definition => ({
+  return SUPPORTED_AGENT_CAPABILITIES.map(definition => ({
     agent: definition.agent,
     name: definition.name,
     capabilities: definition.capabilities,
   }));
-
-  return [
-    ...configuredAgents,
-    ...Object.values(EXPERIMENTAL_AGENT_CAPABILITIES),
-    ...Object.values(ROADMAP_AGENT_CAPABILITIES),
-  ];
 }
 
 export function isAgent(value: string): value is Agent {
@@ -374,9 +300,7 @@ export function isAgent(value: string): value is Agent {
     value === 'windsurf' ||
     value === 'gemini-cli' ||
     value === 'vscode' ||
-    value === 'antigravity' ||
-    value === 'kiro' ||
-    value === 'openclaw'
+    value === 'antigravity'
   );
 }
 

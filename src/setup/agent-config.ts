@@ -138,6 +138,14 @@ const AGENT_CONFIGS: AgentConfigInternal[] = [
     build: buildJsonMcpConfig,
     capabilities: getAgentCapabilities('vscode'),
   },
+  {
+    agent: 'antigravity',
+    name: getSupportedAgentDefinition('antigravity').name,
+    pathComponents: ['.gemini', 'antigravity', 'mcp_config.json'],
+    format: 'json',
+    build: buildJsonMcpConfig,
+    capabilities: getAgentCapabilities('antigravity'),
+  },
 ];
 
 // Lookup map for O(1) access by agent type

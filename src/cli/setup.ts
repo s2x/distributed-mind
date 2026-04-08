@@ -774,6 +774,19 @@ async function setupVscode(): Promise<void> {
   }
 }
 
+async function setupAntigravity(): Promise<void> {
+  // Install mind-management skill at ~/.gemini/antigravity/skills/mind-management/
+  try {
+    const skillPath = ensureMindManagementSkill('antigravity');
+    if (skillPath) {
+      console.log(`✅ mind-management skill installed`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`⚠️ skill installation failed: ${message}`);
+  }
+}
+
 // Agents that use stdio transport and need URL field removed
 const STDIO_TRANSPORT_AGENTS: SupportedAgent[] = [
   'claude-code',
@@ -781,6 +794,7 @@ const STDIO_TRANSPORT_AGENTS: SupportedAgent[] = [
   'windsurf',
   'gemini-cli',
   'vscode',
+  'antigravity',
 ];
 
 function removeLegacyUrlField(merged: Record<string, unknown>): void {
@@ -842,6 +856,8 @@ export async function runSetup(agent: SupportedAgent): Promise<void> {
       await setupGeminiCli();
     } else if (agent === 'vscode') {
       await setupVscode();
+    } else if (agent === 'antigravity') {
+      await setupAntigravity();
     }
 
     // For stdio transport agents, remove any leftover url field
