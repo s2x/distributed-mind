@@ -1,43 +1,60 @@
 # 🧠 Mind
 
-_**Capture once. Remember forever.**_
+_**Stop losing context across sessions, tools, and time. Give your AI workflow a memory that lasts.**_
 
-Mind is a persistent memory system for developers and AI agents.
+Mind is a local memory layer for AI workflows: a persistent memory system for
+durable context such as decisions, bug fixes, patterns, checkpoints, and
+session summaries that would otherwise disappear across sessions and tools.
 
-It helps you store what matters (decisions, bugfixes, notes, patterns, tasks), organize it, and retrieve it instantly across sessions.
+It supports recovery after compaction through checkpoint and session
+continuity behavior, while giving humans a way to visualize, inspect, and
+modify that memory through the CLI and web UI.
+
+**Why Mind works above the fold:**
+
+- **Local persistent store.** One SQLite-backed memory system you control.
+- **Built for agent workflows.** Use it through the CLI, MCP server, HTTP API,
+  and web UI.
+- **Resumption tools included.** Checkpoints and session summaries help recover
+  context and continue work.
+- **Search when you need it.** Full-text search is built in, and semantic
+  search is available as an optional add-on.
+
+Get started with [Installation](#installation) or jump straight to the
+[Quick start](#quick-start).
 
 ![Mind Preview](./assets/video/web-preview.gif)
 
-## What Is Mind?
+## Why try Mind?
 
-Mind is a Bun + TypeScript project that provides:
+Mind helps you keep durable context organized, retrievable, and usable as work
+moves across tools, sessions, and compaction boundaries.
 
-- a powerful **CLI** for managing long-term memory,
-- an **MCP server** for AI agent integration,
-- and a **web interface + API** for browsing and editing memory visually.
+- **Structured memory you can revisit.** Organize information into spaces,
+  tags, directional links, tiers, pins, checkpoints, and session summaries.
+- **Recovery built into the workflow.** Restore context after compaction,
+  resume work from checkpoints, and keep important state visible over time.
+- **Shared interfaces, one memory layer.** Use the CLI, MCP server, HTTP API,
+  and web app against the same local source of truth.
+- **Per-space visibility with Neural Map.** Each space includes a read-only
+  graph view so you can understand how memories connect without claiming a
+  global knowledge graph.
 
-All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags, links between memories, and a 3-tier memory model (T1 hot, T2 warm, T3 cold unlimited).
+## What is Mind?
 
-## How It Works (High Level)
+Mind is a Bun + TypeScript project that provides a CLI, an MCP server, an HTTP
+API, and a web UI on top of one local SQLite memory store (`mind.db`). It uses
+FTS5 full-text search, metadata filters, tags, links, and a 3-tier memory
+model (T1 hot, T2 warm, T3 cold) to keep saved context useful over
+time.
 
-1. You write memories into named **spaces** (`projects/app`, `user/preferences`, etc).
-2. Mind stores them in SQLite with tags and metadata.
-3. You retrieve them with fast full-text search and filters.
-4. Memories are organized by tier (hot/warm/cold) and can auto-promote based on access.
-5. AI agents can use the same memory via MCP tools.
-
-## Key Features
-
-- **Spaces + Memories**: structured memory namespaces.
-- **3-tier memory model**: T1 hot, T2 warm, T3 cold (unlimited).
-- **Tags + Links**: classify and connect related memories.
-- **Full-text search (FTS5)** across all memories.
-- **Optional semantic search (RAG)** with OpenAI embeddings.
-- **MCP integration** for agent workflows.
-- **Web API + UI** for visual memory management.
-- **Neural Map (MVP)** per space: read-only graph with tier rings, pan/zoom, and on-demand detail fetch.
+If you want semantic search, you can enable optional OpenAI embeddings. They
+are off by default.
 
 ## Installation
+
+You can install Mind quickly and start using it right away. If you want agent
+setup later, jump to [Agent setup](#agent-setup).
 
 ### One-line installer (recommended)
 
@@ -58,9 +75,9 @@ mind help
 
 ### Requirements
 
-- [Bun](https://bun.sh/) 1.2+
+- [Bun](https://bun.sh/) 1.2+ (auto installed by the one-line installer if not present)
 
-### Install
+### Install from source
 
 ```bash
 git clone https://github.com/GabrielMartinMoran/mind.git
@@ -68,7 +85,47 @@ cd mind
 bun install
 ```
 
-### Post-Installation Configuration
+### Quick start
+
+This is the fastest way to see what Mind feels like in practice.
+
+```bash
+# Create a project space
+mind create projects/my-project "My project"
+
+# Add a memory
+mind add projects/my-project architecture "CLI uses command registry + atomic command modules"
+
+# Search across memories
+mind search architecture
+
+# Start the web UI
+mind serve start
+# Open http://localhost:30303
+```
+
+### Agent setup
+
+Mind supports multiple agent integrations, but they are not all equally mature.
+Run `mind setup` without an agent name to see the current capability matrix,
+then configure the specific agent you want.
+
+```bash
+mind setup              # show capability matrix first
+mind setup claude-code
+mind setup opencode
+mind setup cursor
+mind setup codex
+mind setup windsurf
+mind setup gemini-cli
+mind setup vscode
+mind setup antigravity
+```
+
+### Post-install configuration
+
+Most configuration is optional. You only need extra setup if you want to change
+paths, ports, or enable semantic search.
 
 **1. Create your .env file:**
 
@@ -89,7 +146,7 @@ Edit `.env` to customize your setup:
 | `MIND_RAG`       | _(empty)_ | Set to `true` to enable semantic search |
 | `OPENAI_API_KEY` | _(empty)_ | Your OpenAI API key (required for RAG)  |
 
-**RAG / Semantic Search Setup:**
+**RAG / semantic search setup:**
 
 To enable AI-powered semantic search:
 
@@ -99,74 +156,11 @@ MIND_RAG=true
 OPENAI_API_KEY=sk-your-key-here
 ```
 
-When enabled, memories are embedded using OpenAI's `text-embedding-3-small` model and stored alongside full-text search for hybrid retrieval.
+When enabled, memories are embedded using OpenAI's
+`text-embedding-3-small` model and combined with full-text search for hybrid
+retrieval.
 
-**3. Quick start guide:**
-
-```bash
-# Create a project space
-mind create projects/my-project "My project"
-
-# Add your first memory
-mind add projects/my-project first-memory "This is my first note"
-
-# List memories in a space
-mind list projects/my-project
-
-# Search across all memories
-mind search "first"
-
-# Start the web interface
-mind serve start
-# Open http://localhost:30303
-```
-
-**4. Set up for your agent (optional):**
-
-```bash
-mind setup claude-code   # Claude Code
-mind setup opencode      # OpenCode
-mind setup cursor       # Cursor
-mind setup codex        # Codex
-mind setup windsurf     # Windsurf
-mind setup gemini-cli   # Gemini CLI
-mind setup vscode       # VSCode
-mind setup antigravity  # Antigravity
-```
-
-### Setup for agents
-
-After installation, configure mind for your preferred agent:
-
-```bash
-# Claude Code
-mind setup claude-code
-
-# OpenCode
-mind setup opencode
-
-# Cursor
-mind setup cursor
-
-# Codex
-mind setup codex
-
-# Windsurf
-mind setup windsurf
-
-# Gemini CLI
-mind setup gemini-cli
-
-# VSCode
-mind setup vscode
-
-# Antigravity
-mind setup antigravity
-```
-
-Supported agents: `claude-code`, `opencode`, `cursor`, `codex`, `windsurf`, `gemini-cli`, `vscode`, `antigravity`
-
-## Quick Start
+## Basic CLI example
 
 ```bash
 mind create projects/mind "Mind project memory"
@@ -283,17 +277,11 @@ System tools for agent protocol:
 - `system_instructions` — returns the complete mind usage protocol
 - `status` — get storage status
 
-### Agent Setup
+### Agent integration details
 
-```bash
-mind setup claude-code
-mind setup opencode
-mind setup cursor
-mind setup windsurf
-mind setup codex
-mind setup gemini-cli
-mind setup vscode
-```
+Use the commands in [Installation](#installation) to run setup. This section
+explains how to read the capability matrix and what each integration actually
+configures.
 
 `mind setup` (without agent) now prints a capability matrix per integration using a 3-level model:
 
