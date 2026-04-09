@@ -208,9 +208,9 @@ describe('MCP Checkpoint Tools', () => {
     expect(res.checkpoint).toBeDefined();
     const checkpoint = res.checkpoint;
     expect(checkpoint).toBeDefined();
-    expect(checkpoint?.content.goal).toBe('My goal');
-    expect(checkpoint?.content.pending).toBe('My pending');
-    expect(checkpoint?.content.notes).toBe('Some context');
+    expect(checkpoint?.content?.goal).toBe('My goal');
+    expect(checkpoint?.content?.pending).toBe('My pending');
+    expect(checkpoint?.content?.notes).toBe('Some context');
   });
 
   test('checkpoint_load without checkpointName throws error', async () => {

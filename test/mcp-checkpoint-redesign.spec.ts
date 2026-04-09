@@ -133,9 +133,9 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
 
       expect(res.checkpoint).toBeDefined();
       expect(res.checkpoint?.content).toBeDefined();
-      expect(res.checkpoint?.content.goal).toBe('My goal');
-      expect(res.checkpoint?.content.pending).toBe('Pending work');
-      expect(res.checkpoint?.content.notes).toBe('Some notes');
+      expect(res.checkpoint?.content?.goal).toBe('My goal');
+      expect(res.checkpoint?.content?.pending).toBe('Pending work');
+      expect(res.checkpoint?.content?.notes).toBe('Some notes');
     });
 
     test('2.5.2b checkpoint_load without checkpointName throws error', async () => {
