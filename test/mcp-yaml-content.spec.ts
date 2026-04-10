@@ -248,6 +248,7 @@ describe('MCP YAML content stage 1', () => {
 
     expect(store.getLinks(source.id)).toEqual([]);
 
+    // @ts-ignore — handler accepts 0 args but type system requires 1
     const systemInstructions: any = await systemTools.system_instructions.handler();
     expect(systemInstructions.structuredContent).toBeUndefined();
     expect(systemInstructions.content[0]?.text).toContain('Mind Memory Protocol');

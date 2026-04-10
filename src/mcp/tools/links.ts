@@ -12,7 +12,12 @@ const LINK_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Remove a directional link between two memories. The memories themselves are unaffected.',
 };
 
-export function createLinkTools(store: MindStore): Record<string, ToolDefinition> {
+export interface LinkTools {
+  link_create: ToolDefinition;
+  link_delete: ToolDefinition;
+}
+
+export function createLinkTools(store: MindStore): LinkTools {
   return {
     link_create: {
       schema: LinkCreateSchema,

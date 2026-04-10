@@ -51,26 +51,31 @@ describe('MCP input schema fidelity', () => {
       })
     );
 
-    expect(schema.type).toBe('object');
-    expect(schema.required).toEqual(['requiredText', 'tags']);
-    expect(schema.properties.requiredText).toMatchObject({
+    const jsonSchema = schema as {
+      type: string;
+      required: string[];
+      properties: Record<string, unknown>;
+    };
+    expect(jsonSchema.type).toBe('object');
+    expect(jsonSchema.required).toEqual(['requiredText', 'tags']);
+    expect(jsonSchema.properties.requiredText).toMatchObject({
       type: 'string',
       minLength: 2,
     });
-    expect(schema.properties.mode).toMatchObject({
+    expect(jsonSchema.properties.mode).toMatchObject({
       type: 'string',
       enum: ['active', 'completed', 'all'],
     });
-    expect(schema.properties.tags).toMatchObject({
+    expect(jsonSchema.properties.tags).toMatchObject({
       type: 'array',
       minItems: 1,
       items: { type: 'string' },
     });
-    expect(schema.properties.limit).toMatchObject({
+    expect(jsonSchema.properties.limit).toMatchObject({
       type: 'number',
       default: 25,
     });
-    expect(schema.properties.maybeTier).toMatchObject({
+    expect(jsonSchema.properties.maybeTier).toMatchObject({
       anyOf: [{ type: 'integer', minimum: 1, maximum: 3 }, { type: 'null' }],
     });
   });
@@ -82,9 +87,17 @@ describe('MCP input schema fidelity', () => {
     const checkpointTools = createCheckpointTools(store);
     const spaceTools = createSpaceTools(store);
 
-    const memoryQuerySchema = zodToJsonSchema(memoryTools.memory_query.schema);
-    const checkpointQuerySchema = zodToJsonSchema(checkpointTools.checkpoint_query.schema);
-    const spaceCreateSchema = zodToJsonSchema(spaceTools.space_create.schema);
+    const memoryQuerySchema = zodToJsonSchema(memoryTools.memory_query.schema) as {
+      required: string[];
+      properties: Record<string, unknown>;
+    };
+    const checkpointQuerySchema = zodToJsonSchema(checkpointTools.checkpoint_query.schema) as {
+      properties: Record<string, unknown>;
+    };
+    const spaceCreateSchema = zodToJsonSchema(spaceTools.space_create.schema) as {
+      required: string[];
+      properties: Record<string, unknown>;
+    };
 
     expect(memoryQuerySchema.required).toEqual(['space']);
     expect(memoryQuerySchema.properties.tier).toMatchObject({
@@ -360,29 +373,39 @@ describe('MCP Memory Tools', () => {
     });
 
     expect(withNullTier.total).toBe(3);
-    expect(withNullTier.memories.map(memory => memory.name).sort()).toEqual(
-      withoutTier.memories.map(memory => memory.name).sort()
+    expect(withNullTier.memories.map((memory: { name: string }) => memory.name).sort()).toEqual(
+      withoutTier.memories.map((memory: { name: string }) => memory.name).sort()
     );
-    expect(withNullTier.memories.every(memory => 'changed_at' in memory)).toBe(true);
-    expect(withNullTier.memories.some(memory => 'created_at' in memory)).toBe(false);
-    expect(withNullTier.memories.some(memory => 'updated_at' in memory)).toBe(false);
+    expect(
+      withNullTier.memories.every((memory: { changed_at?: unknown }) => 'changed_at' in memory)
+    ).toBe(true);
+    expect(
+      withNullTier.memories.some((memory: { created_at?: unknown }) => 'created_at' in memory)
+    ).toBe(false);
+    expect(
+      withNullTier.memories.some((memory: { updated_at?: unknown }) => 'updated_at' in memory)
+    ).toBe(false);
   });
 
   test('memory_query input schema should allow null tier and describe its meaning', async () => {
     store = createTestStore();
 
     const tools = createMemoryTools(store);
-    const schema = zodToJsonSchema(tools.memory_query.schema);
-    const tierSchema = schema.properties?.tier;
+    const schema = zodToJsonSchema(tools.memory_query.schema) as {
+      properties?: Record<string, unknown>;
+    };
+    const tierSchema = schema.properties?.tier as
+      | { description?: string; type?: string | string[]; anyOf?: Array<{ type?: string }> }
+      | undefined;
 
     expect(tierSchema).toBeDefined();
-    expect(tierSchema.description).toContain('Null means all tiers');
+    expect(tierSchema!.description).toContain('Null means all tiers');
 
     const allowsNull =
-      tierSchema.type === 'null' ||
-      (Array.isArray(tierSchema.type) && tierSchema.type.includes('null')) ||
-      (typeof tierSchema.type === 'string' && tierSchema.type.includes('null')) ||
-      tierSchema.anyOf?.some((entry: { type?: string }) => entry.type === 'null');
+      tierSchema!.type === 'null' ||
+      (Array.isArray(tierSchema!.type) && tierSchema!.type.includes('null')) ||
+      (typeof tierSchema!.type === 'string' && tierSchema!.type.includes('null')) ||
+      tierSchema!.anyOf?.some((entry: { type?: string }) => entry.type === 'null');
 
     expect(allowsNull).toBe(true);
   });
@@ -843,7 +866,10 @@ describe('MCP Memory Tools - links_to Best-Effort (Phase 1a)', () => {
 
     expect(res.links_failed).toBeDefined();
     expect(res.links_failed?.length).toBe(2);
-    expect(res.links_failed?.map(f => f.ref).sort()).toEqual(['missing-1', 'missing-2']);
+    expect(res.links_failed?.map((f: { ref: string }) => f.ref).sort()).toEqual([
+      'missing-1',
+      'missing-2',
+    ]);
   });
 
   test('memory_add with all valid links has empty links_failed array', async () => {

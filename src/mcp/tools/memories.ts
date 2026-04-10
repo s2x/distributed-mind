@@ -21,7 +21,15 @@ const MEMORY_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Read a memory with links. Auto-promotes tier (T3→T2→T1) unless noPromote:true. Use when actively working with a memory.',
 };
 
-export function createMemoryTools(store: MindStore): Record<string, ToolDefinition> {
+export interface MemoryTools {
+  memory_add: ToolDefinition;
+  memory_update: ToolDefinition;
+  memory_delete: ToolDefinition;
+  memory_read: ToolDefinition;
+  memory_query: ToolDefinition;
+}
+
+export function createMemoryTools(store: MindStore): MemoryTools {
   return {
     memory_add: {
       schema: MemoryAddSchema,

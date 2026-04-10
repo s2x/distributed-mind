@@ -21,7 +21,15 @@ const SPACE_TOOL_DESCRIPTIONS: Record<string, string> = {
   space_delete: 'Permanently delete a space and ALL its memories, links, and checkpoints.',
 };
 
-export function createSpaceTools(store: MindStore): Record<string, ToolDefinition> {
+export interface SpaceTools {
+  space_create: ToolDefinition;
+  space_list: ToolDefinition;
+  space_get: ToolDefinition;
+  space_update: ToolDefinition;
+  space_delete: ToolDefinition;
+}
+
+export function createSpaceTools(store: MindStore): SpaceTools {
   return {
     space_create: {
       schema: SpaceCreateSchema,

@@ -2,7 +2,11 @@ import { getSystemInstructionsHandler } from '../handlers/system/get-system-inst
 import { SystemInstructionsSchema } from '../schemas/system/get-system-instructions';
 import type { ToolDefinition } from '../tool-types';
 
-export function createSystemTools(): Record<string, ToolDefinition> {
+export interface SystemTools {
+  system_instructions: ToolDefinition;
+}
+
+export function createSystemTools(): SystemTools {
   return {
     system_instructions: {
       schema: SystemInstructionsSchema,

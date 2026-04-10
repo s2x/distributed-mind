@@ -3,7 +3,11 @@ import { getStatusHandler } from '../handlers/status/get-status';
 import { StatusSchema } from '../schemas/status/get-status';
 import type { ToolDefinition } from '../tool-types';
 
-export function createStatusTools(store: MindStore): Record<string, ToolDefinition> {
+export interface StatusTools {
+  status: ToolDefinition;
+}
+
+export function createStatusTools(store: MindStore): StatusTools {
   return {
     status: {
       schema: StatusSchema,

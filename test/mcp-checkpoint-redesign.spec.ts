@@ -325,10 +325,14 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
 
       expect(res.total).toBe(505);
       expect(res.checkpoints).toHaveLength(5);
-      expect(res.checkpoints.some(checkpoint => checkpoint.name === 'checkpoint-0')).toBe(true);
-      expect(res.checkpoints.every(checkpoint => checkpoint.name.startsWith('checkpoint-'))).toBe(
-        true
-      );
+      expect(
+        res.checkpoints.some((checkpoint: { name: string }) => checkpoint.name === 'checkpoint-0')
+      ).toBe(true);
+      expect(
+        res.checkpoints.every((checkpoint: { name: string }) =>
+          checkpoint.name.startsWith('checkpoint-')
+        )
+      ).toBe(true);
     });
   });
 

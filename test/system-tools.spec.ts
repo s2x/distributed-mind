@@ -45,6 +45,7 @@ describe('MCP System Tools', () => {
     expect(tool.schema.safeParse({}).success).toBe(true);
     expect(tool.schema.safeParse({ anything: 'else' }).success).toBe(true);
 
+    // @ts-ignore — handler accepts 0 args but type system requires 1
     const response = await tool.handler();
     expect(response).toEqual({
       content: [{ type: 'text', text: renderSystemInstructions() }],
@@ -54,6 +55,7 @@ describe('MCP System Tools', () => {
 
   test('system_instructions should load protocol text from markdown source file', async () => {
     const tools = createSystemTools();
+    // @ts-ignore — handler accepts 0 args but type system requires 1
     const response = await tools.system_instructions.handler();
     const sourceText = readFileSync(SYSTEM_INSTRUCTIONS_SOURCE_PATH, 'utf-8');
 

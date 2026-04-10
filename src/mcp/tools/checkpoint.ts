@@ -20,7 +20,14 @@ const CHECKPOINT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Find checkpoints by status, date range, or tag. Returns checkpoint summaries with pagination.',
 };
 
-export function createCheckpointTools(store: MindStore): Record<string, ToolDefinition> {
+export interface CheckpointTools {
+  checkpoint_save: ToolDefinition;
+  checkpoint_done: ToolDefinition;
+  checkpoint_load: ToolDefinition;
+  checkpoint_query: ToolDefinition;
+}
+
+export function createCheckpointTools(store: MindStore): CheckpointTools {
   return {
     checkpoint_save: {
       schema: CheckpointSaveSchema,
