@@ -53,8 +53,8 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
         tags: ['type:project'],
       });
 
-      expect(res.content[0]?.text).toContain('created');
       expect(res.space?.tags).toContain('type:project');
+      expect((res as any).structuredContent?.space?.name).toBe('myproject');
     });
   });
 

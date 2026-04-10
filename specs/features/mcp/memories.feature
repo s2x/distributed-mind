@@ -1,4 +1,4 @@
-@mcp @product/memories
+@delta-modified @mcp @product/memories
 Feature: MCP Memory Tools
 
   MCP tools for memory CRUD operations with links support.
@@ -13,10 +13,10 @@ Feature: MCP Memory Tools
       When calling memory_add with space "test-space" name "new" content "content"
       Then an error "tags required" is returned
 
-    Scenario: memory.add creates a memory
+    Scenario: memory.add creates a memory without exposing an internal numeric id
       When calling memory_add with space "test-space" name "new" content "content" tags ["cat:decision"]
       Then the memory is created
-      And the response includes the memory id
+      And the response does not expose an internal numeric id
 
     Scenario: memory.add with tier parameter
       When calling memory_add with space "test-space" name "cold" content "c" tags ["cat:discovery"] tier 3
@@ -31,9 +31,11 @@ Feature: MCP Memory Tools
       Then the memory is created
       And a link exists from "new" to "mem1"
 
-    Scenario: memory.add with invalid links_to throws
+    Scenario: memory.add reports invalid links_to without failing the memory creation
       When calling memory_add with space "test-space" name "new" content "c" tags ["cat:decision"] links_to ["nonexistent"]
-      Then an error "memory not found" is returned
+      Then the memory is still created
+      And the response includes that reference in links_failed
+      And no tool error is thrown solely because the link target is missing
 
   Rule: memory.read tool
 
@@ -89,9 +91,3 @@ Feature: MCP Memory Tools
     Scenario: memory.delete non-existent throws
       When calling memory_delete with space "test-space" name "nonexistent"
       Then an error "memory not found" is returned
-
-  Rule: Reference format validation
-
-    Scenario: invalid ref format throws "invalid memory reference"
-      When calling memory_read with space "invalid-no-colon" name "mem1"
-      Then an error "invalid memory reference" is returned

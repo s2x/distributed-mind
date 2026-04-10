@@ -1,24 +1,15 @@
-import { z } from 'zod';
+import { getSystemInstructionsHandler } from '../handlers/system/get-system-instructions';
+import { SystemInstructionsSchema } from '../schemas/system/get-system-instructions';
+import type { ToolDefinition } from '../tool-types';
 
-import { renderSystemInstructions } from '../../cli/system-instructions';
-
-const SystemInstructionsSchema = z.object({});
-
-const FULL_INSTRUCTIONS = renderSystemInstructions();
-
-export function createSystemTools() {
+export function createSystemTools(): Record<string, ToolDefinition> {
   return {
     system_instructions: {
       schema: SystemInstructionsSchema,
       description:
         'Returns the complete mind usage protocol: space naming, tagging, linking, tier system, and session workflow. Must be called before using any other mind tool in a new session.',
       annotations: { readOnlyHint: true },
-      handler: async () => {
-        return {
-          content: [{ type: 'text', text: FULL_INSTRUCTIONS }],
-          instructions_version: '1.2.0',
-        };
-      },
+      handler: getSystemInstructionsHandler,
     },
   };
 }

@@ -1,33 +1,15 @@
-import { z } from 'zod';
-
 import type { MindStore } from '../../store/mind-store';
-
-const SpaceCreateSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .describe('Space name. Use projects/<repo>, user/preferences, or sessions/<repo>.'),
-  description: z.string().min(1).describe('Description of the space purpose.'),
-  tags: z.array(z.string()).min(1).describe('Tags (at least 1 required).'),
-});
-
-const SpaceListSchema = z.object({
-  tag: z.string().optional().describe('Filter by tag.'),
-});
-
-const SpaceGetSchema = z.object({
-  name: z.string().min(1).describe('Space name to retrieve.'),
-});
-
-const SpaceUpdateSchema = z.object({
-  name: z.string().min(1).describe('Space name to update.'),
-  description: z.string().optional().describe('New description.'),
-  tags: z.array(z.string()).optional().describe('New tags array (replaces all existing).'),
-});
-
-const SpaceDeleteSchema = z.object({
-  name: z.string().min(1).describe('Space name to delete.'),
-});
+import { createSpaceHandler } from '../handlers/spaces/create-space';
+import { deleteSpaceHandler } from '../handlers/spaces/delete-space';
+import { getSpaceHandler } from '../handlers/spaces/get-space';
+import { listSpacesHandler } from '../handlers/spaces/list-spaces';
+import { updateSpaceHandler } from '../handlers/spaces/update-space';
+import { SpaceCreateSchema } from '../schemas/spaces/create-space';
+import { SpaceDeleteSchema } from '../schemas/spaces/delete-space';
+import { SpaceGetSchema } from '../schemas/spaces/get-space';
+import { SpaceListSchema } from '../schemas/spaces/list-spaces';
+import { SpaceUpdateSchema } from '../schemas/spaces/update-space';
+import type { ToolDefinition } from '../tool-types';
 
 const SPACE_TOOL_DESCRIPTIONS: Record<string, string> = {
   space_create:
@@ -38,132 +20,37 @@ const SPACE_TOOL_DESCRIPTIONS: Record<string, string> = {
   space_delete: 'Permanently delete a space and ALL its memories, links, and checkpoints.',
 };
 
-export function createSpaceTools(store: MindStore) {
+export function createSpaceTools(store: MindStore): Record<string, ToolDefinition> {
   return {
     space_create: {
       schema: SpaceCreateSchema,
       description: SPACE_TOOL_DESCRIPTIONS.space_create,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-      handler: async (args: unknown) => {
-        let parsed: z.infer<typeof SpaceCreateSchema>;
-
-        try {
-          parsed = SpaceCreateSchema.parse(args);
-        } catch (e: any) {
-          // Zod errors are in e.message as JSON string
-          const msg = e.message ?? '';
-          if (msg.includes('"code":"invalid_type"') || msg.includes('"invalid_type"')) {
-            throw new Error('tags is required');
-          }
-          if (msg.includes('"code":"too_small"') || msg.includes('"too_small"')) {
-            throw new Error('at least 1 tag');
-          }
-          throw new Error(`Invalid arguments: ${msg}`);
-        }
-
-        store.createSpace(parsed.name, parsed.description, parsed.tags);
-        const space = store.getSpace(parsed.name);
-        return {
-          content: [{ type: 'text', text: `Space "${parsed.name}" created successfully.` }],
-          space,
-        };
-      },
+      handler: createSpaceHandler(store),
     },
     space_list: {
       schema: SpaceListSchema,
       description: SPACE_TOOL_DESCRIPTIONS.space_list,
       annotations: { readOnlyHint: true },
-      handler: async (args: unknown) => {
-        const parsed = SpaceListSchema.parse(args ?? {});
-        const spaces = store.listSpaces(parsed.tag ? { tag: parsed.tag } : undefined);
-        return {
-          content: [{ type: 'text', text: `Found ${spaces.length} space(s).` }],
-          spaces,
-        };
-      },
+      handler: listSpacesHandler(store),
     },
     space_get: {
       schema: SpaceGetSchema,
       description: SPACE_TOOL_DESCRIPTIONS.space_get,
       annotations: { readOnlyHint: true },
-      handler: async (args: unknown) => {
-        const parsed = SpaceGetSchema.parse(args ?? {});
-        if (!parsed.name) {
-          throw new Error('Space name is required.');
-        }
-        const space = store.getSpace(parsed.name);
-        if (!space) {
-          throw new Error(`Space "${parsed.name}" does not exist.`);
-        }
-        const hot_memories = store
-          .getHotMemories(parsed.name)
-          .filter(m => !m.tags?.includes('checkpoint'))
-          .map(({ id: _id, ...rest }) => rest);
-        return {
-          content: [{ type: 'text', text: `Space: ${space.name}` }],
-          space,
-          hot_memories,
-        };
-      },
+      handler: getSpaceHandler(store),
     },
     space_update: {
       schema: SpaceUpdateSchema,
       description: SPACE_TOOL_DESCRIPTIONS.space_update,
       annotations: { readOnlyHint: false, destructiveHint: false },
-      handler: async (args: unknown) => {
-        const parsed = SpaceUpdateSchema.parse(args ?? {});
-        if (!parsed.name) {
-          throw new Error('Space name is required.');
-        }
-
-        // Build updates object for description/hidden
-        const updates: { description?: string; hidden?: boolean } = {};
-        if (parsed.description !== undefined) {
-          updates.description = parsed.description;
-        }
-        store.updateSpace(parsed.name, updates);
-
-        // Handle tags replacement if provided
-        if (parsed.tags !== undefined) {
-          const currentSpace = store.getSpace(parsed.name);
-          const currentTags = currentSpace?.tags ?? [];
-
-          // Remove tags that are not in the new array
-          for (const tag of currentTags) {
-            if (!parsed.tags.includes(tag)) {
-              store.removeSpaceTag(parsed.name, tag);
-            }
-          }
-
-          // Add tags that are not in the current array
-          for (const tag of parsed.tags) {
-            if (!currentTags.includes(tag)) {
-              store.addSpaceTag(parsed.name, tag);
-            }
-          }
-        }
-
-        const space = store.getSpace(parsed.name);
-        return {
-          content: [{ type: 'text', text: `Space "${parsed.name}" updated.` }],
-          space,
-        };
-      },
+      handler: updateSpaceHandler(store),
     },
     space_delete: {
       schema: SpaceDeleteSchema,
       description: SPACE_TOOL_DESCRIPTIONS.space_delete,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
-      handler: async (args: unknown) => {
-        const parsed = SpaceDeleteSchema.parse(args ?? {});
-        if (!parsed.name) {
-          throw new Error('Space name is required.');
-        }
-        store.deleteSpace(parsed.name);
-        return {
-          content: [{ type: 'text', text: `Space "${parsed.name}" deleted.` }],
-        };
-      },
+      handler: deleteSpaceHandler(store),
     },
   };
 }

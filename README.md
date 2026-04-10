@@ -256,12 +256,20 @@ Example MCP tool usage (for agents):
 }
 ```
 
-`memory_query` returns structured results including `items` and pagination info (`limit`, `offset`, `nextOffset`). Supports optional `search` for full-text search.
+Stage 1 MCP structured tools now return the same payload in two forms:
+
+- `structuredContent` for agents that consume structured data directly
+- one raw YAML `content` text item serialized from that same payload (no markdown fences)
+
+In this stage, `system_instructions` and the content-only delete/link tools keep their existing text responses.
+
+`memory_query` supports optional `search` for full-text search and returns pagination fields such as `limit` and `offset` in both `structuredContent` and YAML content. Its optional `tier` field also accepts `null`, which means the same thing as omitting the tier filter (all tiers).
 
 Memory MCP workflows also support bounded composite ergonomics while keeping atomic tools:
 
 - `memory_add` supports optional `pinned` and `links_to` (best-effort — check `links_failed` in response).
-- `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`). Use `noPromote:true` to read without side effects.
+- `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`name`, `changed_at`, `tier`, `tags`, `pinned`, `ref`). Use `noPromote:true` to read without side effects.
+- Memory MCP payloads use `changed_at` and no longer expose `created_at` or `updated_at`.
 
 Checkpoint MCP tools are also available for session continuity:
 
@@ -270,7 +278,9 @@ Checkpoint MCP tools are also available for session continuity:
 - `checkpoint_load`
 - `checkpoint_query`
 
-`checkpoint_load` requires `checkpointName` (use `checkpoint_query` first to find available checkpoints). Returns checkpoint state with linked_memories in enriched format.
+`checkpoint_load` requires `checkpointName` (use `checkpoint_query` first to find available checkpoints). It returns full checkpoint text fields plus all linked_memories in enriched format, and checkpoint MCP payloads use `changed_at` instead of `created_at` / `updated_at`.
+
+`checkpoint_query` returns full pending text (no preview truncation) and includes an explicit `error` field (`null` on success, `{ code, message }` when the requested space is missing).
 
 System tools for agent protocol:
 

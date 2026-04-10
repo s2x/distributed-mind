@@ -5,8 +5,8 @@ import { buildCheckpointContent, fetchCheckpointContent } from '../../helpers/ch
 import type { CheckpointContent } from '../../helpers/checkpoint-content';
 import { buildLinkedMemoriesArray } from '../../helpers/link-building';
 import type { EnrichedLink } from '../../helpers/link-building';
+import { resolveRefWithFallback } from '../../helpers/memory-ref-resolver';
 import { style } from '../../helpers/style';
-import { resolveRefWithFallback } from '../../mcp/tools/links';
 import type { MindStore } from '../../store/mind-store';
 import type { Memory } from '../../types';
 import { ArgParser } from '../arg-parser';

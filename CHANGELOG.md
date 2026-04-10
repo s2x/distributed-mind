@@ -40,6 +40,10 @@ Example:
 
 ### Changed
 
+- Refactored internal MCP module layout so tool declarations stay in `src/mcp/tools/`, endpoint handlers/schemas are split into `src/mcp/handlers/` and `src/mcp/schemas/`, and shared MCP helpers now live under `src/mcp/helpers/` with no public contract change.
+- MCP structured tools in stage 1 now emit a single raw YAML text item that is serialized directly from the structured payload, and `checkpoint_query` now includes an explicit `error` field for soft-error responses.
+- MCP `memory_query.tier` now accepts `null` to mean “all tiers”, and the generated MCP input schema documents that behavior explicitly.
+- MCP checkpoint responses now return full pending/linked-memory data without hidden truncation caps, and memory/checkpoint payloads now expose `changed_at` instead of `created_at` / `updated_at`.
 - Restructured repository: moved cli/src to src/, cli/test to test/
 
 - **Phase 1-6 Refactoring**: Major architectural refactor across phases 1-6:

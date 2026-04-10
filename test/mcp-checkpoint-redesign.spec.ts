@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { parse as parseYaml } from 'yaml';
 
+import { buildCheckpointContent } from '../src/helpers/checkpoint-content';
 import { createCheckpointTools } from '../src/mcp/tools/checkpoint';
 import type { MindStore } from '../src/store/mind-store';
 
@@ -35,11 +37,11 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
         pending: 'Fix login bug',
       });
 
-      expect(res.content[0]?.text).toContain('created');
       expect(res.checkpoint).toBeDefined();
       expect(res.checkpoint?.space).toBe('test-space');
       expect(res.checkpoint?.tags).toContain('checkpoint');
       expect(res.checkpoint?.tags).toContain('active');
+      expect((res as any).structuredContent?.checkpoint?.space).toBe('test-space');
     });
 
     test('2.5.1b checkpoint_save creates checkpoint with linked_memories (string refs)', async () => {
@@ -177,6 +179,51 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       // context_hits should NOT be present (removed)
       expect((res as any).context_hits).toBeUndefined();
     });
+
+    test('checkpoint_load returns full content, all linked memories, and changed_at only', async () => {
+      const tools = createCheckpointTools(store);
+      const linkedMemoryRefs: string[] = [];
+
+      for (let index = 0; index < 6; index += 1) {
+        const name = `linked-${index}`;
+        linkedMemoryRefs.push(name);
+        await store.addMemory('test-space', name, `Linked content ${index}`, {
+          tags: ['cat:pattern'],
+        });
+      }
+
+      const goal = 'Goal '.repeat(20).trim();
+      const pending = 'Pending '.repeat(20).trim();
+      const notes = 'Notes '.repeat(20).trim();
+
+      const saved = await tools.checkpoint_save.handler({
+        space: 'test-space',
+        goal,
+        pending,
+        notes,
+        linked_memories: linkedMemoryRefs,
+      });
+
+      const res = await tools.checkpoint_load.handler({
+        space: 'test-space',
+        checkpointName: saved.checkpoint!.name,
+      });
+
+      expect(res.checkpoint?.content).toEqual({
+        goal,
+        pending,
+        notes,
+      });
+      expect(res.checkpoint?.linked_memories).toHaveLength(6);
+      expect((res.checkpoint as any)?.changed_at).toEqual(expect.any(String));
+      expect((res.checkpoint as Record<string, unknown>)?.updated_at).toBeUndefined();
+      expect(
+        (res.checkpoint?.content as unknown as Record<string, unknown>)?.createdAt
+      ).toBeUndefined();
+      expect(
+        (res.checkpoint?.content as unknown as Record<string, unknown>)?.updatedAt
+      ).toBeUndefined();
+    });
   });
 
   // ==========================================================================
@@ -230,6 +277,58 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
         status: 'completed',
       });
       expect(completedOnly.checkpoints.length).toBe(0);
+    });
+
+    test('checkpoint_query returns full pending text, changed_at, and YAML parity', async () => {
+      const tools = createCheckpointTools(store);
+      const pending =
+        'This pending text is intentionally longer than fifty characters for parity coverage.';
+
+      await tools.checkpoint_save.handler({
+        space: 'test-space',
+        goal: 'Long pending coverage',
+        pending,
+      });
+
+      const res = await tools.checkpoint_query.handler({
+        space: 'test-space',
+      });
+
+      expect(res.checkpoints).toHaveLength(1);
+      expect(res.checkpoints[0]?.pending).toBe(pending);
+      expect(res.checkpoints[0]?.pending.endsWith('…')).toBe(false);
+      expect((res.checkpoints[0] as any)?.changed_at).toEqual(expect.any(String));
+      expect((res.checkpoints[0] as unknown as Record<string, unknown>)?.updatedAt).toBeUndefined();
+      expect(parseYaml(res.content[0]!.text)).toEqual(res.structuredContent);
+    });
+
+    test('checkpoint_query paginates beyond the 500-item batch boundary', async () => {
+      const tools = createCheckpointTools(store);
+
+      for (let index = 0; index < 505; index += 1) {
+        await store.addMemory(
+          'test-space',
+          `checkpoint-${index}`,
+          buildCheckpointContent(`Goal ${index}`, `Pending ${index}`),
+          {
+            tags: ['checkpoint', 'active'],
+            tier: 1,
+          }
+        );
+      }
+
+      const res = await tools.checkpoint_query.handler({
+        space: 'test-space',
+        limit: 10,
+        offset: 500,
+      });
+
+      expect(res.total).toBe(505);
+      expect(res.checkpoints).toHaveLength(5);
+      expect(res.checkpoints.some(checkpoint => checkpoint.name === 'checkpoint-0')).toBe(true);
+      expect(res.checkpoints.every(checkpoint => checkpoint.name.startsWith('checkpoint-'))).toBe(
+        true
+      );
     });
   });
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { parse as parseYaml } from 'yaml';
 
 import { createMemoryTools } from '../src/mcp/tools/memories';
 import type { MindStore } from '../src/store/mind-store';
@@ -61,8 +62,18 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         tags: ['cat:decision'],
       });
 
-      expect(res.content[0]?.text).toContain('added');
       expect(res.memory?.tags).toContain('cat:decision');
+      expect((res as any).structuredContent?.memory?.name).toBe('my-memory');
+      expect((res.memory as Record<string, unknown>)?.id).toBeUndefined();
+      expect(
+        ((res as any).structuredContent?.memory as Record<string, unknown>)?.id
+      ).toBeUndefined();
+      expect(
+        ((parseYaml(res.content[0]!.text) as { memory?: Record<string, unknown> }).memory ?? {}).id
+      ).toBeUndefined();
+      expect(res.memory?.changed_at).toEqual(expect.any(String));
+      expect((res.memory as Record<string, unknown>)?.created_at).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.updated_at).toBeUndefined();
     });
   });
 
@@ -267,9 +278,9 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         content: 'New content',
       });
 
-      expect(res.content[0]?.text).toContain('updated');
       const updated = store.getMemory('test-space', 'my-memory');
       expect(updated?.content).toBe('New content');
+      expect((res as any).structuredContent?.memory?.content).toBe('New content');
     });
   });
 

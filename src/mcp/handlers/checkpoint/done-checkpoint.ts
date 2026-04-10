@@ -1,0 +1,45 @@
+import { completeCheckpoint } from '../../../checkpoint/checkpoint-done';
+import type { MindStore } from '../../../store/mind-store';
+import { buildYamlContent } from '../../helpers/yaml-response';
+import { CheckpointDoneSchema } from '../../schemas/checkpoint/done-checkpoint';
+
+export function doneCheckpointHandler(store: MindStore) {
+  return async (args: unknown) => {
+    const parsed = CheckpointDoneSchema.parse(args ?? {});
+
+    if (!parsed.space) {
+      throw new Error('Space is required.');
+    }
+
+    const space = parsed.space;
+
+    let checkpointMemory;
+    if (parsed.checkpointName) {
+      checkpointMemory = store.getMemory(space, parsed.checkpointName);
+      if (!checkpointMemory) {
+        throw new Error(`Checkpoint "${parsed.checkpointName}" not found in "${space}".`);
+      }
+    } else {
+      const checkpoints = store.listMemories(space, { tag: 'checkpoint' });
+      checkpointMemory = checkpoints.find(memory => memory.tags.includes('active'));
+      if (!checkpointMemory) {
+        throw new Error(`No active checkpoint found in "${space}".`);
+      }
+      checkpointMemory = store.getMemoryById(checkpointMemory.id);
+      if (!checkpointMemory) {
+        throw new Error('Active checkpoint could not be loaded.');
+      }
+    }
+
+    const result = await completeCheckpoint(
+      store,
+      space,
+      checkpointMemory.id,
+      parsed.summary ?? ''
+    );
+
+    return buildYamlContent({
+      session_memory: result.sessionMemory,
+    });
+  };
+}

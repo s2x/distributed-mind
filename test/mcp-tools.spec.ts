@@ -1,5 +1,13 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { z } from 'zod';
+
+import { zodToJsonSchema } from '../src/mcp/server';
 import { createCheckpointTools } from '../src/mcp/tools/checkpoint';
 import { createLinkTools } from '../src/mcp/tools/links';
 import { createMemoryTools } from '../src/mcp/tools/memories';
@@ -10,8 +18,195 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
+type ListedTool = {
+  name: string;
+  description?: string;
+  inputSchema: {
+    type?: string;
+    properties?: Record<string, any>;
+    required?: string[];
+  };
+  annotations?: Record<string, unknown>;
+};
+
+function requireListedTool(tools: ListedTool[], name: string): ListedTool {
+  const tool = tools.find(candidate => candidate.name === name);
+  expect(tool).toBeDefined();
+  return tool!;
+}
+
 afterEach(() => {
   store?.cleanup();
+});
+
+describe('MCP input schema fidelity', () => {
+  test('zodToJsonSchema preserves Zod input metadata for MCP tool schemas', () => {
+    const schema = zodToJsonSchema(
+      z.object({
+        requiredText: z.string().min(2),
+        mode: z.enum(['active', 'completed', 'all']).optional(),
+        maybeTier: z.number().int().min(1).max(3).nullable().optional(),
+        tags: z.array(z.string()).min(1),
+        limit: z.number().default(25),
+      })
+    );
+
+    expect(schema.type).toBe('object');
+    expect(schema.required).toEqual(['requiredText', 'tags']);
+    expect(schema.properties.requiredText).toMatchObject({
+      type: 'string',
+      minLength: 2,
+    });
+    expect(schema.properties.mode).toMatchObject({
+      type: 'string',
+      enum: ['active', 'completed', 'all'],
+    });
+    expect(schema.properties.tags).toMatchObject({
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string' },
+    });
+    expect(schema.properties.limit).toMatchObject({
+      type: 'number',
+      default: 25,
+    });
+    expect(schema.properties.maybeTier).toMatchObject({
+      anyOf: [{ type: 'integer', minimum: 1, maximum: 3 }, { type: 'null' }],
+    });
+  });
+
+  test('declared MCP tool schemas preserve input constraints needed for tools/list exposure', () => {
+    store = createTestStore();
+
+    const memoryTools = createMemoryTools(store);
+    const checkpointTools = createCheckpointTools(store);
+    const spaceTools = createSpaceTools(store);
+
+    const memoryQuerySchema = zodToJsonSchema(memoryTools.memory_query.schema);
+    const checkpointQuerySchema = zodToJsonSchema(checkpointTools.checkpoint_query.schema);
+    const spaceCreateSchema = zodToJsonSchema(spaceTools.space_create.schema);
+
+    expect(memoryQuerySchema.required).toEqual(['space']);
+    expect(memoryQuerySchema.properties.tier).toMatchObject({
+      anyOf: [{ type: 'integer', minimum: 1, maximum: 3 }, { type: 'null' }],
+    });
+    expect(memoryQuerySchema.properties.limit).toMatchObject({
+      type: 'integer',
+      minimum: 1,
+      maximum: 500,
+    });
+    expect(memoryQuerySchema.properties.offset).toMatchObject({
+      type: 'integer',
+      minimum: 0,
+    });
+
+    expect(checkpointQuerySchema.properties.status).toMatchObject({
+      type: 'string',
+      enum: ['active', 'completed', 'all'],
+    });
+    expect(checkpointQuerySchema.properties.limit).toMatchObject({
+      type: 'number',
+      default: 25,
+    });
+    expect(checkpointQuerySchema.properties.offset).toMatchObject({
+      type: 'number',
+      default: 0,
+    });
+
+    expect(spaceCreateSchema.required).toEqual(['name', 'description', 'tags']);
+    expect(spaceCreateSchema.properties.name).toMatchObject({
+      type: 'string',
+      minLength: 1,
+    });
+    expect(spaceCreateSchema.properties.description).toMatchObject({
+      type: 'string',
+      minLength: 1,
+    });
+    expect(spaceCreateSchema.properties.tags).toMatchObject({
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string' },
+    });
+  });
+
+  test('live MCP stdio tools/list exposes stable tool metadata subsets', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'mind-mcp-tools-list-'));
+    const dbPath = join(tempDir, 'mind.db');
+    const originalDbPath = process.env.MIND_DB_PATH;
+
+    let client: Client | undefined;
+    let transport: StdioClientTransport | undefined;
+
+    try {
+      process.env.MIND_DB_PATH = dbPath;
+      transport = new StdioClientTransport({
+        command: process.execPath,
+        args: ['run', 'src/mind.ts', 'mcp'],
+        env: {
+          ...process.env,
+          MIND_DB_PATH: dbPath,
+        },
+      });
+      client = new Client({ name: 'mind-tools-list-test', version: '1.0.0' });
+
+      await client.connect(transport);
+
+      const { tools } = await client.listTools();
+      const listedTools = tools as ListedTool[];
+
+      expect(listedTools).toHaveLength(18);
+
+      const memoryQueryTool = requireListedTool(listedTools, 'memory_query');
+      expect(memoryQueryTool.inputSchema.required).toContain('space');
+      expect(memoryQueryTool.inputSchema.properties?.tier).toMatchObject({
+        anyOf: [{ type: 'integer', minimum: 1, maximum: 3 }, { type: 'null' }],
+      });
+      expect(memoryQueryTool.inputSchema.properties?.limit).toMatchObject({
+        type: 'integer',
+        minimum: 1,
+        maximum: 500,
+      });
+      expect(memoryQueryTool.annotations).toMatchObject({ readOnlyHint: true });
+      expect(memoryQueryTool.description).toContain('See system_instructions');
+
+      const checkpointQueryTool = requireListedTool(listedTools, 'checkpoint_query');
+      expect(checkpointQueryTool.inputSchema.properties?.status).toMatchObject({
+        enum: ['active', 'completed', 'all'],
+      });
+      expect(checkpointQueryTool.inputSchema.properties?.limit).toMatchObject({ default: 25 });
+      expect(checkpointQueryTool.inputSchema.properties?.offset).toMatchObject({ default: 0 });
+
+      const spaceCreateTool = requireListedTool(listedTools, 'space_create');
+      expect(spaceCreateTool.inputSchema.required).toEqual(
+        expect.arrayContaining(['name', 'description', 'tags'])
+      );
+      expect(spaceCreateTool.inputSchema.properties?.tags).toMatchObject({ minItems: 1 });
+
+      const systemInstructionsTool = requireListedTool(listedTools, 'system_instructions');
+      expect(systemInstructionsTool.inputSchema).toMatchObject({
+        type: 'object',
+        properties: {},
+      });
+
+      const spaceDeleteTool = requireListedTool(listedTools, 'space_delete');
+      expect(spaceDeleteTool.annotations).toMatchObject({ destructiveHint: true });
+    } finally {
+      if (client) {
+        await client.close().catch(() => {});
+      }
+      if (transport) {
+        await transport.close().catch(() => {});
+      }
+
+      if (originalDbPath === undefined) {
+        delete process.env.MIND_DB_PATH;
+      } else {
+        process.env.MIND_DB_PATH = originalDbPath;
+      }
+
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('MCP Memory Tools', () => {
@@ -129,6 +324,58 @@ describe('MCP Memory Tools', () => {
     expect(res.memories.length).toBe(1);
     expect(res.total).toBe(1);
   });
+
+  test('memory_query should treat tier null as equivalent to omitting tier', async () => {
+    store = createTestStore();
+    store.createSpace('projects/mind', 'Mind project', ['type:project']);
+    await store.addMemory('projects/mind', 't1-memory', 'hot content', {
+      tags: ['cat:decision'],
+      tier: 1,
+    });
+    await store.addMemory('projects/mind', 't2-memory', 'warm content', {
+      tags: ['cat:pattern'],
+      tier: 2,
+    });
+    await store.addMemory('projects/mind', 't3-memory', 'cold content', {
+      tags: ['cat:discovery'],
+      tier: 3,
+    });
+
+    const tools = createMemoryTools(store);
+    const withoutTier = await tools.memory_query.handler({ space: 'projects/mind', limit: 10 });
+    const withNullTier = await tools.memory_query.handler({
+      space: 'projects/mind',
+      tier: null,
+      limit: 10,
+    });
+
+    expect(withNullTier.total).toBe(3);
+    expect(withNullTier.memories.map(memory => memory.name).sort()).toEqual(
+      withoutTier.memories.map(memory => memory.name).sort()
+    );
+    expect(withNullTier.memories.every(memory => 'changed_at' in memory)).toBe(true);
+    expect(withNullTier.memories.some(memory => 'created_at' in memory)).toBe(false);
+    expect(withNullTier.memories.some(memory => 'updated_at' in memory)).toBe(false);
+  });
+
+  test('memory_query input schema should allow null tier and describe its meaning', async () => {
+    store = createTestStore();
+
+    const tools = createMemoryTools(store);
+    const schema = zodToJsonSchema(tools.memory_query.schema);
+    const tierSchema = schema.properties?.tier;
+
+    expect(tierSchema).toBeDefined();
+    expect(tierSchema.description).toContain('Null means all tiers');
+
+    const allowsNull =
+      tierSchema.type === 'null' ||
+      (Array.isArray(tierSchema.type) && tierSchema.type.includes('null')) ||
+      (typeof tierSchema.type === 'string' && tierSchema.type.includes('null')) ||
+      tierSchema.anyOf?.some((entry: { type?: string }) => entry.type === 'null');
+
+    expect(allowsNull).toBe(true);
+  });
 });
 
 describe('MCP Checkpoint Tools', () => {
@@ -143,7 +390,6 @@ describe('MCP Checkpoint Tools', () => {
       pending: 'Fix login bug',
     });
 
-    expect(res.content[0]?.text).toContain('created');
     expect(res.checkpoint).toBeDefined();
     const checkpoint = res.checkpoint;
     expect(checkpoint).toBeDefined();
@@ -151,6 +397,7 @@ describe('MCP Checkpoint Tools', () => {
     expect(checkpoint?.tags).toBeDefined();
     expect(checkpoint?.tags).toContain('checkpoint');
     expect(checkpoint?.tags).toContain('active');
+    expect((res as any).structuredContent?.checkpoint?.space).toBe('myproject');
   });
 
   test('checkpoint_save should update existing active checkpoint', async () => {
@@ -173,7 +420,7 @@ describe('MCP Checkpoint Tools', () => {
       pending: 'Updated pending',
     });
 
-    expect(res.content[0]?.text).toContain('updated');
+    expect((res as any).structuredContent?.checkpoint?.space).toBe('myproject');
 
     // Should still be one checkpoint (filter by tag to exclude non-checkpoint memories)
     const memories = store.listMemories('myproject', { tag: 'checkpoint' });
@@ -247,11 +494,11 @@ describe('MCP Checkpoint Tools', () => {
     });
 
     // New behavior: creates session memory in sessions/myproject
-    expect(res.content[0]?.text).toContain('transformed into session memory');
     expect(res.session_memory).toBeDefined();
     expect(res.session_memory?.space).toBe('sessions/myproject');
     expect(res.session_memory?.tags).toContain('type:session');
     expect(res.session_memory?.tags).toContain('cat:summary');
+    expect((res as any).structuredContent?.session_memory?.space).toBe('sessions/myproject');
   });
 
   test('checkpoint_query should list all checkpoints', async () => {
@@ -404,10 +651,10 @@ describe('MCP Spaces Tools', () => {
       tags: ['project'],
     });
 
-    expect(res.content[0]?.text).toContain('created');
     expect(res.space).toBeDefined();
     expect(res.space?.name).toBe('myproject');
     expect(res.space?.description).toBe('My project');
+    expect((res as any).structuredContent?.space?.name).toBe('myproject');
   });
 
   test('space_list should list spaces', async () => {
@@ -442,9 +689,9 @@ describe('MCP Spaces Tools', () => {
       description: 'New desc',
     });
 
-    expect(res.content[0]?.text).toContain('updated');
     const space = store.getSpace('myproject');
     expect(space?.description).toBe('New desc');
+    expect((res as any).structuredContent?.space?.description).toBe('New desc');
   });
 
   test('space_delete should delete a space', async () => {
@@ -844,7 +1091,7 @@ describe('MCP Checkpoint Tools - checkpoint_query (Phase 3)', () => {
     expect(res.checkpoints[0]?.pending).toBe('Done');
   });
 
-  test('checkpoint_query returns truncated pending longer than 50 chars', async () => {
+  test('checkpoint_query returns full pending longer than 50 chars', async () => {
     store = createTestStore();
     store.createSpace('projects/mind', 'Mind project', ['test']);
 
@@ -866,9 +1113,8 @@ describe('MCP Checkpoint Tools - checkpoint_query (Phase 3)', () => {
     expect(res.checkpoints).toBeDefined();
     expect(res.checkpoints.length).toBe(1);
     expect(res.checkpoints[0]?.goal).toBe('Short goal');
-    // Pending should be truncated to 50 chars with ellipsis
-    expect(res.checkpoints[0]?.pending).toBe(longPending.slice(0, 50) + '…');
-    expect(res.checkpoints[0]?.pending?.length).toBe(51); // 50 + ellipsis
+    expect(res.checkpoints[0]?.pending).toBe(longPending);
+    expect((res.checkpoints[0] as any)?.changed_at).toEqual(expect.any(String));
   });
 
   test('checkpoint_query with date range filters correctly', async () => {

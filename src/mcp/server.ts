@@ -12,26 +12,14 @@ import {
 import { createLogEntry } from '../helpers/logger';
 import type { MindStore } from '../store/mind-store';
 
+import { zodToJsonSchema } from './helpers/json-schema';
+import type { ToolDefinition } from './tool-types';
 import { createCheckpointTools } from './tools/checkpoint';
 import { createLinkTools } from './tools/links';
 import { createMemoryTools } from './tools/memories';
 import { createSpaceTools } from './tools/spaces';
 import { createStatusTools } from './tools/status';
 import { createSystemTools } from './tools/system';
-
-type ToolAnnotations = {
-  readOnlyHint?: boolean;
-  destructiveHint?: boolean;
-  idempotentHint?: boolean;
-  openWorldHint?: boolean;
-};
-
-type ToolDefinition = {
-  description?: string;
-  schema: any;
-  annotations?: ToolAnnotations;
-  handler: (_args: any) => Promise<any>;
-};
 
 function createMcpServer(store: MindStore): Server {
   const server = new Server(
@@ -80,7 +68,6 @@ function createMcpServer(store: MindStore): Server {
       throw new Error(`Unknown tool: ${name}`);
     }
 
-    // MCP logging middleware
     const startTime = Date.now();
     let logLevel: 'info' | 'warn' | 'error' = 'info';
     let errorMessage: string | undefined;
@@ -93,7 +80,7 @@ function createMcpServer(store: MindStore): Server {
         (result && typeof result === 'object'
           ? Object.fromEntries(
               Object.entries(result).filter(
-                ([k]) => k !== 'content' && k !== 'isError' && k !== 'meta'
+                ([key]) => key !== 'content' && key !== 'isError' && key !== 'meta'
               )
             )
           : undefined);
@@ -124,7 +111,7 @@ function createMcpServer(store: MindStore): Server {
         outputData,
         errorMessage,
         durationMs,
-        callerInfo: {}, // MCP doesn't have caller info in stdio mode
+        callerInfo: {},
       });
     }
   });
@@ -132,138 +119,7 @@ function createMcpServer(store: MindStore): Server {
   return server;
 }
 
-// Zod 4.x to JSON Schema conversion
-function zodToJsonSchema(schema: any): any {
-  if (!schema || !schema._def) {
-    return { type: 'object', properties: {} };
-  }
-
-  const def = schema._def;
-
-  // Handle ZodObject
-  if (def.type === 'object') {
-    const shape = def.shape || {};
-    const properties: any = {};
-    const required: string[] = [];
-
-    for (const [key, value] of Object.entries(shape as Record<string, unknown>)) {
-      if (!value || typeof value !== 'object' || !('_def' in value)) {
-        properties[key] = { type: 'string' };
-        required.push(key);
-        continue;
-      }
-
-      const fieldSchema = value as { _def: any; description?: string };
-      let fieldDef = fieldSchema._def;
-      let fieldType = fieldDef.type;
-      const fieldDescription = fieldSchema.description;
-
-      // Unwrap ZodDefault → treat as optional with the inner type
-      if (fieldType === 'default') {
-        const innerDef = fieldDef.innerType?._def;
-        if (innerDef) {
-          fieldDef = innerDef;
-          fieldType = innerDef.type;
-          // If default wraps optional, unwrap one more level
-          if (fieldType === 'optional' && innerDef.innerType?._def) {
-            fieldDef = innerDef.innerType._def;
-            fieldType = fieldDef.type;
-          }
-        }
-        // default fields are not required
-        if (fieldType === 'string') {
-          properties[key] = { type: 'string' };
-          if (fieldDescription) properties[key].description = fieldDescription;
-          continue;
-        } else if (fieldType === 'number') {
-          properties[key] = { type: 'number' };
-          if (fieldDescription) properties[key].description = fieldDescription;
-          continue;
-        } else if (fieldType === 'boolean') {
-          properties[key] = { type: 'boolean' };
-          if (fieldDescription) properties[key].description = fieldDescription;
-          continue;
-        } else if (fieldType === 'array') {
-          const itemType = fieldDef.element?._def?.type;
-          properties[key] = {
-            type: 'array',
-            items: {
-              type:
-                itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string',
-            },
-          };
-          if (fieldDescription) properties[key].description = fieldDescription;
-          continue;
-        }
-        // Fallback for unknown default-wrapped types
-        properties[key] = { type: 'string' };
-        if (fieldDescription) properties[key].description = fieldDescription;
-        continue;
-      }
-
-      if (fieldType === 'string') {
-        properties[key] = { type: 'string' };
-        if (fieldDescription) properties[key].description = fieldDescription;
-        required.push(key);
-      } else if (fieldType === 'number') {
-        properties[key] = { type: 'number' };
-        if (fieldDescription) properties[key].description = fieldDescription;
-        required.push(key);
-      } else if (fieldType === 'boolean') {
-        properties[key] = { type: 'boolean' };
-        if (fieldDescription) properties[key].description = fieldDescription;
-        required.push(key);
-      } else if (fieldType === 'optional') {
-        const innerDef = fieldDef.innerType?._def;
-        if (innerDef?.type === 'string') {
-          properties[key] = { type: 'string' };
-        } else if (innerDef?.type === 'number') {
-          properties[key] = { type: 'number' };
-        } else if (innerDef?.type === 'boolean') {
-          properties[key] = { type: 'boolean' };
-        } else if (innerDef?.type === 'array') {
-          const itemType = innerDef.element?._def?.type;
-          properties[key] = {
-            type: 'array',
-            items: {
-              type:
-                itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string',
-            },
-          };
-        } else {
-          properties[key] = { type: 'string' };
-        }
-        if (fieldDescription) properties[key].description = fieldDescription;
-      } else if (fieldType === 'array') {
-        const itemType = fieldDef.element?._def?.type;
-        properties[key] = {
-          type: 'array',
-          items: {
-            type: itemType === 'number' ? 'number' : itemType === 'boolean' ? 'boolean' : 'string',
-          },
-        };
-        if (fieldDescription) properties[key].description = fieldDescription;
-        required.push(key);
-      } else if (fieldType === 'enum') {
-        properties[key] = { type: 'string', enum: fieldDef.values };
-        if (fieldDescription) properties[key].description = fieldDescription;
-        required.push(key);
-      } else {
-        properties[key] = { type: 'string' };
-        if (fieldDescription) properties[key].description = fieldDescription;
-        required.push(key);
-      }
-    }
-
-    return {
-      type: 'object',
-      properties,
-      required: required.length > 0 ? required : undefined,
-    };
-  }
-
-  return { type: 'object', properties: {} };
-}
+export { zodToJsonSchema } from './helpers/json-schema';
 
 export async function startMcpServer(store: MindStore): Promise<void> {
   const server = createMcpServer(store);

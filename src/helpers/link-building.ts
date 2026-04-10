@@ -61,12 +61,13 @@ export function mapLinkedSummariesToLinksFormat(summaries: {
 export function buildLinkedMemoriesArray(
   store: MindStore,
   memoryId: number,
-  limit: number = 5
+  limit?: number
 ): EnrichedLink[] {
   const linked_memories: EnrichedLink[] = [];
   const links = store.getLinks(memoryId);
+  const linksToInclude = typeof limit === 'number' ? links.slice(0, limit) : links;
 
-  for (const link of links.slice(0, limit)) {
+  for (const link of linksToInclude) {
     const linkedMem = store.getMemoryById(link.target_id);
     if (linkedMem) {
       linked_memories.push({
