@@ -190,6 +190,9 @@ describe('MCP input schema fidelity', () => {
 
       const spaceDeleteTool = requireListedTool(listedTools, 'space_delete');
       expect(spaceDeleteTool.annotations).toMatchObject({ destructiveHint: true });
+
+      const spaceGetTool = requireListedTool(listedTools, 'space_get');
+      expect(spaceGetTool.description).toContain('orientation summary');
     } finally {
       if (client) {
         await client.close().catch(() => {});
@@ -226,6 +229,11 @@ describe('MCP Memory Tools', () => {
     });
 
     expect(res.memory.pinned).toBe(true);
+    expect(res.memory.space).toBe('proj');
+    expect((res.memory as Record<string, unknown>).space_name).toBeUndefined();
+    expect((res.memory as Record<string, unknown>).embedding).toBeUndefined();
+    expect((res.memory as Record<string, unknown>).created_at).toBeUndefined();
+    expect((res.memory as Record<string, unknown>).updated_at).toBeUndefined();
     // Verify link was created (use store internals since MCP no longer exposes IDs)
     const source = store.getMemory('proj', 'source')!;
     const links = store.getLinks(source.id);
@@ -296,6 +304,8 @@ describe('MCP Memory Tools', () => {
     expect(res.offset).toBe(0);
     expect(Array.isArray(res.memories)).toBe(true);
     expect(res.memories.length).toBe(1);
+    expect(res.memories[0]?.space).toBe('Credentials');
+    expect((res.memories[0] as Record<string, unknown>)?.space_name).toBeUndefined();
   });
 
   test('memory_query should respect limit and offset', async () => {
@@ -654,6 +664,9 @@ describe('MCP Spaces Tools', () => {
     expect(res.space).toBeDefined();
     expect(res.space?.name).toBe('myproject');
     expect(res.space?.description).toBe('My project');
+    expect(res.space?.changed_at).toEqual(expect.any(String));
+    expect((res.space as Record<string, unknown>)?.created_at).toBeUndefined();
+    expect((res.space as Record<string, unknown>)?.updated_at).toBeUndefined();
     expect((res as any).structuredContent?.space?.name).toBe('myproject');
   });
 
@@ -671,12 +684,33 @@ describe('MCP Spaces Tools', () => {
   test('space_get should return space details', async () => {
     store = createTestStore();
     store.createSpace('myproject', 'My project', ['test']);
+    await store.addMemory('myproject', 'preview', 'Preview content', {
+      tier: 1,
+      tags: ['cat:decision'],
+    });
 
     const tools = createSpaceTools(store);
     const res = await tools.space_get.handler({ name: 'myproject' });
 
     expect(res.space).toBeDefined();
     expect(res.space?.name).toBe('myproject');
+    expect(res.space?.changed_at).toEqual(expect.any(String));
+    expect((res.space as Record<string, unknown>)?.created_at).toBeUndefined();
+    expect((res.space as Record<string, unknown>)?.updated_at).toBeUndefined();
+    expect(res.overview).toEqual({
+      total_memories: 1,
+      active_checkpoints: 0,
+      by_tier: [
+        { tier: 1, count: 1, pinned: 0 },
+        { tier: 2, count: 0, pinned: 0 },
+        { tier: 3, count: 0, pinned: 0 },
+      ],
+    });
+    expect(res.trending_memories.tier_1.memories[0]?.changed_at).toEqual(expect.any(String));
+    expect(
+      (res.trending_memories.tier_1.memories[0] as Record<string, unknown>)?.updated_at
+    ).toBeUndefined();
+    expect(res.active_checkpoints).toEqual({ total: 0, checkpoints: [] });
   });
 
   test('space_update should update description', async () => {

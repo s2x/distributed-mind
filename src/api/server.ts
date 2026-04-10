@@ -7,8 +7,12 @@ import { createSqliteStore } from '../store/sqlite-store';
 
 import { matchApiRoute } from './router';
 
+export function getWebRootPath(): string {
+  return path.resolve(import.meta.dir, '..', '..', 'web');
+}
+
 function resolveStaticFile(pathname: string): Response {
-  const webRoot = path.join(import.meta.dir, '..', '..', '..', 'web');
+  const webRoot = getWebRootPath();
   const publicDir = path.join(webRoot, 'public');
 
   if (pathname === '/') {
@@ -45,6 +49,14 @@ function resolveStaticFile(pathname: string): Response {
   });
 }
 
+export async function handleRequest(req: Request, store: MindStore): Promise<Response> {
+  const matched = await matchApiRoute(req, store);
+  if (matched) return matched;
+
+  const url = new URL(req.url);
+  return resolveStaticFile(url.pathname);
+}
+
 export async function runApiServer(port?: number, existingStore?: MindStore): Promise<void> {
   const httpPort = port ?? Number(process.env.MIND_PORT ?? CONFIG.defaultPort);
   const idleTimeout = Number(process.env.MIND_API_IDLE_TIMEOUT ?? 30);
@@ -62,11 +74,7 @@ export async function runApiServer(port?: number, existingStore?: MindStore): Pr
     idleTimeout,
     async fetch(req) {
       try {
-        const matched = await matchApiRoute(req, store);
-        if (matched) return matched;
-
-        const url = new URL(req.url);
-        return resolveStaticFile(url.pathname);
+        return await handleRequest(req, store);
       } catch (e: any) {
         return Response.json({ error: e.message }, { status: 500 });
       }

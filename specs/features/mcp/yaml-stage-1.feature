@@ -1,12 +1,12 @@
 @delta-added @mcp @product/mcp-yaml
 Feature: MCP YAML content stage 1
 
-  Scenario: Structured MCP tools return one raw YAML content item matching structuredContent
+  Scenario: Structured MCP tools serialize normalized structuredContent as one raw YAML content item
     Given an in-scope structured MCP tool response
-    When the tool returns both content and structuredContent
+    When the tool normalizes the structured MCP payload before YAML serialization
     Then content contains exactly one text item
     And that text item is raw YAML
-    And parsing that YAML yields the same payload as structuredContent
+    And parsing that YAML yields exactly structuredContent
 
   Scenario: checkpoint_query missing-space responses include an explicit error field
     Given the requested project space does not exist

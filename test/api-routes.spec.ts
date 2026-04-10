@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { matchApiRoute } from '../src/api/router';
+import { handleRequest } from '../src/api/server';
 import type { MindStore } from '../src/store/mind-store';
 
 import { createTestStore } from './mocks/test-store';
@@ -16,6 +17,11 @@ async function requestJson(path: string): Promise<any> {
   const res = await matchApiRoute(req, store);
   if (!res) throw new Error('Route not matched');
   return res.json();
+}
+
+async function requestThroughServer(path: string): Promise<Response> {
+  const req = new Request(`http://localhost${path}`, { method: 'GET' });
+  return handleRequest(req, store);
 }
 
 describe('API Routes — Space Graph', () => {
@@ -185,5 +191,62 @@ describe('API Routes — Logs', () => {
     expect(filteredTestLogs.length).toBe(2);
     expect(filteredTestLogs[0]!.operation).toBe('test_log_2');
     expect(filteredTestLogs[1]!.operation).toBe('test_log_3');
+  });
+});
+
+describe('API Server — Static web root resolution', () => {
+  test('GET / returns the SPA shell HTML', async () => {
+    store = createTestStore();
+
+    const response = await requestThroughServer('/');
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(body).toContain('<!doctype html>');
+    expect(body).toContain('<div id="app">');
+    expect(body).not.toContain('ENOENT');
+  });
+
+  test('deep routes fall back to the SPA shell HTML', async () => {
+    store = createTestStore();
+
+    const response = await requestThroughServer('/spaces/test?view=list');
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(body).toContain('<!doctype html>');
+    expect(body).toContain('<title>Mind</title>');
+  });
+
+  test.each([
+    ['/styles/main.css', 'text/css', "@import url('/styles/tokens.css');"],
+    ['/assets/logo.svg', 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg"'],
+    ['/src/app.js', 'application/javascript', "import { api } from './api/client.js';"],
+  ])(
+    'static asset %s resolves from the repo-local web directory',
+    async (pathname, type, snippet) => {
+      store = createTestStore();
+
+      const response = await requestThroughServer(pathname);
+      const body = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain(type);
+      expect(body).toContain(snippet);
+    }
+  );
+
+  test('API routes remain routed before static fallback', async () => {
+    store = createTestStore();
+
+    const response = await requestThroughServer('/api/status');
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(payload.total_spaces).toBe(0);
+    expect(payload.total_memories).toBe(0);
   });
 });

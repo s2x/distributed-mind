@@ -43,10 +43,14 @@ Feature: MCP Spaces Tools
       Then the response includes description
       And the response includes tags
 
-    Scenario: space.get includes hot_memories preview
-      Given a space with T1 and T2 memories
+    Scenario: space.get returns an orientation summary
+      Given a space with memories in tiers 1, 2, and 3
+      And the space has an active checkpoint
       When calling space_get with name "test"
-      Then the response includes hot_memories (T1 + T2)
+      Then the response includes overview counts
+      And the response includes trending_memories grouped into tier_1, tier_2, and tier_3
+      And each trending tier block includes total_count returned_count coverage and memories
+      And the response includes plural active_checkpoints
 
     Scenario: space.get for non-existent space throws
       When calling space_get with name "nonexistent"
@@ -68,6 +72,28 @@ Feature: MCP Spaces Tools
       Given a space "test" is visible
       When calling space_update with name "test" hidden true
       Then the space is hidden
+
+    Scenario: space.create, space.get, and space.update expose normalized space payloads
+      Given a space "test" has memories in tiers 1 and 2
+      When calling space_create with name "projects/normalized" description "Normalized" tags ["type:project"]
+      Then the response space exposes changed_at
+      And the response space does not expose created_at
+      And the response space does not expose updated_at
+      When calling space_get with name "test"
+      Then the response space exposes changed_at
+      And the response space does not expose created_at
+      And the response space does not expose updated_at
+      And each trending_memories item does not expose id
+      And each trending_memories item exposes changed_at
+      And each trending_memories item does not expose access_count
+      And each trending_memories item does not expose last_accessed_at
+      And each trending_memories item does not expose updated_at
+      And each trending tier block includes coverage
+      And active_checkpoints is returned as a plural collection
+      When calling space_update with name "test" description "normalized description"
+      Then the response space exposes changed_at
+      And the response space does not expose created_at
+      And the response space does not expose updated_at
 
   Rule: space.delete tool
 

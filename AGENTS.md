@@ -126,7 +126,7 @@ Neural Map API/UI touchpoints:
 - **Cursor setup behavior:** `mind setup cursor` deep-merges `~/.cursor/mcp.json` for L1 MCP and configures global managed L3 hooks in `~/.cursor/hooks.json` (events: `sessionStart`, `preCompact`, `stop`) backed by an executable managed script at `~/.cursor/hooks/mind-session-continuity.sh`. Hook setup deduplicates dirty managed entries on reruns and remains non-blocking with explicit safe fallback messaging.
 - **Codex setup behavior:** `mind setup codex` appends (if missing) a local MCP stanza in `~/.codex/config.toml` with `command = "<path-to-mind>"` and `args = ["mcp"]` (stdio/local transport, no forced HTTP args), and upserts a managed protocol block in `~/.codex/AGENTS.md` non-destructively. Reruns collapse duplicate managed blocks and remove known legacy per-agent protocol files.
 - **Protocol sources:** Setup L2 managed protocol payloads for OpenCode/Claude/Codex are rendered from the canonical template `src/resources/protocols/mind-memory-protocol.template.md` using `src/helpers/template-renderer.ts` and `src/cli/memory-protocol.ts`. MCP `system_instructions` is rendered through the same canonical template pipeline by `src/cli/system-instructions.ts` from `src/resources/protocols/mind-system-instructions.md` (empty-context render for deterministic text output). The template renderer operates in strict mode: unresolved placeholders/conditionals (or leftover template tokens) throw errors for all render paths.
-- **MCP YAML stage 1:** Structured MCP tools now return one raw YAML text item serialized directly from the same payload exposed via `structuredContent`. This is built through `src/mcp/helpers/yaml-response.ts` (not hidden in `src/mcp/server.ts`). Stage-1 exclusions remain text-only: `system_instructions`, `space_delete`, `memory_delete`, `link_create`, and `link_delete`. `checkpoint_query` includes an explicit `error` field (`null` on success, `{ code, message }` on soft error), returns full `pending` text without preview truncation, and both memory/checkpoint MCP payloads now rely on `changed_at` instead of exposing `created_at` / `updated_at`.
+- **MCP YAML stage 1:** Structured MCP tools now return one raw YAML text item serialized directly from the same payload exposed via `structuredContent`. This is built through `src/mcp/helpers/yaml-response.ts` (not hidden in `src/mcp/server.ts`). Stage-1 exclusions remain text-only: `system_instructions`, `space_delete`, `memory_delete`, `link_create`, and `link_delete`. `checkpoint_query` includes an explicit `error` field (`null` on success, `{ code, message }` on soft error), returns full `pending` text without preview truncation, memory/checkpoint MCP payloads rely on `changed_at` instead of exposing `created_at` / `updated_at`, memory MCP payloads also omit `access_count` / `last_accessed_at`, and `space_get` now returns an orientation summary with `overview`, changed-at `trending_memories` blocks per tier, and plural `active_checkpoints` whose checkpoint items reuse the `checkpoint_query` shape.
 - **Testing:** Backend/CLI tests live in `test/`. Web-specific tests live in `web/test/`. Both use `bun:test` and rely on:
   - **`test-store.ts`** (`test/mocks/test-store.ts`): creates a temporary SQLite DB in `/tmp/` per test instance; returns `{ store, cleanup }`.
   - **`mocked-logger.ts`** (`test/mocks/mocked-logger.ts`): captures `logInfo`/`logError` for assertions.
@@ -298,13 +298,13 @@ The MCP server exposes 18 tools for agent integration:
 
 #### Spaces (5 tools)
 
-| Tool           | Description                                               |
-| -------------- | --------------------------------------------------------- |
-| `space_create` | Create a new space (requires `tags`)                      |
-| `space_list`   | List all spaces                                           |
-| `space_get`    | Get a space by name; returns hot memories preview (T1+T2) |
-| `space_update` | Update a space description                                |
-| `space_delete` | Delete a space and all its memories                       |
+| Tool           | Description                                                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `space_create` | Create a new space (requires `tags`)                                                                                                   |
+| `space_list`   | List all spaces                                                                                                                        |
+| `space_get`    | Get a space by name; returns an orientation summary with overview counts, changed-at trending memories by tier, and active checkpoints |
+| `space_update` | Update a space description                                                                                                             |
+| `space_delete` | Delete a space and all its memories                                                                                                    |
 
 #### Memories (4 tools)
 

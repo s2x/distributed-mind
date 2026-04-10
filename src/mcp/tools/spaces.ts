@@ -15,7 +15,8 @@ const SPACE_TOOL_DESCRIPTIONS: Record<string, string> = {
   space_create:
     'Create a new space with required tags. Use hierarchical names: projects/<repo>, user/preferences, sessions/<repo>.',
   space_list: 'List all spaces, optionally filtered by tag.',
-  space_get: 'Get space details, tags, and hot memories preview (T1+T2, excludes checkpoints).',
+  space_get:
+    'Get a space orientation summary with overview counts, changed-at trending memories by tier, and active checkpoints.',
   space_update: 'Update a space description and/or replace its tags.',
   space_delete: 'Permanently delete a space and ALL its memories, links, and checkpoints.',
 };

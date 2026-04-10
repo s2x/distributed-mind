@@ -1,6 +1,15 @@
 import type { MindStore } from '../../../store/mind-store';
+import {
+  applyCheckpointSortAndPagination,
+  fetchAllCheckpointMemories,
+  fetchCheckpointSummaries,
+} from '../../helpers/checkpoint-query';
+import { presentSpaceResponse } from '../../helpers/memory-response';
+import { buildTrendingTierBlock } from '../../helpers/space-orientation';
 import { buildYamlContent } from '../../helpers/yaml-response';
 import { SpaceGetSchema } from '../../schemas/spaces/get-space';
+
+const TRENDING_PREVIEW_LIMIT = 5;
 
 export function getSpaceHandler(store: MindStore) {
   return async (args: unknown) => {
@@ -14,14 +23,42 @@ export function getSpaceHandler(store: MindStore) {
       throw new Error(`Space "${parsed.name}" does not exist.`);
     }
 
-    const hot_memories = store
-      .getHotMemories(parsed.name)
-      .filter(memory => !memory.tags?.includes('checkpoint'))
-      .map(({ id: _id, ...rest }) => rest);
+    const [tier1, tier2, tier3, checkpointMemories] = await Promise.all([
+      buildTrendingTierBlock(store, parsed.name, 1, TRENDING_PREVIEW_LIMIT),
+      buildTrendingTierBlock(store, parsed.name, 2, TRENDING_PREVIEW_LIMIT),
+      buildTrendingTierBlock(store, parsed.name, 3, TRENDING_PREVIEW_LIMIT),
+      fetchAllCheckpointMemories(store, parsed.name),
+    ]);
+
+    const activeCheckpointMemories = checkpointMemories.filter(memory =>
+      memory.tags.includes('active')
+    );
+    const { items: sortedActiveCheckpoints, total: activeCheckpointTotal } =
+      applyCheckpointSortAndPagination(
+        activeCheckpointMemories,
+        0,
+        Math.max(activeCheckpointMemories.length, 1)
+      );
+    const activeCheckpoints = await fetchCheckpointSummaries(store, sortedActiveCheckpoints);
+
+    const status = store.getStatus(parsed.name);
 
     return buildYamlContent({
-      space,
-      hot_memories,
+      space: presentSpaceResponse(space),
+      overview: {
+        total_memories: status.total_memories,
+        active_checkpoints: activeCheckpointTotal,
+        by_tier: status.by_tier,
+      },
+      trending_memories: {
+        tier_1: tier1,
+        tier_2: tier2,
+        tier_3: tier3,
+      },
+      active_checkpoints: {
+        total: activeCheckpointTotal,
+        checkpoints: activeCheckpoints,
+      },
     });
   };
 }

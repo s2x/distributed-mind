@@ -1,4 +1,5 @@
 import type { MindStore } from '../../../store/mind-store';
+import { presentSpaceResponse } from '../../helpers/memory-response';
 import { buildYamlContent } from '../../helpers/yaml-response';
 import { SpaceUpdateSchema } from '../../schemas/spaces/update-space';
 
@@ -34,7 +35,7 @@ export function updateSpaceHandler(store: MindStore) {
 
     const space = store.getSpace(parsed.name);
     return buildYamlContent({
-      space,
+      space: space ? presentSpaceResponse(space) : undefined,
     });
   };
 }

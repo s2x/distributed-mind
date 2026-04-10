@@ -71,6 +71,11 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
       expect(
         ((parseYaml(res.content[0]!.text) as { memory?: Record<string, unknown> }).memory ?? {}).id
       ).toBeUndefined();
+      expect(res.memory?.space).toBe('test-space');
+      expect((res.memory as Record<string, unknown>)?.space_name).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.access_count).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.last_accessed_at).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.embedding).toBeUndefined();
       expect(res.memory?.changed_at).toEqual(expect.any(String));
       expect((res.memory as Record<string, unknown>)?.created_at).toBeUndefined();
       expect((res.memory as Record<string, unknown>)?.updated_at).toBeUndefined();
@@ -99,6 +104,13 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         noPromote: true,
       });
 
+      expect(res.memory?.space).toBe('test-space');
+      expect((res.memory as Record<string, unknown>)?.space_name).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.access_count).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.last_accessed_at).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.embedding).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.created_at).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.updated_at).toBeUndefined();
       expect(res.links_to).toBeDefined();
       expect(Array.isArray(res.links_to)).toBe(true);
       expect(res.linked_by).toBeDefined();
@@ -281,6 +293,28 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
       const updated = store.getMemory('test-space', 'my-memory');
       expect(updated?.content).toBe('New content');
       expect((res as any).structuredContent?.memory?.content).toBe('New content');
+      expect(res.memory?.space).toBe('test-space');
+      expect((res.memory as Record<string, unknown>)?.space_name).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.access_count).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.last_accessed_at).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.embedding).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.created_at).toBeUndefined();
+      expect((res.memory as Record<string, unknown>)?.updated_at).toBeUndefined();
+      expect(res.memory?.changed_at).toEqual(expect.any(String));
+    });
+  });
+
+  describe('memory.query — MCP payload cleanup', () => {
+    test('memory.query omits access-based internal fields', async () => {
+      await store.addMemory('test-space', 'query-memory', 'Content', { tags: ['test'] });
+
+      const tools = createMemoryTools(store);
+      const res = await tools.memory_query.handler({ space: 'test-space', limit: 10, offset: 0 });
+
+      expect(res.memories).toHaveLength(1);
+      expect(res.memories[0]?.changed_at).toEqual(expect.any(String));
+      expect((res.memories[0] as Record<string, unknown>)?.access_count).toBeUndefined();
+      expect((res.memories[0] as Record<string, unknown>)?.last_accessed_at).toBeUndefined();
     });
   });
 

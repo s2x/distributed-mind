@@ -49,12 +49,16 @@ Feature: MCP Memory Tools
       When calling memory_read with space "test-space" name "mem1"
       Then the memory tier becomes 1
       And access_count is incremented
+      And the response does not expose access_count
+      And the response does not expose last_accessed_at
 
     Scenario: memory.read with noPromote=true
       Given a memory "mem1" in tier 2
       When calling memory_read with space "test-space" name "mem1" noPromote true
       Then the memory stays in tier 2
       And access_count is not incremented
+      And the response does not expose access_count
+      And the response does not expose last_accessed_at
 
     Scenario: memory.read returns links_to and linked_by
       Given a link from "mem1" to "mem2"
@@ -80,6 +84,35 @@ Feature: MCP Memory Tools
     Scenario: memory.update with tags replaces tags
       When calling memory_update with space "test-space" name "mem1" tags ["cat:bugfix"]
       Then the memory tags are replaced
+
+    Scenario: memory.add, memory.read, and memory.update expose normalized memory payloads
+      When calling memory_add with space "test-space" name "normalized" content "content" tags ["cat:decision"]
+      Then the response exposes space "test-space"
+      And the response does not expose space_name
+      And the response does not expose access_count
+      And the response does not expose last_accessed_at
+      And the response does not expose embedding
+      And the response exposes changed_at
+      And the response does not expose created_at
+      And the response does not expose updated_at
+      When calling memory_read with space "test-space" name "normalized"
+      Then the response exposes space "test-space"
+      And the response does not expose space_name
+      And the response does not expose access_count
+      And the response does not expose last_accessed_at
+      And the response does not expose embedding
+      And the response exposes changed_at
+      And the response does not expose created_at
+      And the response does not expose updated_at
+      When calling memory_update with space "test-space" name "normalized" content "updated content"
+      Then the response exposes space "test-space"
+      And the response does not expose space_name
+      And the response does not expose access_count
+      And the response does not expose last_accessed_at
+      And the response does not expose embedding
+      And the response exposes changed_at
+      And the response does not expose created_at
+      And the response does not expose updated_at
 
   Rule: memory.delete tool
 

@@ -40,6 +40,10 @@ Example:
 
 ### Changed
 
+- MCP `space_get` now returns an orientation summary with overview counts,
+  changed-at trending memories per tier, and plural `active_checkpoints` that
+  reuse the `checkpoint_query` item shape.
+- MCP memory payloads no longer expose `access_count` or `last_accessed_at`.
 - Refactored internal MCP module layout so tool declarations stay in `src/mcp/tools/`, endpoint handlers/schemas are split into `src/mcp/handlers/` and `src/mcp/schemas/`, and shared MCP helpers now live under `src/mcp/helpers/` with no public contract change.
 - MCP structured tools in stage 1 now emit a single raw YAML text item that is serialized directly from the structured payload, and `checkpoint_query` now includes an explicit `error` field for soft-error responses.
 - MCP `memory_query.tier` now accepts `null` to mean “all tiers”, and the generated MCP input schema documents that behavior explicitly.
@@ -71,6 +75,7 @@ Example:
 
 ### Fixed
 
+- Fixed repo-local path resolution for the web server static assets and `mind update` after the `src/` layout move, restoring SPA shell and asset loading.
 - Claude Code MCP config schema (was causing "Does not adhere to MCP server configuration schema" error)
 - Deep merge for claude-code fallback config (preserves existing config in ~/.claude/settings.json)
 

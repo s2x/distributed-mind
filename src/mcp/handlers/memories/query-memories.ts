@@ -1,5 +1,6 @@
 import type { MindStore } from '../../../store/mind-store';
 import type { Tier } from '../../../types';
+import { presentMemoryResponse } from '../../helpers/memory-response';
 import { buildYamlContent } from '../../helpers/yaml-response';
 import { MemoryQuerySchema } from '../../schemas/memories/query-memories';
 
@@ -48,7 +49,7 @@ function buildMemoryQueryResponse(
         created_at: _created_at,
         updated_at: _updated_at,
         ...rest
-      }: any) => rest
+      }: any) => presentMemoryResponse(rest)
     ),
     total: totalCount,
     limit: parsed.limit ?? 25,

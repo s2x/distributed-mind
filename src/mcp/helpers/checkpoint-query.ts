@@ -1,3 +1,4 @@
+import { fetchCheckpointContent } from '../../helpers/checkpoint-content';
 import type { MindStore } from '../../store/mind-store';
 import type { MemorySummary } from '../../types';
 
@@ -59,27 +60,23 @@ export async function fetchCheckpointSummaries(
   store: MindStore,
   checkpoints: MemorySummary[]
 ): Promise<CheckpointSummary[]> {
-  return Promise.all(
-    checkpoints.map(memory => {
-      const full = store.getMemoryById(memory.id);
-      let parsedContent: { goal?: string; pending?: string } = {};
-      if (full?.content) {
-        try {
-          parsedContent = JSON.parse(full.content);
-        } catch {
-          // Ignore parse errors
-        }
-      }
-      const pending = String(parsedContent.pending ?? '');
-      return {
-        name: memory.name,
-        goal: parsedContent.goal ?? '',
-        pending,
-        changed_at: memory.changed_at,
-        tags: memory.tags,
-      };
-    })
-  );
+  return Promise.all(checkpoints.map(memory => buildCheckpointSummary(store, memory)));
+}
+
+export async function buildCheckpointSummary(
+  store: MindStore,
+  memory: MemorySummary
+): Promise<CheckpointSummary> {
+  const full = store.getMemoryById(memory.id);
+  const parsedContent = full ? fetchCheckpointContent(full) : null;
+
+  return {
+    name: memory.name,
+    goal: parsedContent?.goal ?? '',
+    pending: parsedContent?.pending ?? '',
+    changed_at: memory.changed_at,
+    tags: memory.tags,
+  };
 }
 
 export async function fetchAllCheckpointMemories(

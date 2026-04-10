@@ -51,3 +51,15 @@ Feature: MCP Search Tools
     Scenario: memory.query supports date range
       When calling memory_query with space "projects/mind" from "2024-01-01" to "2024-12-31"
       Then only memories within date range are returned
+
+    Scenario: memory.query result items expose normalized memory payloads
+      When calling memory_query with space "projects/mind"
+      Then each result item exposes space
+      And each result item does not expose space_name
+      And each result item does not expose access_count
+      And each result item does not expose last_accessed_at
+      And each result item does not expose embedding
+      And each result item exposes changed_at
+      And each result item does not expose created_at
+      And each result item does not expose updated_at
+      And search_method behavior remains unchanged

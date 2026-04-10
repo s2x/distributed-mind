@@ -1,4 +1,5 @@
 import type { MindStore } from '../../../store/mind-store';
+import { presentSpaceResponse } from '../../helpers/memory-response';
 import { buildYamlContent } from '../../helpers/yaml-response';
 import { SpaceCreateSchema } from '../../schemas/spaces/create-space';
 
@@ -22,7 +23,7 @@ export function createSpaceHandler(store: MindStore) {
     store.createSpace(parsed.name, parsed.description, parsed.tags);
     const space = store.getSpace(parsed.name);
     return buildYamlContent({
-      space,
+      space: space ? presentSpaceResponse(space) : undefined,
     });
   };
 }

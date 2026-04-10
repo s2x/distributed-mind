@@ -7,15 +7,15 @@ interface ReleaseInfo {
 
 const DEFAULT_REPO = 'GabrielMartinMoran/mind';
 
-function getRootPath(): string {
-  return path.resolve(import.meta.dir, '..', '..', '..');
+export function getRootPath(): string {
+  return path.resolve(import.meta.dir, '..', '..');
 }
 
-function getInstallerPath(): string {
+export function getInstallerPath(): string {
   return path.join(getRootPath(), 'scripts', 'install.sh');
 }
 
-function getCurrentVersion(): string {
+export function getCurrentVersion(): string {
   const packageJsonPath = path.join(getRootPath(), 'package.json');
   const raw = fs.readFileSync(packageJsonPath, 'utf-8');
   const pkg = JSON.parse(raw) as { version?: string };

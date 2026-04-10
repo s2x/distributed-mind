@@ -1,7 +1,7 @@
 import { resolveRefWithFallback } from '../../../helpers/memory-ref-resolver';
 import type { MindStore } from '../../../store/mind-store';
 import type { Tier } from '../../../types';
-import { stripMemoryResponseFields } from '../../helpers/memory-response';
+import { presentMemoryResponse } from '../../helpers/memory-response';
 import { buildYamlContent } from '../../helpers/yaml-response';
 import { MemoryAddSchema } from '../../schemas/memories/add-memory';
 
@@ -56,7 +56,7 @@ export function addMemoryHandler(store: MindStore) {
     });
 
     return buildYamlContent({
-      memory: stripMemoryResponseFields(memory),
+      memory: presentMemoryResponse(memory),
       links_created: linksCreated,
       links_failed: linksFailed,
     });

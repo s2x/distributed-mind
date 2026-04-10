@@ -1,5 +1,5 @@
 import type { MindStore } from '../../../store/mind-store';
-import { stripMemoryResponseFields } from '../../helpers/memory-response';
+import { presentMemoryResponse } from '../../helpers/memory-response';
 import { buildYamlContent } from '../../helpers/yaml-response';
 import { MemoryUpdateSchema } from '../../schemas/memories/update-memory';
 
@@ -28,7 +28,7 @@ export function updateMemoryHandler(store: MindStore) {
 
     const memory = store.getMemoryById(existing.id);
     return buildYamlContent({
-      memory: memory ? stripMemoryResponseFields(memory) : undefined,
+      memory: memory ? presentMemoryResponse(memory) : undefined,
     });
   };
 }

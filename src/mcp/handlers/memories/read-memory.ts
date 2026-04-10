@@ -1,7 +1,7 @@
 import { mapLinkedSummariesToLinksFormat } from '../../../helpers/link-building';
 import type { MindStore } from '../../../store/mind-store';
 import type { Tier } from '../../../types';
-import { stripMemoryResponseFields } from '../../helpers/memory-response';
+import { presentMemoryResponse } from '../../helpers/memory-response';
 import { buildYamlContent } from '../../helpers/yaml-response';
 import { MemoryReadSchema } from '../../schemas/memories/read-memory';
 
@@ -42,7 +42,7 @@ export function readMemoryHandler(store: MindStore) {
       const { links_to, linked_by } = mapLinkedSummariesToLinksFormat(linkedSummaries);
 
       return buildYamlContent({
-        memory: stripMemoryResponseFields(memory),
+        memory: presentMemoryResponse(memory),
         links_to,
         linked_by,
         tier_change: null,
@@ -62,7 +62,7 @@ export function readMemoryHandler(store: MindStore) {
     const { links_to, linked_by } = mapLinkedSummariesToLinksFormat(linkedSummaries);
 
     return buildYamlContent({
-      memory: updatedMemory ? stripMemoryResponseFields(updatedMemory) : undefined,
+      memory: updatedMemory ? presentMemoryResponse(updatedMemory) : undefined,
       links_to,
       linked_by,
       tier_change,

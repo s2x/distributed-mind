@@ -55,29 +55,79 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
 
       expect(res.space?.tags).toContain('type:project');
       expect((res as any).structuredContent?.space?.name).toBe('myproject');
+      expect(res.space?.changed_at).toEqual(expect.any(String));
+      expect((res.space as Record<string, unknown>)?.created_at).toBeUndefined();
+      expect((res.space as Record<string, unknown>)?.updated_at).toBeUndefined();
     });
   });
 
-  describe('space.get — +hot_memories preview', () => {
-    test('2.1.3 space.get returns hot_memories array with all T1 + T2', async () => {
+  describe('space.get — orientation summary', () => {
+    test('2.1.3 space.get returns overview counts, per-tier trending memories, and active_checkpoints', async () => {
       store = createTestStore();
       store.createSpace('myproject', 'My project', ['test']);
-      // Add T1 memory
-      await store.addMemory('myproject', 'hot1', 'hot content', { tier: 1, tags: ['test'] });
-      // Add T2 memory (default)
+      await store.addMemory('myproject', 'hot-old', 'hot content', { tier: 1, tags: ['test'] });
+      await store.addMemory('myproject', 'hot-new', 'newer hot content', {
+        tier: 1,
+        tags: ['test'],
+      });
       await store.addMemory('myproject', 'warm1', 'warm content', { tier: 2, tags: ['test'] });
-      // Add T3 memory (should NOT appear in hot_memories)
       await store.addMemory('myproject', 'cold1', 'cold content', { tier: 3, tags: ['test'] });
+      await store.addMemory(
+        'myproject',
+        'checkpoint-1',
+        JSON.stringify({ goal: 'Ship summary', pending: 'Keep parity', notes: '' }),
+        { tier: 1, tags: ['checkpoint', 'active'] }
+      );
 
       const tools = createSpaceTools(store);
       const res = await tools.space_get.handler({ name: 'myproject' });
 
-      expect(res.hot_memories).toBeDefined();
-      expect(Array.isArray(res.hot_memories)).toBe(true);
-      expect(res.hot_memories.length).toBe(2);
+      expect(res.overview).toEqual({
+        total_memories: 5,
+        active_checkpoints: 1,
+        by_tier: [
+          { tier: 1, count: 3, pinned: 0 },
+          { tier: 2, count: 1, pinned: 0 },
+          { tier: 3, count: 1, pinned: 0 },
+        ],
+      });
+
+      expect(res.trending_memories.tier_1).toEqual({
+        total_count: 2,
+        returned_count: 2,
+        coverage: 'complete',
+        memories: [
+          expect.objectContaining({ name: 'hot-new', tier: 1 }),
+          expect.objectContaining({ name: 'hot-old', tier: 1 }),
+        ],
+      });
+      expect(res.trending_memories.tier_2).toEqual({
+        total_count: 1,
+        returned_count: 1,
+        coverage: 'complete',
+        memories: [expect.objectContaining({ name: 'warm1', tier: 2 })],
+      });
+      expect(res.trending_memories.tier_3).toEqual({
+        total_count: 1,
+        returned_count: 1,
+        coverage: 'complete',
+        memories: [expect.objectContaining({ name: 'cold1', tier: 3 })],
+      });
+
+      expect(res.active_checkpoints.total).toBe(1);
+      expect(res.active_checkpoints.checkpoints).toHaveLength(1);
+      expect(res.active_checkpoints.checkpoints[0]).toEqual(
+        expect.objectContaining({
+          name: 'checkpoint-1',
+          goal: 'Ship summary',
+          pending: 'Keep parity',
+          changed_at: expect.any(String),
+          tags: expect.arrayContaining(['checkpoint', 'active']),
+        })
+      );
     });
 
-    test('2.1.4 space.get hot_memories includes {name, tier, tags, pinned, updated_at} (no id)', async () => {
+    test('2.1.4 space.get trending tier blocks exclude checkpoint-tagged memories and internal access fields', async () => {
       store = createTestStore();
       store.createSpace('myproject', 'My project', ['test']);
       await store.addMemory('myproject', 'hot1', 'hot content', {
@@ -85,29 +135,78 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
         tags: ['cat:decision'],
         pinned: true,
       });
+      await store.addMemory(
+        'myproject',
+        'checkpoint-1',
+        JSON.stringify({ goal: 'Ship summary', pending: 'Keep parity', notes: '' }),
+        { tier: 1, tags: ['checkpoint', 'active'] }
+      );
 
       const tools = createSpaceTools(store);
       const res = await tools.space_get.handler({ name: 'myproject' });
 
-      const hot = res.hot_memories[0];
+      const hot = res.trending_memories.tier_1.memories[0];
       expect(hot).toBeDefined();
+      expect(res.active_checkpoints.checkpoints).toHaveLength(1);
+      expect(res.space?.changed_at).toEqual(expect.any(String));
+      expect((res.space as Record<string, unknown>)?.created_at).toBeUndefined();
+      expect((res.space as Record<string, unknown>)?.updated_at).toBeUndefined();
       expect((hot as any).id).toBeUndefined();
       expect(hot!.name).toBe('hot1');
       expect(hot!.tier).toBe(1);
       expect(hot!.tags).toContain('cat:decision');
       expect(hot!.pinned).toBe(true);
-      expect(typeof hot!.updated_at).toBe('string');
+      expect(typeof hot!.changed_at).toBe('string');
+      expect((hot as Record<string, unknown>)?.access_count).toBeUndefined();
+      expect((hot as Record<string, unknown>)?.last_accessed_at).toBeUndefined();
+      expect((hot as Record<string, unknown>)?.updated_at).toBeUndefined();
     });
 
-    test('space.get returns hot_memories empty when no hot memories', async () => {
+    test('space.get marks empty tiers as complete coverage', async () => {
       store = createTestStore();
       store.createSpace('myproject', 'My project', ['test']);
 
       const tools = createSpaceTools(store);
       const res = await tools.space_get.handler({ name: 'myproject' });
 
-      expect(res.hot_memories).toBeDefined();
-      expect(res.hot_memories.length).toBe(0);
+      expect(res.trending_memories.tier_1).toEqual({
+        total_count: 0,
+        returned_count: 0,
+        coverage: 'complete',
+        memories: [],
+      });
+      expect(res.trending_memories.tier_2).toEqual({
+        total_count: 0,
+        returned_count: 0,
+        coverage: 'complete',
+        memories: [],
+      });
+      expect(res.trending_memories.tier_3).toEqual({
+        total_count: 0,
+        returned_count: 0,
+        coverage: 'complete',
+        memories: [],
+      });
+      expect(res.active_checkpoints).toEqual({ total: 0, checkpoints: [] });
+    });
+
+    test('space.get marks tier coverage as subset when the preview is truncated', async () => {
+      store = createTestStore();
+      store.createSpace('myproject', 'My project', ['test']);
+
+      for (let index = 0; index < 6; index += 1) {
+        await store.addMemory('myproject', `warm-${index}`, `warm content ${index}`, {
+          tier: 2,
+          tags: ['test'],
+        });
+      }
+
+      const tools = createSpaceTools(store);
+      const res = await tools.space_get.handler({ name: 'myproject' });
+
+      expect(res.trending_memories.tier_2.total_count).toBe(6);
+      expect(res.trending_memories.tier_2.returned_count).toBeLessThan(6);
+      expect(res.trending_memories.tier_2.coverage).toBe('subset');
     });
   });
 
@@ -131,7 +230,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
       store.createSpace('myproject', 'My project', ['type:project', 'cat:decision']);
 
       const tools = createSpaceTools(store);
-      await tools.space_update.handler({
+      const res = await tools.space_update.handler({
         name: 'myproject',
         description: 'Updated description',
       });
@@ -139,6 +238,9 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
       const space = store.getSpace('myproject');
       // Tags order may vary due to DB storage, so sort before comparing
       expect(space?.tags.slice().sort()).toEqual(['cat:decision', 'type:project']);
+      expect(res.space?.changed_at).toEqual(expect.any(String));
+      expect((res.space as Record<string, unknown>)?.created_at).toBeUndefined();
+      expect((res.space as Record<string, unknown>)?.updated_at).toBeUndefined();
     });
 
     test('space.update with empty tags [] clears all tags', async () => {

@@ -269,7 +269,18 @@ Memory MCP workflows also support bounded composite ergonomics while keeping ato
 
 - `memory_add` supports optional `pinned` and `links_to` (best-effort — check `links_failed` in response).
 - `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`name`, `changed_at`, `tier`, `tags`, `pinned`, `ref`). Use `noPromote:true` to read without side effects.
-- Memory MCP payloads use `changed_at` and no longer expose `created_at` or `updated_at`.
+- Memory MCP payloads use `changed_at` and do not expose `access_count`,
+  `last_accessed_at`, `created_at`, or `updated_at`.
+
+`space_get` now returns an orientation summary for one space:
+
+- `overview` with total memory count, active checkpoint count, and per-tier
+  counts
+- `trending_memories` grouped into `tier_1`, `tier_2`, and `tier_3`, ranked by
+  `changed_at`
+- per-tier `coverage` metadata so agents can tell whether each preview is
+  complete or only a subset
+- plural `active_checkpoints` with checkpoint items matching `checkpoint_query`
 
 Checkpoint MCP tools are also available for session continuity:
 

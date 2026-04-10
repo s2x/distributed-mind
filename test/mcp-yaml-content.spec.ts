@@ -34,6 +34,31 @@ function expectYamlParity(response: {
   expect(parseYaml(yamlText)).toEqual(response.structuredContent);
 }
 
+function expectNoBoundaryLeaks(value: unknown) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      expectNoBoundaryLeaks(item);
+    }
+    return;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  expect(record).not.toHaveProperty('embedding');
+  expect(record).not.toHaveProperty('space_name');
+  expect(record).not.toHaveProperty('access_count');
+  expect(record).not.toHaveProperty('last_accessed_at');
+  expect(record).not.toHaveProperty('created_at');
+  expect(record).not.toHaveProperty('updated_at');
+
+  for (const nestedValue of Object.values(record)) {
+    expectNoBoundaryLeaks(nestedValue);
+  }
+}
+
 describe('MCP YAML content stage 1', () => {
   test('in-scope tools return raw YAML content matching structured payloads', async () => {
     store = createTestStore();
@@ -88,6 +113,7 @@ describe('MCP YAML content stage 1', () => {
       noPromote: true,
     });
     expectYamlParity(memoryRead);
+    expectNoBoundaryLeaks(memoryRead.structuredContent);
     expect(memoryRead.structuredContent?.tier_change).toBeNull();
 
     const memoryQuery: any = await memoryTools.memory_query.handler({
@@ -96,6 +122,7 @@ describe('MCP YAML content stage 1', () => {
       offset: 0,
     });
     expectYamlParity(memoryQuery);
+    expectNoBoundaryLeaks(memoryQuery.structuredContent);
     expect(memoryQuery.structuredContent).not.toHaveProperty('search_method');
 
     const checkpointSave = await checkpointTools.checkpoint_save.handler({
@@ -128,6 +155,33 @@ describe('MCP YAML content stage 1', () => {
     );
 
     expectYamlParity(await statusTools.status.handler({ space: 'projects/mind' }));
+  });
+
+  test('in-scope YAML payloads are normalized before serialization', async () => {
+    store = createTestStore();
+    store.createSpace('projects/mind', 'Mind project', ['type:project']);
+
+    const spaceTools = createSpaceTools(store);
+    const memoryTools = createMemoryTools(store);
+
+    const addResponse: any = await memoryTools.memory_add.handler({
+      space: 'projects/mind',
+      name: 'normalized-memory',
+      content: 'Normalized content',
+      tags: ['cat:decision'],
+    });
+    expectYamlParity(addResponse);
+    expectNoBoundaryLeaks(addResponse.structuredContent);
+    expect(addResponse.structuredContent?.memory?.space).toBe('projects/mind');
+    expect(addResponse.structuredContent?.memory?.changed_at).toEqual(expect.any(String));
+
+    const spaceGetResponse: any = await spaceTools.space_get.handler({ name: 'projects/mind' });
+    expectYamlParity(spaceGetResponse);
+    expectNoBoundaryLeaks(spaceGetResponse.structuredContent);
+    expect(spaceGetResponse.structuredContent?.space?.changed_at).toEqual(expect.any(String));
+    expect(
+      spaceGetResponse.structuredContent?.trending_memories?.tier_2?.memories?.[0]?.changed_at
+    ).toEqual(expect.any(String));
   });
 
   test('checkpoint_query reports missing space with explicit error field and YAML parity', async () => {
