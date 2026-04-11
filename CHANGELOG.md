@@ -27,6 +27,58 @@ Example:
 
 ## [Unreleased]
 
+### Added
+
+- `mind setup vscode` - VSCode support with platform-specific MCP config path
+- `mind setup antigravity` - Antigravity support with L1 MCP wiring and skill installation at `~/.gemini/antigravity/`
+- Skill installation for cursor, codex, windsurf, gemini-cli, vscode, antigravity
+
+### Removed
+
+- OpenClaw experimental agent (removed from capability matrix)
+- Kiro roadmap agent (removed entirely from capability matrix)
+
+### Changed
+
+- MCP `space_get` now returns an orientation summary with overview counts,
+  changed-at trending memories per tier, and plural `active_checkpoints` that
+  reuse the `checkpoint_query` item shape.
+- MCP memory payloads no longer expose `access_count` or `last_accessed_at`.
+- Refactored internal MCP module layout so tool declarations stay in `src/mcp/tools/`, endpoint handlers/schemas are split into `src/mcp/handlers/` and `src/mcp/schemas/`, and shared MCP helpers now live under `src/mcp/helpers/` with no public contract change.
+- MCP structured tools in stage 1 now emit a single raw YAML text item that is serialized directly from the structured payload, and `checkpoint_query` now includes an explicit `error` field for soft-error responses.
+- MCP `memory_query.tier` now accepts `null` to mean “all tiers”, and the generated MCP input schema documents that behavior explicitly.
+- MCP checkpoint responses now return full pending/linked-memory data without hidden truncation caps, and memory/checkpoint payloads now expose `changed_at` instead of `created_at` / `updated_at`.
+- Restructured repository: moved cli/src to src/, cli/test to test/
+
+- **Phase 1-6 Refactoring**: Major architectural refactor across phases 1-6:
+  - **Phase 1**: `sqlite-store.ts` decomposed into 6 repositories in `cli/src/store/repositories/`: `SpaceRepository`, `MemoryRepository`, `LinkRepository`, `TagRepository`, `LogRepository`, `SearchRepository`. `sqlite-store.ts` now acts as a thin composition layer.
+  - **Phase 3**: `setup.ts` consolidated — 5 duplicate agent-detection functions merged into 1 canonical helper. Setup flows for all agents now use shared infrastructure.
+  - **Phase 4**: `memories.ts` MCP tool refactored with extracted helpers. Link transformation now uses shared `mapLinkedSummariesToLinksFormat()` from `link-building.ts`.
+  - **Phase 5**: `checkpoint.ts` MCP tool refactored with extracted helpers for content building/fetching and linked memory formatting.
+  - **Phase 6**: CLI `checkpoint.ts` refactored with extracted helpers for `--linked-memories` flag handling and recover response building.
+  - Shared helpers created in `cli/src/helpers/`: `link-building.ts` and `checkpoint-content.ts`.
+- **Phase 2**: Shared helpers for link-building and checkpoint content extraction in `cli/src/helpers/`:
+  - `link-building.ts`: `buildLinkedMemoriesArray()`, `mapLinkedSummariesToLinksFormat()`, `transformLinkedSummary()`
+  - `checkpoint-content.ts`: `buildCheckpointContent()`, `fetchCheckpointContent()`
+  - MCP `checkpoint.ts` and CLI `checkpoint.ts` now delegate to shared helpers (DRY)
+  - MCP `memories.ts` now uses `mapLinkedSummariesToLinksFormat()` for link transformation
+- **Phase 6**: CLI `checkpoint.ts` refactored:
+  - Extracted `linkMemoriesToCheckpoint()` helper for --linked-memories flag handling
+  - Extracted `buildRecoverableCheckpoint()` helper for recover handler response building
+  - `checkpoint set` handler uses `buildCheckpointContent()` (was already used) and `linkMemoriesToCheckpoint()`
+  - `checkpoint recover` handler uses `buildLinkedMemoriesArray()`, `fetchCheckpointContent()`, and `buildRecoverableCheckpoint()`
+  - Reduced CLI checkpoint.ts from 272 to ~283 lines (added helpers; net improvement in maintainability)
+- All agents now use stdio transport (command + args) instead of HTTP (url)
+- `mind setup claude-code` uses official `claude mcp add` CLI when available, falls back to `~/.claude/settings.json`
+- `getMindScriptPath()` now finds bun in common locations ($HOME/.bun/bin, /usr/local/bin, etc.)
+- MCP server config schema: `{type: "stdio", command: path, args: ["mcp"], env: {}}`
+
+### Fixed
+
+- Fixed repo-local path resolution for the web server static assets and `mind update` after the `src/` layout move, restoring SPA shell and asset loading.
+- Claude Code MCP config schema (was causing "Does not adhere to MCP server configuration schema" error)
+- Deep merge for claude-code fallback config (preserves existing config in ~/.claude/settings.json)
+
 ## [1.3.0] - 2026-04-06
 
 ### Changed
@@ -207,7 +259,7 @@ Example:
 - Changed `mind setup codex` MCP args to local stdio command mode (`args = ["mcp"]`) instead of forcing HTTP start flags.
 - Changed `mind setup claude-code` to inject a managed protocol file plus managed block in `~/.claude/CLAUDE.md`, keeping setup idempotent/non-destructive.
 - Added opt-in, non-blocking Claude L3 hook automation behind `MIND_SETUP_CLAUDE_ENABLE_HOOKS=true`, with explicit safe fallback messaging when disabled or unsupported.
-- Added roadmap capability declarations (`vscode`, `antigravity`, `kiro`) to setup matrix output as status-only entries (no setup wiring).
+- Added roadmap capability declarations (`vscode`, `antigravity`) to setup matrix output as status-only entries (no setup wiring).
 - Refactored embedded protocol markdown into canonical files under `cli/src/resources/protocols/` and added shared loader `cli/src/helpers/markdown-resource.ts` for OpenCode/Claude setup injection and MCP `system_instructions` content.
 - Changed `mind setup` matrix listing output to print full per-level status/confidence/evidence/fallback lines for each adapter (not only summarized statuses).
 

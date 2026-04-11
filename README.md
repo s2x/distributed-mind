@@ -1,43 +1,60 @@
 # 🧠 Mind
 
-_**Capture once. Remember forever.**_
+_**Stop losing context across sessions, tools, and time. Give your AI workflow a memory that lasts.**_
 
-Mind is a persistent memory system for developers and AI agents.
+Mind is a local memory layer for AI workflows: a persistent memory system for
+durable context such as decisions, bug fixes, patterns, checkpoints, and
+session summaries that would otherwise disappear across sessions and tools.
 
-It helps you store what matters (decisions, bugfixes, notes, patterns, tasks), organize it, and retrieve it instantly across sessions.
+It supports recovery after compaction through checkpoint and session
+continuity behavior, while giving humans a way to visualize, inspect, and
+modify that memory through the CLI and web UI.
+
+**Why Mind works above the fold:**
+
+- **Local persistent store.** One SQLite-backed memory system you control.
+- **Built for agent workflows.** Use it through the CLI, MCP server, HTTP API,
+  and web UI.
+- **Resumption tools included.** Checkpoints and session summaries help recover
+  context and continue work.
+- **Search when you need it.** Full-text search is built in, and semantic
+  search is available as an optional add-on.
+
+Get started with [Installation](#installation) or jump straight to the
+[Quick start](#quick-start).
 
 ![Mind Preview](./assets/video/web-preview.gif)
 
-## What Is Mind?
+## Why try Mind?
 
-Mind is a Bun + TypeScript project that provides:
+Mind helps you keep durable context organized, retrievable, and usable as work
+moves across tools, sessions, and compaction boundaries.
 
-- a powerful **CLI** for managing long-term memory,
-- an **MCP server** for AI agent integration,
-- and a **web interface + API** for browsing and editing memory visually.
+- **Structured memory you can revisit.** Organize information into spaces,
+  tags, directional links, tiers, pins, checkpoints, and session summaries.
+- **Recovery built into the workflow.** Restore context after compaction,
+  resume work from checkpoints, and keep important state visible over time.
+- **Shared interfaces, one memory layer.** Use the CLI, MCP server, HTTP API,
+  and web app against the same local source of truth.
+- **Per-space visibility with Neural Map.** Each space includes a read-only
+  graph view so you can understand how memories connect without claiming a
+  global knowledge graph.
 
-All data is stored in **SQLite** (`mind.db`) with full-text search (FTS5), tags, links between memories, and a 3-tier memory model (T1 hot, T2 warm, T3 cold unlimited).
+## What is Mind?
 
-## How It Works (High Level)
+Mind is a Bun + TypeScript project that provides a CLI, an MCP server, an HTTP
+API, and a web UI on top of one local SQLite memory store (`mind.db`). It uses
+FTS5 full-text search, metadata filters, tags, links, and a 3-tier memory
+model (T1 hot, T2 warm, T3 cold) to keep saved context useful over
+time.
 
-1. You write memories into named **spaces** (`projects/app`, `user/preferences`, etc).
-2. Mind stores them in SQLite with tags and metadata.
-3. You retrieve them with fast full-text search and filters.
-4. Memories are organized by tier (hot/warm/cold) and can auto-promote based on access.
-5. AI agents can use the same memory via MCP tools.
-
-## Key Features
-
-- **Spaces + Memories**: structured memory namespaces.
-- **3-tier memory model**: T1 hot, T2 warm, T3 cold (unlimited).
-- **Tags + Links**: classify and connect related memories.
-- **Full-text search (FTS5)** across all memories.
-- **Optional semantic search (RAG)** with OpenAI embeddings.
-- **MCP integration** for agent workflows.
-- **Web API + UI** for visual memory management.
-- **Neural Map (MVP)** per space: read-only graph with tier rings, pan/zoom, and on-demand detail fetch.
+If you want semantic search, you can enable optional OpenAI embeddings. They
+are off by default.
 
 ## Installation
+
+You can install Mind quickly and start using it right away. If you want agent
+setup later, jump to [Agent setup](#agent-setup).
 
 ### One-line installer (recommended)
 
@@ -56,17 +73,11 @@ Then run:
 mind help
 ```
 
-Local alternative (same installer, no curl pipe):
-
-```bash
-make install-local
-```
-
 ### Requirements
 
-- [Bun](https://bun.sh/) 1.2+
+- [Bun](https://bun.sh/) 1.2+ (auto installed by the one-line installer if not present)
 
-### Install
+### Install from source
 
 ```bash
 git clone https://github.com/GabrielMartinMoran/mind.git
@@ -74,7 +85,82 @@ cd mind
 bun install
 ```
 
-## Quick Start
+### Quick start
+
+This is the fastest way to see what Mind feels like in practice.
+
+```bash
+# Create a project space
+mind create projects/my-project "My project"
+
+# Add a memory
+mind add projects/my-project architecture "CLI uses command registry + atomic command modules"
+
+# Search across memories
+mind search architecture
+
+# Start the web UI
+mind serve start
+# Open http://localhost:30303
+```
+
+### Agent setup
+
+Mind supports multiple agent integrations, but they are not all equally mature.
+Run `mind setup` without an agent name to see the current capability matrix,
+then configure the specific agent you want.
+
+```bash
+mind setup              # show capability matrix first
+mind setup claude-code
+mind setup opencode
+mind setup cursor
+mind setup codex
+mind setup windsurf
+mind setup gemini-cli
+mind setup vscode
+mind setup antigravity
+```
+
+### Post-install configuration
+
+Most configuration is optional. You only need extra setup if you want to change
+paths, ports, or enable semantic search.
+
+**1. Create your .env file:**
+
+```bash
+cp .env.example .env
+```
+
+Mind ships with a `.env.example` that contains all configurable options. The installer will also do this automatically if `.env` doesn't exist.
+
+**2. Configure environment variables (optional):**
+
+Edit `.env` to customize your setup:
+
+| Variable         | Default   | Description                             |
+| ---------------- | --------- | --------------------------------------- |
+| `MIND_PORT`      | `30303`   | Port for the web server                 |
+| `MIND_DATA_DIR`  | `data/`   | Directory for SQLite database and data  |
+| `MIND_RAG`       | _(empty)_ | Set to `true` to enable semantic search |
+| `OPENAI_API_KEY` | _(empty)_ | Your OpenAI API key (required for RAG)  |
+
+**RAG / semantic search setup:**
+
+To enable AI-powered semantic search:
+
+```bash
+# In .env:
+MIND_RAG=true
+OPENAI_API_KEY=sk-your-key-here
+```
+
+When enabled, memories are embedded using OpenAI's
+`text-embedding-3-small` model and combined with full-text search for hybrid
+retrieval.
+
+## Basic CLI example
 
 ```bash
 mind create projects/mind "Mind project memory"
@@ -170,12 +256,31 @@ Example MCP tool usage (for agents):
 }
 ```
 
-`memory_query` returns structured results including `items` and pagination info (`limit`, `offset`, `nextOffset`). Supports optional `search` for full-text search.
+Stage 1 MCP structured tools now return the same payload in two forms:
+
+- `structuredContent` for agents that consume structured data directly
+- one raw YAML `content` text item serialized from that same payload (no markdown fences)
+
+In this stage, `system_instructions` and the content-only delete/link tools keep their existing text responses.
+
+`memory_query` supports optional `search` for full-text search and returns pagination fields such as `limit` and `offset` in both `structuredContent` and YAML content. Its optional `tier` field also accepts `null`, which means the same thing as omitting the tier filter (all tiers).
 
 Memory MCP workflows also support bounded composite ergonomics while keeping atomic tools:
 
 - `memory_add` supports optional `pinned` and `links_to` (best-effort — check `links_failed` in response).
-- `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`id`, `name`, `changed_at`, `tier`, `tags`, `pinned`). Use `noPromote:true` to read without side effects.
+- `memory_read` returns directional linked summaries via `links_to` and `linked_by` with high-signal fields (`name`, `changed_at`, `tier`, `tags`, `pinned`, `ref`). Use `noPromote:true` to read without side effects.
+- Memory MCP payloads use `changed_at` and do not expose `access_count`,
+  `last_accessed_at`, `created_at`, or `updated_at`.
+
+`space_get` now returns an orientation summary for one space:
+
+- `overview` with total memory count, active checkpoint count, and per-tier
+  counts
+- `trending_memories` grouped into `tier_1`, `tier_2`, and `tier_3`, ranked by
+  `changed_at`
+- per-tier `coverage` metadata so agents can tell whether each preview is
+  complete or only a subset
+- plural `active_checkpoints` with checkpoint items matching `checkpoint_query`
 
 Checkpoint MCP tools are also available for session continuity:
 
@@ -184,25 +289,20 @@ Checkpoint MCP tools are also available for session continuity:
 - `checkpoint_load`
 - `checkpoint_query`
 
-`checkpoint_load` requires `checkpointName` (use `checkpoint_query` first to find available checkpoints). Returns checkpoint state with linked_memories in enriched format.
+`checkpoint_load` requires `checkpointName` (use `checkpoint_query` first to find available checkpoints). It returns full checkpoint text fields plus all linked_memories in enriched format, and checkpoint MCP payloads use `changed_at` instead of `created_at` / `updated_at`.
+
+`checkpoint_query` returns full pending text (no preview truncation) and includes an explicit `error` field (`null` on success, `{ code, message }` when the requested space is missing).
 
 System tools for agent protocol:
 
 - `system_instructions` — returns the complete mind usage protocol
 - `status` — get storage status
 
-### Agent Setup
+### Agent integration details
 
-```bash
-mind setup claude-code
-mind setup opencode
-mind setup cursor
-mind setup windsurf
-mind setup codex
-mind setup gemini-cli
-```
-
-> Note: **OpenClaw** is currently **Experimental** (status declaration only). There is no `mind setup openclaw` wiring yet.
+Use the commands in [Installation](#installation) to run setup. This section
+explains how to read the capability matrix and what each integration actually
+configures.
 
 `mind setup` (without agent) now prints a capability matrix per integration using a 3-level model:
 
@@ -222,18 +322,16 @@ Status labels used here:
 - **Experimental**: declaration exists but integration is explicitly unstable/unverified
 - **Roadmap**: planned declaration only, no adapter wiring
 
-| **Agent**   | **Status**   | **Capability reality**                                                                                             |
-| :---------- | :----------- | :----------------------------------------------------------------------------------------------------------------- |
-| OpenCode    | Complete     | L1 `supported`, L2 `supported`, L3 `supported`                                                                     |
-| Claude Code | Complete     | L1 `supported`, L2 `supported`, L3 `supported` (opt-in hooks)                                                      |
-| Codex       | Partial      | L1 `supported`, L2 `supported`, L3 `unsupported`                                                                   |
-| Cursor      | Partial      | L1 `supported`, L2 `unverified`, L3 `supported`                                                                    |
-| Windsurf    | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
-| Gemini CLI  | Partial      | L1 `supported`, L2 `unsupported`, L3 `unsupported`                                                                 |
-| OpenClaw    | Experimental | L1 `unverified`, L2 `unsupported`, L3 `unsupported` (status-only declaration; safe fallback only; no setup wiring) |
-| VSCode      | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
-| Antigravity | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
-| Kiro        | Roadmap      | L1 `unverified`, L2 `unsupported`, L3 `unsupported`                                                                |
+| **Agent**   | **Status** | **Capability reality**                                        |
+| :---------- | :--------- | :------------------------------------------------------------ |
+| OpenCode    | Complete   | L1 `supported`, L2 `supported`, L3 `supported`                |
+| Claude Code | Complete   | L1 `supported`, L2 `supported`, L3 `supported` (opt-in hooks) |
+| Codex       | Partial    | L1 `supported`, L2 `supported`, L3 `unsupported`              |
+| Cursor      | Partial    | L1 `supported`, L2 `unverified`, L3 `supported`               |
+| Windsurf    | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
+| Gemini CLI  | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
+| VSCode      | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
+| Antigravity | Partial    | L1 `supported`, L2 `unsupported`, L3 `unsupported`            |
 
 Rollout policy:
 
@@ -243,8 +341,7 @@ Rollout policy:
 - Cursor **L2** remains intentionally **unverified** (no verified global user-rules injection path)
 - Cursor **L3** is implemented with global hooks wiring (`~/.cursor/hooks.json` + managed hook script)
 - Existing integrations outside Wave 1 remain wired in the same capability model with explicit status
-- OpenClaw is listed as **experimental** in capability output (non-breaking declaration, no setup wiring yet)
-- Next-wave roadmap adapters remain declaration-only: **VSCode, Antigravity, Kiro** (non-breaking, no setup wiring yet)
+- Antigravity is now a **supported** agent with L1 MCP wiring and skill installation at `~/.gemini/antigravity/`
 
 `mind setup opencode` is idempotent and non-destructive:
 
@@ -299,13 +396,15 @@ mind import
 ## Project Structure
 
 ```text
-cli/src/
+src/
   cli/        # CLI parser, command registry, setup/runtime helpers
   mcp/        # MCP command + MCP server + tools
   api/        # HTTP command, router, route modules, API server
   helpers/    # logger, tags, format, rag helpers
   store/      # SQLite schema + MindStore implementation
   mind.ts     # main entrypoint used by mind
+
+test/        # backend/CLI tests
 
 web/src/      # frontend runtime modules (ESM, no build step)
 web/styles/   # split CSS (tokens/base/layout/components/utilities)
@@ -319,7 +418,7 @@ web/test/     # web-only tests
 Run unit tests:
 
 ```bash
-bun test cli/test web/test
+bun test test/ web/test
 ```
 
 Run web-only tests:

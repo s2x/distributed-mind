@@ -36,4 +36,4 @@ jobs:
         run: npm audit --audit-level=high || true
 
       - name: Run tests
-        run: bun test cli/test web/test
+        run: bun test test/ web/test

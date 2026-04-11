@@ -1,4 +1,4 @@
-.PHONY: help web web-dev test test-web test-rag install-local release-patch release-minor release-major release-simulate
+.PHONY: help web web-dev test test-web test-rag release-patch release-minor release-major release-simulate
 
 help: ## Show available commands
 	@echo "mind project tasks"
@@ -12,16 +12,13 @@ web-dev: ## Run the web app locally with Bun
 	cd web && bun run dev
 
 test: ## Run unit tests
-	bun test cli/test web/test
+	bun test test/ web/test
 
 test-web: ## Run web-only tests
 	bun test web/test
 
 test-rag: ## Run RAG E2E integration test (requires OPENAI_API_KEY)
 	./scripts/test-rag.sh
-
-install-local: ## Install mind locally using scripts/install.sh (no curl)
-	./scripts/install.sh
 
 release-patch: ## Create a patch release from main (real release)
 	./scripts/release.sh patch

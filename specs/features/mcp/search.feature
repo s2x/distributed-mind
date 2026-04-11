@@ -1,53 +1,11 @@
-@mcp @product/search
+@delta-modified @mcp @product/search
 Feature: MCP Search Tools
 
-  MCP tools for full-text search and memory querying.
+  MCP tools for memory querying.
 
   Background:
     Given the MCP server is running
     And spaces "projects/mind" and "projects/other" exist with memories
-
-  Rule: search tool
-
-    Scenario: search requires space parameter
-      When calling search with query "test" and no space
-      Then an error "space is required" is returned
-
-    Scenario: search with space="*" searches all spaces
-      When calling search with space "*" query "typescript"
-      Then results include memories from all spaces
-
-    Scenario: search with specific space filters
-      When calling search with space "projects/mind" query "auth"
-      Then only memories from projects/mind are returned
-
-    Scenario: search returns search_method in response
-      When calling search with valid args
-      Then the response includes search_method field
-
-    Scenario: search supports simple query
-      When calling search with query "typescript"
-      Then matching memories are returned
-
-    Scenario: search supports quoted phrase
-      When calling search with query '"exact phrase"'
-      Then only exact phrase matches are returned
-
-    Scenario: search supports prefix matching
-      When calling search with query "type*"
-      Then all memories matching prefix are returned
-
-    Scenario: search supports AND operator
-      When calling search with query "auth AND jwt"
-      Then memories containing both terms are returned
-
-    Scenario: search with tag filter
-      When calling search with query "test" tag "cat:decision"
-      Then only memories with that tag are returned
-
-    Scenario: search with tier filter
-      When calling search with query "test" tier 1
-      Then only T1 memories are returned
 
   Rule: memory.query tool
 
@@ -75,6 +33,17 @@ Feature: MCP Search Tools
       When calling memory_query with space "projects/mind" tier 1
       Then only T1 memories are returned
 
+    Scenario: memory_query treats tier null as all tiers
+      Given a space contains memories in tiers 1, 2, and 3
+      When calling memory_query with space "projects/mind" and tier null
+      Then memories from all tiers are eligible to be returned
+      And the result is equivalent to omitting the tier filter
+
+    Scenario: memory_query input schema documents null tier semantics
+      When MCP clients list available tools
+      Then memory_query inputSchema allows tier values 1, 2, 3, or null
+      And the tier field description states that null means all tiers
+
     Scenario: memory.query supports pagination
       When calling memory_query with space "projects/mind" limit 3 offset 0
       Then 3 memories are returned with pagination metadata
@@ -83,12 +52,14 @@ Feature: MCP Search Tools
       When calling memory_query with space "projects/mind" from "2024-01-01" to "2024-12-31"
       Then only memories within date range are returned
 
-  Rule: searchFallback chain
-
-    Scenario: searchFallback returns fts5 when FTS5 has results
-      When calling searchFallback with a query that matches FTS5
-      Then search_method is "fts5"
-
-    Scenario: searchFallback falls back to LIKE when FTS returns empty
-      When calling searchFallback with a query that FTS cannot match
-      Then search_method is "like"
+    Scenario: memory.query result items expose normalized memory payloads
+      When calling memory_query with space "projects/mind"
+      Then each result item exposes space
+      And each result item does not expose space_name
+      And each result item does not expose access_count
+      And each result item does not expose last_accessed_at
+      And each result item does not expose embedding
+      And each result item exposes changed_at
+      And each result item does not expose created_at
+      And each result item does not expose updated_at
+      And search_method behavior remains unchanged
