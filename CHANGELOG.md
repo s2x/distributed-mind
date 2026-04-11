@@ -27,6 +27,8 @@ Example:
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-10
+
 ### Added
 
 - `mind setup vscode` - VSCode support with platform-specific MCP config path
