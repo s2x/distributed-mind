@@ -1,3 +1,6 @@
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
 import { describe, expect, test } from 'bun:test';
 
 import { zodToJsonSchema as serverZodToJsonSchema } from '../src/mcp/server';
@@ -8,7 +11,7 @@ import { createSpaceTools } from '../src/mcp/tools/spaces';
 import { createStatusTools } from '../src/mcp/tools/status';
 import { createSystemTools } from '../src/mcp/tools/system';
 
-const PROJECT_ROOT = '/home/gabriel/Git/mind';
+const PROJECT_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 describe('MCP internal structure refactor', () => {
   test('tool modules stay as declarations and wiring only', async () => {
