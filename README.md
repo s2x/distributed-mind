@@ -107,30 +107,98 @@ mind serve start
 
 ### Team Mode (dimind)
 
-**Experimental:** dimind extends Mind with distributed team memory using libSQL embedded replica.
+**Experimental:** `dimind` extends Mind with distributed team memory using a libSQL embedded replica. Each team member gets a local DB that syncs with a shared server.
+
+#### Step 1 — Run the shared server
+
+The repo ships with `docker-compose.libsql.yml` that starts a libSQL primary and a Caddy reverse proxy:
 
 ```bash
-dimind setup              # Configure team memory (same as mind setup)
-dimind status             # Check sync status with remote server
-./dimind sync             # Sync with remote libSQL server
+# on your server / VPS
+git clone https://github.com/your-org/distributed-mind
+cd distributed-mind
+docker compose -f docker-compose.libsql.yml up -d
 ```
 
-Configure with `.env.dimind`:
+By default Caddy listens on port 80 (HTTP). For HTTPS with automatic TLS, edit `Caddyfile`:
+
+```
+# replace :80 block with:
+team-brain.example.com {
+  reverse_proxy libsql-primary:8080
+  encode gzip
+}
+```
+
+Then redeploy:
 
 ```bash
-DIMIND_SYNC_URL=https://libsql-server.example.com
-DIMIND_SYNC_AUTH_TOKEN=your-token
-DIMIND_CLIENT_ID=your-team-member-id
+docker compose -f docker-compose.libsql.yml up -d --force-recreate caddy
 ```
 
-dimind shares all `mind` commands and adds:
+The libSQL server is now available at `http://team-brain.example.com` (or `https://` after TLS setup). No auth token is required by default — add your own reverse-proxy auth or restrict access by IP if needed.
 
-- `--hard` flag: create permanent memories (exempt from eviction)
-- `--soft` flag: create evictable memories (default behavior)
-- `promote-to-hard`: convert soft memory to permanent
-- `demote-to-soft`: convert hard memory to evictable
-- `history <space> <name>`: show version audit trail for hard memories
-- `export / import`: backup and restore team memory
+#### Step 2 — Configure each client
+
+Create `.env.dimind` in the project root (or set environment variables directly):
+
+```bash
+cp .env.example.dimind .env.dimind
+# then edit:
+DIMIND_SYNC_URL=https://team-brain.example.com
+DIMIND_CLIENT_ID=yourname-laptop   # stable per-machine identity
+```
+
+Load it and run:
+
+```bash
+source .env.dimind
+./dimind sync          # initial pull from server
+./dimind status        # verify connection + sync state
+```
+
+For local development (HTTP, no TLS):
+
+```bash
+DIMIND_SYNC_URL=http://localhost:8080
+DIMIND_ALLOW_INSECURE_SYNC=1
+```
+
+#### Step 3 — Use it
+
+```bash
+./dimind add projects/team "auth design" "JWT RS256, tokens expire 1h" --hard
+./dimind sync                             # push to server
+./dimind history projects/team "auth design"   # version audit trail
+./dimind export --format sql > backup.sql      # full backup
+```
+
+`dimind` supports all `mind` commands and adds:
+
+| Flag / command | Description |
+|---|---|
+| `--hard` | Create permanent memory (exempt from LRU eviction, versioned) |
+| `--soft` | Create evictable memory (default tier behaviour) |
+| `memory promote-to-hard <space> <name>` | Convert soft → hard |
+| `memory demote-to-soft <space> <name>` | Convert hard → soft |
+| `history <space> <name>` | Show edit history for hard memories |
+| `sync [--pull\|--push\|--status]` | Sync with remote server |
+| `export --format sql` | Dump all memories as SQL |
+| `import --from <file>` | Restore from SQL dump |
+
+#### Backup
+
+The compose file includes an optional backup service (disabled by default). Enable it with the `backup` profile:
+
+```bash
+# local tar.gz backup every 6 hours, keep 7 most recent
+DIMIND_BACKUP_INTERVAL_HOURS=6 \
+  docker compose -f docker-compose.libsql.yml --profile backup up -d
+
+# with S3 offload
+DIMIND_BACKUP_S3_BUCKET=my-bucket \
+  docker compose -f docker-compose.libsql.yml --profile backup up -d
+```
 
 For details, see [CLAUDE.md](./CLAUDE.md).
 
