@@ -42,3 +42,6 @@ data/
 
 .husky/
 .lintstagedrc.json
+
+# git worktrees
+.worktrees/
