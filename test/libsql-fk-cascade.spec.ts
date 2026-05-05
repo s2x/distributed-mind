@@ -37,7 +37,7 @@ async function countRows(client: Client, table: string): Promise<number> {
 }
 
 async function countRowsWhere(client: Client, table: string, where: string, args: unknown[]): Promise<number> {
-  const result = await client.execute({ sql: `SELECT COUNT(*) as c FROM ${table} WHERE ${where}`, args });
+  const result = await client.execute({ sql: `SELECT COUNT(*) as c FROM ${table} WHERE ${where}`, args: args as any[] });
   return Number((result.rows[0] as any).c);
 }
 

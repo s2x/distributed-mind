@@ -51,7 +51,7 @@ export function createLibsqlTagRepository(client: Client): TagRepository {
       }
     }
 
-    await client.batch(statements, 'write');
+    await client.batch(statements as any, 'write');
   }
 
   async function listAllTags(): Promise<{

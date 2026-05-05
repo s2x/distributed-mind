@@ -386,7 +386,7 @@ export function createLibsqlMemoryRepository(
     }
 
     if (batchStatements.length > 0) {
-      await client.batch(batchStatements, 'write');
+      await client.batch(batchStatements as any, 'write');
     }
 
     // Generate embedding if RAG is enabled
@@ -459,7 +459,7 @@ export function createLibsqlMemoryRepository(
     sql += ' ORDER BY m.tier ASC, m.access_count DESC, m.name ASC';
 
     const args = [...joinArgs, ...whereArgs];
-    const result = await client.execute({ sql, args });
+    const result = await client.execute({ sql, args: args as any[] });
     const summaries: MemorySummary[] = [];
 
     for (const row of result.rows) {
@@ -544,7 +544,7 @@ export function createLibsqlMemoryRepository(
     args.push(id);
     await client.execute({
       sql: `UPDATE memories SET ${sets.join(', ')} WHERE id = ?`,
-      args,
+      args: args as any[],
     });
 
     // Sync FTS if name or content changed
@@ -753,7 +753,7 @@ export function createLibsqlMemoryRepository(
       args.push(id);
       await client.execute({
         sql: `UPDATE memories SET ${sets.join(', ')} WHERE id = ?`,
-        args,
+        args: args as any[],
       });
 
       await ftsUpdate(
@@ -797,7 +797,7 @@ export function createLibsqlMemoryRepository(
           args: [id, targetId, 'related', ts],
         });
       }
-      await client.batch(linkStatements, 'write');
+      await client.batch(linkStatements as any, 'write');
     }
 
     if ((patch.removeLinksToIds?.length ?? 0) > 0) {
@@ -808,7 +808,7 @@ export function createLibsqlMemoryRepository(
           args: [id, targetId],
         });
       }
-      await client.batch(removeStatements, 'write');
+      await client.batch(removeStatements as any, 'write');
     }
 
     // RAG embedding update

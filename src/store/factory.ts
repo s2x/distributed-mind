@@ -17,7 +17,7 @@ function rejectLegacyEnvVars(): void {
     console.error(`✗ ${found.join(', ')} is set, but dimind only reads DIMIND_* env vars.`);
     console.error(`  Aliases are deliberately not supported (prevents silent config collision).`);
     console.error(
-      `  Did you mean: export DIMIND_${found[0].replace('MIND_', '')}=... ?`
+      `  Did you mean: export DIMIND_${found[0]?.replace('MIND_', '')}=... ?`
     );
     process.exit(1);
   }

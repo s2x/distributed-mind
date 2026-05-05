@@ -115,7 +115,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
 
     let result;
     try {
-      result = await client.execute({ sql, args });
+      result = await client.execute({ sql, args: args as any[] });
     } catch (_err) {
       // If parameter binding fails for FTS5 MATCH, fall back to string injection
       // (sanitized query has already had quotes/special chars stripped)
@@ -133,7 +133,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
       if (filter?.space) fallbackArgs.push(filter.space);
       if (filter?.tier) fallbackArgs.push(filter.tier);
 
-      result = await client.execute({ sql: fallbackSql, args: fallbackArgs });
+      result = await client.execute({ sql: fallbackSql, args: fallbackArgs as any[] });
     }
 
     let rows = result.rows as any[];
@@ -186,7 +186,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
 
     sql += ' ORDER BY m.changed_at DESC, m.id DESC';
 
-    const result = await client.execute({ sql, args });
+    const result = await client.execute({ sql, args: args as any[] });
     let rows = result.rows as any[];
 
     // Post-filter by tag
@@ -233,7 +233,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
       candArgs.push(filter.tier);
     }
 
-    const candResult = await client.execute({ sql: candSql, args: candArgs });
+    const candResult = await client.execute({ sql: candSql, args: candArgs as any[] });
     let candidates = candResult.rows as any[];
 
     if (filter?.tag) {
@@ -385,7 +385,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
       candArgs.push(filter.tier);
     }
 
-    const candResult = await client.execute({ sql: candSql, args: candArgs });
+    const candResult = await client.execute({ sql: candSql, args: candArgs as any[] });
     let candidates = candResult.rows as any[];
 
     if (filter?.tag) {
@@ -517,7 +517,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
     sql += ' ORDER BY m.changed_at DESC, m.id DESC LIMIT ? OFFSET ?';
 
     const args: unknown[] = [...joinArgs, ...whereArgs, limit, offset];
-    const result = await client.execute({ sql, args });
+    const result = await client.execute({ sql, args: args as any[] });
 
     return Promise.all(
       (result.rows as any[]).map(async r => {
@@ -582,7 +582,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
     }
 
     const args: unknown[] = [...joinArgs, ...whereArgs];
-    const result = await client.execute({ sql, args });
+    const result = await client.execute({ sql, args: args as any[] });
     const row = result.rows[0] as any;
     return Number(row.count) || 0;
   }
@@ -624,7 +624,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
       args: [space, appliedLimit],
     });
 
-    const rows = memResult.rows as { id: number; name: string; tier: Tier }[];
+    const rows = memResult.rows as unknown as { id: number; name: string; tier: Tier }[];
 
     const nodeMap = new Map<
       number,
@@ -649,7 +649,7 @@ export function createLibsqlSearchRepository(client: Client): SearchRepository {
               WHERE sm.space_name = ?
                 AND tm.space_name = ?
                 AND (l.source_id IN (${placeholders}) OR l.target_id IN (${placeholders}))`,
-        args: linkArgs,
+        args: linkArgs as any[],
       });
 
       for (const linkRow of linkResult.rows as any[]) {

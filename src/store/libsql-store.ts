@@ -213,7 +213,7 @@ async function initializeLibsqlDatabase(client: Client): Promise<void> {
 
   // Initialize fresh schema v8 using batch() for atomicity
   const statements = LIBSQL_SCHEMA_V8_STATEMENTS.map((sql) => ({ sql, args: [] as unknown[] }));
-  await client.batch(statements, 'write');
+  await client.batch(statements as any, 'write');
 
   // Insert schema version
   await client.execute({

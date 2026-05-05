@@ -103,7 +103,7 @@ export function createLibsqlSpaceRepository(client: Client): SpaceRepository {
       args = [];
     }
 
-    const result = await client.execute({ sql, args });
+    const result = await client.execute({ sql, args: args as any[] });
     const summaries: SpaceSummary[] = [];
 
     for (const row of result.rows) {
