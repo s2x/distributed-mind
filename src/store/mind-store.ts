@@ -14,6 +14,7 @@ import type {
   SpaceGraphResult,
   LegacyBrain,
   HotMemorySummary,
+  MemoryVersion,
 } from '../types';
 
 export interface LinkedMemorySummary {
@@ -53,7 +54,13 @@ export interface MindStore {
     space: string,
     name: string,
     content: string,
-    opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
+    opts?: {
+      tags?: string[];
+      tier?: Tier;
+      pinned?: boolean;
+      linksToIds?: number[];
+      persistence?: 'soft' | 'hard';
+    }
   ): Promise<Memory>;
   getMemory(space: string, name: string): Promise<Memory | null>;
   getMemoryById(id: number): Promise<Memory | null>;
@@ -119,6 +126,13 @@ export interface MindStore {
    * Not available on bun:sqlite backend — throws "not supported".
    */
   demoteToSoft(spaceName: string, memoryName: string): Promise<void>;
+
+  /**
+   * Get the version history for a memory (from memory_versions table).
+   * Returns an empty array if the memory doesn't exist or has no history.
+   * Optional — only implemented on the libSQL backend.
+   */
+  getMemoryHistory?(spaceName: string, memoryName: string): Promise<MemoryVersion[]>;
 
   // Links
   link(sourceId: number, targetId: number, label?: string): Promise<void>;

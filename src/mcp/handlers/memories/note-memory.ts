@@ -1,0 +1,64 @@
+import { resolveRefWithFallback } from '../../../helpers/memory-ref-resolver';
+import type { MindStore } from '../../../store/mind-store';
+import type { Tier } from '../../../types';
+import { presentMemoryResponse } from '../../helpers/memory-response';
+import { buildYamlContent } from '../../helpers/yaml-response';
+import { MemoryNoteSchema } from '../../schemas/memories/memory-note';
+
+export function noteMemoryHandler(store: MindStore) {
+  return async (args: unknown) => {
+    let parsed;
+
+    try {
+      parsed = MemoryNoteSchema.parse(args);
+    } catch (e: any) {
+      const isTagsError = (e.issues || []).some((issue: { path: string[] }) =>
+        issue.path.includes('tags')
+      );
+      if (isTagsError) {
+        throw new Error('tags is required and must be a non-empty array');
+      }
+      throw new Error(
+        `Invalid arguments: ${e.message}. Provide: space, name, content, tags (required, min 1), tier (optional), links_to (optional).`
+      );
+    }
+
+    const linksCreated: Array<{ source: string; target: string; label: string }> = [];
+    const linksFailed: Array<{ ref: string; reason: string }> = [];
+    let linksToIds: number[] | undefined;
+
+    if (parsed.links_to && parsed.links_to.length > 0) {
+      linksToIds = [];
+      for (const ref of parsed.links_to) {
+        try {
+          const resolved = await resolveRefWithFallback(store, ref, parsed.space);
+          linksToIds.push(resolved.id);
+          linksCreated.push({
+            source: parsed.name,
+            target: resolved.name,
+            label: 'related',
+          });
+        } catch (e: any) {
+          linksFailed.push({
+            ref,
+            reason: e.message || 'unknown error',
+          });
+        }
+      }
+    }
+
+    const memory = await store.addMemory(parsed.space, parsed.name, parsed.content, {
+      tags: parsed.tags,
+      tier: parsed.tier as Tier | undefined,
+      persistence: 'soft',
+      linksToIds: linksToIds && linksToIds.length > 0 ? linksToIds : undefined,
+    });
+
+    return buildYamlContent({
+      memory: presentMemoryResponse(memory),
+      persistence: 'soft',
+      links_created: linksCreated,
+      links_failed: linksFailed,
+    });
+  };
+}

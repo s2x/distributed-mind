@@ -18,7 +18,13 @@ export interface MemoryRepository {
     space: string,
     name: string,
     content: string,
-    opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
+    opts?: {
+      tags?: string[];
+      tier?: Tier;
+      pinned?: boolean;
+      linksToIds?: number[];
+      persistence?: 'soft' | 'hard';
+    }
   ): Promise<Memory>;
   getMemory(space: string, name: string): Promise<Memory | null>;
   getMemoryById(id: number): Promise<Memory | null>;
@@ -150,7 +156,13 @@ export function createMemoryRepository(
     space: string,
     name: string,
     content: string,
-    opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
+    opts?: {
+      tags?: string[];
+      tier?: Tier;
+      pinned?: boolean;
+      linksToIds?: number[];
+      persistence?: 'soft' | 'hard';
+    }
   ): Promise<Memory> {
     const spaceRow = db.query('SELECT 1 FROM spaces WHERE name = ?').get(space);
     if (!spaceRow)

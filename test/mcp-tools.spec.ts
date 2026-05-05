@@ -167,7 +167,7 @@ describe('MCP input schema fidelity', () => {
       const { tools } = await client.listTools();
       const listedTools = tools as ListedTool[];
 
-      expect(listedTools).toHaveLength(18);
+      expect(listedTools).toHaveLength(22);
 
       const memoryQueryTool = requireListedTool(listedTools, 'memory_query');
       expect(memoryQueryTool.inputSchema.required).toContain('space');
