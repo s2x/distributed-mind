@@ -177,6 +177,13 @@ export interface MindStore {
   subscribeToLogs(sessionId: string, controller: any, filter?: string): void;
   unsubscribeFromLogs(sessionId: string): void;
 
+  // Sync (team mode only)
+  /**
+   * Sync with team primary (push buffered writes + pull latest).
+   * Only available in team mode (LibSQL backend with syncUrl).
+   */
+  sync?(): Promise<void>;
+
   // Lifecycle
   close(): void;
 }

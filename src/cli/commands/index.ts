@@ -9,6 +9,7 @@ import { runtimeGroup } from './runtime';
 import { searchGroup } from './search';
 import { spacesGroup } from './spaces';
 import { statusGroup } from './status';
+import { syncGroup } from './sync';
 import { tagsGroup } from './tags';
 import { tiersGroup } from './tiers';
 import type { CommandGroup } from './types';
@@ -23,6 +24,7 @@ export const ALL_GROUPS: CommandGroup[] = [
   searchGroup,
   statusGroup,
   tagsGroup,
+  syncGroup,
   runtimeGroup,
   guideGroup,
   migrationGroup,

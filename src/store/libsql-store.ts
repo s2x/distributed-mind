@@ -489,6 +489,15 @@ class LibsqlMindStore implements MindStore {
     unsubscribeFromLogs(sessionId);
   }
 
+  // ── Sync (team mode) ──
+
+  async sync(): Promise<void> {
+    // libSQL client.sync() pulls latest changes from the primary
+    if (typeof (this.client as any).sync === 'function') {
+      await (this.client as any).sync();
+    }
+  }
+
   // ── Lifecycle ──
 
   close(): void {

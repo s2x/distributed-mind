@@ -65,6 +65,8 @@ export interface MemoryRepository {
   demote(id: number): Promise<void>;
   pin(id: number): Promise<void>;
   unpin(id: number): Promise<void>;
+  promoteToHard(spaceName: string, memoryName: string): Promise<void>;
+  demoteToSoft(spaceName: string, memoryName: string): Promise<void>;
   importFromJson(brain: LegacyBrain): Promise<void>;
 }
 
@@ -163,21 +165,23 @@ export function createLibsqlMemoryRepository(
   // ── LRU / Capacity helpers ──
 
   /**
-   * Count all memories (pinned + non-pinned) at a given tier in a space.
+   * Count soft memories (not hard, pinned or not) at a given tier in a space.
+   * Hard memories are not counted toward tier limits per the persistence model.
    */
-  async function countTierTotal(space: string, tier: number): Promise<number> {
+  async function countSoftTierTotal(space: string, tier: number): Promise<number> {
     const result = await client.execute({
-      sql: 'SELECT COUNT(*) as c FROM memories WHERE space_name = ? AND tier = ?',
+      sql: "SELECT COUNT(*) as c FROM memories WHERE space_name = ? AND tier = ? AND persistence = 'soft'",
       args: [space, tier],
     });
     return Number((result.rows[0] as any).c) || 0;
   }
 
   /**
-   * Ensure a tier has capacity for one more memory.
-   * If the tier is full, evicts the LRU non-pinned memory to the next tier (no cascading).
+   * Ensure a tier has capacity for one more soft memory.
+   * Hard memories are excluded from both the capacity count and eviction candidates.
+   * If the tier is full (soft count >= limit), evicts the LRU non-pinned soft memory to the next tier.
    * T3 is unlimited — always returns true.
-   * @param throwOnFull - if true, throws when tier is full and all are pinned; if false, returns false
+   * @param throwOnFull - if true, throws when tier is full and all soft are pinned; if false, returns false
    * @returns true if there is (or was made) capacity, false if no evictable memory
    */
   async function ensureCapacity(
@@ -189,13 +193,13 @@ export function createLibsqlMemoryRepository(
     const limit = TIER_LIMITS[tier as 1 | 2];
     if (limit === undefined) return true; // T3: unlimited
 
-    const total = await countTierTotal(space, tier);
-    if (total < limit) return true; // room available
+    const softTotal = await countSoftTierTotal(space, tier);
+    if (softTotal < limit) return true; // room available
 
-    // Tier is full — find LRU non-pinned to evict
+    // Tier is full — find LRU non-pinned soft memory to evict
     const lruResult = await client.execute({
       sql: `SELECT id FROM memories
-            WHERE space_name = ? AND tier = ? AND pinned = 0
+            WHERE space_name = ? AND tier = ? AND pinned = 0 AND persistence = 'soft'
             ORDER BY COALESCE(last_accessed_at, created_at) ASC
             LIMIT 1`,
       args: [space, tier],
@@ -907,6 +911,36 @@ export function createLibsqlMemoryRepository(
     }
   }
 
+  async function promoteToHard(spaceName: string, memoryName: string): Promise<void> {
+    const result = await client.execute({
+      sql: "SELECT id FROM memories WHERE space_name = ? AND name = ?",
+      args: [spaceName, memoryName],
+    });
+    if (result.rows.length === 0) {
+      throw new Error(`Memory "${memoryName}" not found in space "${spaceName}"`);
+    }
+    const ts = now();
+    await client.execute({
+      sql: "UPDATE memories SET persistence = 'hard', updated_at = ? WHERE space_name = ? AND name = ?",
+      args: [ts, spaceName, memoryName],
+    });
+  }
+
+  async function demoteToSoft(spaceName: string, memoryName: string): Promise<void> {
+    const result = await client.execute({
+      sql: "SELECT id FROM memories WHERE space_name = ? AND name = ?",
+      args: [spaceName, memoryName],
+    });
+    if (result.rows.length === 0) {
+      throw new Error(`Memory "${memoryName}" not found in space "${spaceName}"`);
+    }
+    const ts = now();
+    await client.execute({
+      sql: "UPDATE memories SET persistence = 'soft', updated_at = ? WHERE space_name = ? AND name = ?",
+      args: [ts, spaceName, memoryName],
+    });
+  }
+
   return {
     addMemory,
     getMemory,
@@ -924,6 +958,8 @@ export function createLibsqlMemoryRepository(
     demote,
     pin,
     unpin,
+    promoteToHard,
+    demoteToSoft,
     importFromJson,
   };
 }
