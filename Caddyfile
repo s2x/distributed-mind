@@ -1,0 +1,20 @@
+# Replace team-brain.example.com with your actual domain
+# For local dev: use HTTP (update DIMIND_ALLOW_INSECURE_SYNC=1)
+:80 {
+  reverse_proxy libsql-primary:8080
+  encode gzip
+  log {
+    output stdout
+    format json
+  }
+}
+
+# Uncomment for HTTPS with automatic TLS (requires valid domain + DNS):
+# team-brain.example.com {
+#   reverse_proxy libsql-primary:8080
+#   encode gzip
+#   log {
+#     output stdout
+#     format json
+#   }
+# }
