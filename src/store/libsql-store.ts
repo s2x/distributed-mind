@@ -20,6 +20,13 @@ import type {
   HotMemorySummary,
 } from '../types';
 import type { MindStore, LinkedMemorySummary, MemoryPatchInput } from './mind-store';
+import { createLibsqlSpaceRepository } from './libsql-repositories/space-repository';
+import {
+  createLibsqlLogRepository,
+  subscribeToLogs,
+  unsubscribeFromLogs,
+  type LogRepository,
+} from './libsql-repositories/log-repository';
 
 // ── Schema v8 ──
 // Fresh init only — not a migration of existing bun:sqlite data.
@@ -214,46 +221,52 @@ async function initializeLibsqlDatabase(client: Client): Promise<void> {
 // ── LibsqlMindStore class (stub implementations) ──
 
 class LibsqlMindStore implements MindStore {
+  private readonly spaceRepository;
+  private readonly logRepository: LogRepository;
+
   constructor(
     private readonly client: Client,
     private readonly clientId?: string
-  ) {}
+  ) {
+    this.spaceRepository = createLibsqlSpaceRepository(client);
+    this.logRepository = createLibsqlLogRepository(client);
+  }
 
   // ── Spaces ──
 
-  async createSpace(_name: string, _description: string, _tags?: string[]): Promise<void> {
-    throw new Error('not implemented: createSpace');
+  async createSpace(name: string, description: string, tags?: string[]): Promise<void> {
+    return this.spaceRepository.createSpace(name, description, tags);
   }
 
-  async getSpace(_name: string): Promise<Space | null> {
-    throw new Error('not implemented: getSpace');
+  async getSpace(name: string): Promise<Space | null> {
+    return this.spaceRepository.getSpace(name);
   }
 
-  async listSpaces(_filter?: { tag?: string; includeHidden?: boolean }): Promise<SpaceSummary[]> {
-    throw new Error('not implemented: listSpaces');
+  async listSpaces(filter?: { tag?: string; includeHidden?: boolean }): Promise<SpaceSummary[]> {
+    return this.spaceRepository.listSpaces(filter);
   }
 
   async updateSpace(
-    _name: string,
-    _updates: { description?: string; hidden?: boolean }
+    name: string,
+    updates: { description?: string; hidden?: boolean }
   ): Promise<void> {
-    throw new Error('not implemented: updateSpace');
+    return this.spaceRepository.updateSpace(name, updates);
   }
 
-  async deleteSpace(_name: string): Promise<void> {
-    throw new Error('not implemented: deleteSpace');
+  async deleteSpace(name: string): Promise<void> {
+    return this.spaceRepository.deleteSpace(name);
   }
 
-  async renameSpace(_oldName: string, _newName: string): Promise<void> {
-    throw new Error('not implemented: renameSpace');
+  async renameSpace(oldName: string, newName: string): Promise<void> {
+    return this.spaceRepository.renameSpace(oldName, newName);
   }
 
-  async addSpaceTag(_space: string, _tag: string): Promise<void> {
-    throw new Error('not implemented: addSpaceTag');
+  async addSpaceTag(space: string, tag: string): Promise<void> {
+    return this.spaceRepository.addSpaceTag(space, tag);
   }
 
-  async removeSpaceTag(_space: string, _tag: string): Promise<void> {
-    throw new Error('not implemented: removeSpaceTag');
+  async removeSpaceTag(space: string, tag: string): Promise<void> {
+    return this.spaceRepository.removeSpaceTag(space, tag);
   }
 
   // ── Memories ──
