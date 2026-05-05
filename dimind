@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Find bun executable with fallback locations
+
+find_bun() {
+  # Try direct bun command first
+  if command -v bun >/dev/null 2>&1; then
+    echo "$(command -v bun)"
+    return 0
+  fi
+
+  # Common installation paths
+  local paths=(
+    "$HOME/.bun/bin/bun"
+    "/usr/local/bin/bun"
+    "/usr/bin/bun"
+    "/opt/bun/bin/bun"
+  )
+
+  for p in "${paths[@]}"; do
+    if [[ -x "$p" ]]; then
+      echo "$p"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Get the directory of this script (resolve symlinks)
+get_script_dir() {
+  local source="${BASH_SOURCE[0]}"
+  while [[ -L "$source" ]]; do
+    local dir="$(cd -P "$(dirname "$source")" && pwd)"
+    source="$(readlink "$source")"
+    [[ "$source" != /* ]] && source="$dir/$source"
+  done
+  local dir="$(cd -P "$(dirname "$source")" && pwd)"
+  echo "$dir"
+}
+
+root_path="$(get_script_dir)"
+
+# Find bun
+BUN_CMD=$(find_bun)
+if [[ -z "$BUN_CMD" ]]; then
+  echo "Error: bun not found. Install from https://bun.sh or add to PATH" >&2
+  exit 1
+fi
+
+exec "$BUN_CMD" run "${root_path}/src/dimind.ts" "$@"
