@@ -2,6 +2,7 @@ import type { ArgParser } from '../arg-parser';
 
 import { checkpointGroup } from './checkpoint';
 import { dimindMemoriesGroup } from './dimind-memories';
+import { dimindMigrationGroup } from './dimind-migration';
 import { guideGroup } from './guide';
 import { linksGroup } from './links';
 import { memoriesGroup } from './memories';
@@ -32,6 +33,8 @@ export const ALL_GROUPS: CommandGroup[] = [
   runtimeGroup,
   guideGroup,
   migrationGroup,
+  // dimindMigrationGroup after migrationGroup — adds export/import for dimind backend
+  dimindMigrationGroup,
   checkpointGroup,
 ];
 

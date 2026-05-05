@@ -210,6 +210,26 @@ export interface MindStore {
    */
   sync?(): Promise<void>;
 
+  // Export/Import (dimind only)
+  /**
+   * Export all data as SQL INSERT statements for portability.
+   * Embeddings are skipped (they can be regenerated).
+   * Only available on the libSQL backend.
+   */
+  exportToSql?(): Promise<string>;
+
+  /**
+   * Import data from a file.
+   * Supports:
+   *   - SQL dumps produced by exportToSql() (detected by header comment)
+   *   - Legacy mind.db (bun:sqlite file) when filePath ends in .db
+   * Only available on the libSQL backend.
+   */
+  importFromFile?(
+    filePath: string,
+    options?: { asPersistence?: 'soft' | 'hard' }
+  ): Promise<{ imported: number; errors: string[] }>;
+
   // Lifecycle
   close(): void;
 }
