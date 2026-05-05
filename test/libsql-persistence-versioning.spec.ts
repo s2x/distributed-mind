@@ -187,52 +187,54 @@ describe('LibSQL — Persistence: hard memory versioning', () => {
 
 describe('LibSQL — LRU eviction and persistence', () => {
   /**
-   * BEHAVIORAL NOTE: In the current schema v8 implementation, 'persistence' is NOT a
-   * guard against LRU eviction. LRU eviction evicts the least-recently-used NON-PINNED
-   * memory regardless of persistence value. The difference is:
-   *   - soft memory evicted → just moved to lower tier
-   *   - hard memory evicted → moved to lower tier AND a version snapshot is created
+   * Persistence model (schema v8 corrected):
+   *   - hard memories are NOT subject to LRU eviction and do NOT count toward tier limits
+   *   - soft memories are subject to LRU eviction and count toward tier limits
+   *   - pinned memories (any persistence) are immune to eviction
    *
-   * To protect a memory from eviction, pin it (pinned=true).
+   * This means:
+   *   - When T1 is "full" (soft count >= TIER_LIMITS[1]), the LRU non-pinned SOFT memory is evicted
+   *   - Hard memories in T1 do not count toward the limit, so you can have more than TIER_LIMITS[1]
+   *     total memories in T1 if some are hard
    */
 
-  test('hard memories ARE subject to LRU eviction (persistence != pinned)', async () => {
-    // Fill T1 with hard memories; adding one more evicts the LRU hard memory.
+  test('soft memories ARE subject to LRU eviction', async () => {
     store = await createTestLibsqlStore();
     await store.createSpace('test', 'Test', ['test']);
 
     const t1Limit = TIER_LIMITS[1]; // 25
     for (let i = 0; i < t1Limit; i++) {
-      await (store as any).addMemory('test', `hard-${i}`, 'content', {
+      await (store as any).addMemory('test', `soft-${i}`, 'content', {
         tags: ['test'],
         tier: 1,
-        persistence: 'hard',
+        persistence: 'soft',
       });
     }
 
-    // Adding one more hard memory to T1: should evict the LRU hard memory (hard-0) to T2
-    await (store as any).addMemory('test', 'hard-overflow', 'content', {
+    // Adding one more soft memory to T1: should evict the LRU soft memory (soft-0) to T2
+    await (store as any).addMemory('test', 'soft-overflow', 'content', {
       tags: ['test'],
       tier: 1,
-      persistence: 'hard',
+      persistence: 'soft',
     });
 
-    const overflow = await store.getMemory('test', 'hard-overflow');
+    const overflow = await store.getMemory('test', 'soft-overflow');
     expect(overflow!.tier).toBe(1);
 
-    // hard-0 (LRU) should have been evicted to T2 even though it's hard
-    const lru = await store.getMemory('test', 'hard-0');
+    // soft-0 (LRU) should have been evicted to T2
+    const lru = await store.getMemory('test', 'soft-0');
     expect(lru!.tier).toBe(2);
   });
 
-  test('hard memory eviction creates a version snapshot', async () => {
-    // When a hard memory is LRU-evicted (tier changes), no snapshot is created for
-    // tier-only changes. Snapshots are only created on content/name updates and deletes.
-    // (ensureCapacity uses a direct UPDATE, not snapshotToVersions)
+  test('hard memories are NOT subject to LRU eviction and do NOT count toward tier limits', async () => {
+    // Fill T1 soft limit (25) with hard memories — they don't count, so soft limit is NOT reached.
+    // Then fill T1 with soft limit worth of soft memories. Verify all hard are still at T1.
     store = await createTestLibsqlStore();
     await store.createSpace('test', 'Test', ['test']);
 
-    const t1Limit = TIER_LIMITS[1];
+    const t1Limit = TIER_LIMITS[1]; // 25
+
+    // Add hard memories — these do not count toward the soft tier limit
     for (let i = 0; i < t1Limit; i++) {
       await (store as any).addMemory('test', `hard-${i}`, 'content', {
         tags: ['test'],
@@ -241,58 +243,131 @@ describe('LibSQL — LRU eviction and persistence', () => {
       });
     }
 
-    const lruMem = await store.getMemory('test', 'hard-0');
-    const lruId = lruMem!.id;
+    // Add soft memories up to the limit — they should fit without evicting hard memories
+    for (let i = 0; i < t1Limit; i++) {
+      await (store as any).addMemory('test', `soft-${i}`, 'content', {
+        tags: ['test'],
+        tier: 1,
+        persistence: 'soft',
+      });
+    }
 
-    // Trigger LRU eviction
-    await (store as any).addMemory('test', 'trigger', 'content', {
+    // All hard memories should still be at T1 (not evicted)
+    for (let i = 0; i < t1Limit; i++) {
+      const mem = await store.getMemory('test', `hard-${i}`);
+      expect(mem!.tier).toBe(1);
+    }
+
+    // All soft memories should be at T1 as well (they just filled the soft limit)
+    for (let i = 0; i < t1Limit; i++) {
+      const mem = await store.getMemory('test', `soft-${i}`);
+      expect(mem!.tier).toBe(1);
+    }
+  });
+
+  test('adding a soft memory when T1 soft limit is full evicts the LRU soft memory, not a hard one', async () => {
+    store = await createTestLibsqlStore();
+    await store.createSpace('test', 'Test', ['test']);
+
+    const t1Limit = TIER_LIMITS[1]; // 25
+
+    // Add one hard memory first (it will be the oldest/LRU candidate — but should be immune)
+    await (store as any).addMemory('test', 'hard-immune', 'content', {
       tags: ['test'],
       tier: 1,
       persistence: 'hard',
     });
 
-    // hard-0 should be at T2 now
-    expect((await store.getMemory('test', 'hard-0'))!.tier).toBe(2);
+    // Fill T1 soft limit with soft memories
+    for (let i = 0; i < t1Limit; i++) {
+      await (store as any).addMemory('test', `soft-${i}`, 'content', {
+        tags: ['test'],
+        tier: 1,
+        persistence: 'soft',
+      });
+    }
 
-    // LRU eviction via ensureCapacity does NOT call snapshotToVersions —
-    // only updateMemory/deleteMemory/patchMemory call it.
-    const versions = await getMemoryVersions(store.client, lruId);
-    expect(versions.length).toBe(0); // no version snapshot from tier eviction
+    // Trigger eviction by adding one more soft memory
+    await (store as any).addMemory('test', 'soft-overflow', 'content', {
+      tags: ['test'],
+      tier: 1,
+      persistence: 'soft',
+    });
+
+    // Hard memory should NOT be evicted
+    const hardMem = await store.getMemory('test', 'hard-immune');
+    expect(hardMem!.tier).toBe(1);
+
+    // The LRU soft memory (soft-0) should be evicted to T2
+    const lruSoft = await store.getMemory('test', 'soft-0');
+    expect(lruSoft!.tier).toBe(2);
+
+    // The overflow soft memory should be at T1
+    const overflow = await store.getMemory('test', 'soft-overflow');
+    expect(overflow!.tier).toBe(1);
   });
 
-  test('pinned hard memory is NOT evicted (pinned = ultimate protection)', async () => {
+  test('pinned soft memory is NOT evicted (pinned overrides soft eviction)', async () => {
     store = await createTestLibsqlStore();
     await store.createSpace('test', 'Test', ['test']);
 
     const t1Limit = TIER_LIMITS[1];
 
-    // Add one pinned hard memory first (it will be the oldest/LRU candidate)
-    const protectedMem = await (store as any).addMemory('test', 'protected-hard', 'content', {
+    // Add one pinned soft memory first (it will be the oldest/LRU candidate — but pinned)
+    const protectedMem = await (store as any).addMemory('test', 'protected-soft', 'content', {
       tags: ['test'],
       tier: 1,
-      persistence: 'hard',
+      persistence: 'soft',
     });
     await store.pin(protectedMem.id);
 
-    // Fill remaining T1 slots with unpinned hard memories
+    // Fill remaining T1 slots with unpinned soft memories
     for (let i = 1; i < t1Limit; i++) {
-      await (store as any).addMemory('test', `hard-${i}`, 'content', {
+      await (store as any).addMemory('test', `soft-${i}`, 'content', {
         tags: ['test'],
         tier: 1,
-        persistence: 'hard',
+        persistence: 'soft',
       });
     }
 
-    // Trigger eviction — protected-hard is pinned so it should NOT be evicted
+    // Trigger eviction — protected-soft is pinned so it should NOT be evicted
     await (store as any).addMemory('test', 'overflow', 'content', {
       tags: ['test'],
       tier: 1,
-      persistence: 'hard',
+      persistence: 'soft',
     });
 
-    // Pinned hard memory should still be at T1
-    expect((await store.getMemory('test', 'protected-hard'))!.tier).toBe(1);
-    // hard-1 (oldest non-pinned) should have been evicted
-    expect((await store.getMemory('test', 'hard-1'))!.tier).toBe(2);
+    // Pinned soft memory should still be at T1
+    expect((await store.getMemory('test', 'protected-soft'))!.tier).toBe(1);
+    // soft-1 (oldest non-pinned) should have been evicted
+    expect((await store.getMemory('test', 'soft-1'))!.tier).toBe(2);
+  });
+
+  test('promoteToHard changes persistence to hard', async () => {
+    store = await createTestLibsqlStore();
+    await store.createSpace('test', 'Test', ['test']);
+    await store.addMemory('test', 'mem', 'content', { tags: ['test'] });
+
+    await store.promoteToHard('test', 'mem');
+
+    const row = await store.client.execute({
+      sql: 'SELECT persistence FROM memories WHERE space_name = ? AND name = ?',
+      args: ['test', 'mem'],
+    });
+    expect((row.rows[0] as any).persistence).toBe('hard');
+  });
+
+  test('demoteToSoft changes persistence to soft', async () => {
+    store = await createTestLibsqlStore();
+    await store.createSpace('test', 'Test', ['test']);
+    await addHardMemory(store, 'test', 'hard-mem', 'content');
+
+    await store.demoteToSoft('test', 'hard-mem');
+
+    const row = await store.client.execute({
+      sql: 'SELECT persistence FROM memories WHERE space_name = ? AND name = ?',
+      args: ['test', 'hard-mem'],
+    });
+    expect((row.rows[0] as any).persistence).toBe('soft');
   });
 });

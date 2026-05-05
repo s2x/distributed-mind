@@ -200,6 +200,14 @@ export function createSqliteStore(dbPath: string): MindStore {
     pin: id => memoryRepo.pin(id),
     unpin: id => memoryRepo.unpin(id),
 
+    // Persistence (libSQL only — stubs for bun:sqlite backend)
+    promoteToHard: async (_spaceName: string, _memoryName: string) => {
+      throw new Error('promoteToHard is not supported on the bun:sqlite backend');
+    },
+    demoteToSoft: async (_spaceName: string, _memoryName: string) => {
+      throw new Error('demoteToSoft is not supported on the bun:sqlite backend');
+    },
+
     // Links (delegated to LinkRepository)
     link: (sourceId, targetId, label) => linkRepo.linkMemories(sourceId, targetId, label),
     unlink: (sourceId, targetId) => linkRepo.unlinkMemories(sourceId, targetId),
