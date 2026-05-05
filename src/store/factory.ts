@@ -1,3 +1,6 @@
+import { mkdirSync } from 'fs';
+import { dirname } from 'path';
+
 import { createLibsqlStore } from './libsql-store';
 import type { MindStore } from './mind-store';
 
@@ -48,8 +51,16 @@ export async function createDimindStore(): Promise<MindStore> {
     process.exit(1);
   }
 
-  // Determine DB URL
-  const resolvedUrl = dbUrl ?? `file:./data/dimind.db`;
+  // Determine DB URL — default: XDG data dir (~/.local/share/dimind/dimind.db)
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? '.';
+  const xdgData = process.env.XDG_DATA_HOME ?? `${home}/.local/share`;
+  const resolvedUrl = dbUrl ?? `file:${xdgData}/dimind/dimind.db`;
+
+  // Ensure the directory exists for file: URLs
+  if (resolvedUrl.startsWith('file:')) {
+    const filePath = resolvedUrl.slice(5);
+    mkdirSync(dirname(filePath), { recursive: true });
+  }
 
   return createLibsqlStore({
     url: resolvedUrl,
