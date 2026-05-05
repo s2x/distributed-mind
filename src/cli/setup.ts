@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import * as path from 'path';
 
 import { DEFAULT_PORT } from '../config';
+import { getBinaryName } from '../helpers/binary-name';
 import { getAgentConfig } from '../setup/agent-config';
 import { ensureMindManagementSkill } from '../setup/skill-installation';
 export { buildOpenCodeAutomationPlugin } from '../setup/opencode-automation-plugin';
@@ -54,8 +55,9 @@ function ensureDir(dirPath: string): void {
 }
 
 function getMindScriptPath(): string {
+  const binaryName = getBinaryName();
   try {
-    const result = spawnSync('command', ['-v', 'mind'], { encoding: 'utf-8', shell: false });
+    const result = spawnSync('command', ['-v', binaryName], { encoding: 'utf-8', shell: false });
     if (result.status === 0 && result.stdout.trim()) {
       return result.stdout.trim();
     }
@@ -63,12 +65,12 @@ function getMindScriptPath(): string {
     // Fall through to absolute path detection
   }
 
-  // From src/cli/, go up 2 levels to repo root, then append 'mind' script name
-  const script = path.resolve(__dirname, '..', '..', 'mind');
+  // From src/cli/, go up 2 levels to repo root, then append binary script name
+  const script = path.resolve(__dirname, '..', '..', binaryName);
   if (fs.existsSync(script)) {
     return script;
   }
-  return 'mind';
+  return binaryName;
 }
 
 export function tryClaudeMcpAdd(mindPath: string): { ok: boolean; reason?: string } {
@@ -86,7 +88,7 @@ export function tryClaudeMcpAdd(mindPath: string): { ok: boolean; reason?: strin
   try {
     const result = spawnSync(
       'claude',
-      ['mcp', 'add', '--transport', 'stdio', '--scope', 'user', 'mind', '--', mindPath, 'mcp'],
+      ['mcp', 'add', '--transport', 'stdio', '--scope', 'user', getBinaryName(), '--', mindPath, 'mcp'],
       { encoding: 'utf-8', shell: false, stdio: 'pipe' }
     );
 
@@ -801,8 +803,9 @@ function removeLegacyUrlField(merged: Record<string, unknown>): void {
   const mcpServers = (merged as Record<string, unknown>).mcpServers as
     | Record<string, unknown>
     | undefined;
-  if (mcpServers?.mind) {
-    delete (mcpServers.mind as Record<string, unknown>).url;
+  const serverKey = getBinaryName();
+  if (mcpServers?.[serverKey]) {
+    delete (mcpServers[serverKey] as Record<string, unknown>).url;
   }
 }
 
@@ -876,7 +879,8 @@ export async function runSetup(agent: SupportedAgent): Promise<void> {
   } else {
     const current = readText(cfg.configPath);
     const snippet = cfg.build(mcpUrl, mindPath) as string;
-    const merged = current.includes('[mcp_servers.mind]') ? current : `${current}${snippet}`;
+    const serverKey = getBinaryName();
+    const merged = current.includes(`[mcp_servers.${serverKey}]`) ? current : `${current}${snippet}`;
     writeText(cfg.configPath, merged);
 
     if (agent === 'codex') {

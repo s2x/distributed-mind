@@ -6,6 +6,7 @@ import * as path from 'path';
 
 import type { CapabilityMap, SupportedAgent } from '../cli/capabilities';
 import { getAgentCapabilities, getSupportedAgentDefinition } from '../cli/capabilities';
+import { getBinaryName } from '../helpers/binary-name';
 
 export interface AgentConfigEntry {
   name: string;
@@ -41,9 +42,10 @@ function getHomeDir(): string {
 // JSON config builders for each agent
 // Note: build functions receive (_mcpUrl, mindPath) but ignore the first param
 function buildJsonMcpConfig(_mcpUrl: string, mindPath: string): Record<string, unknown> {
+  const serverKey = getBinaryName();
   return {
     mcpServers: {
-      mind: {
+      [serverKey]: {
         type: 'stdio',
         command: mindPath,
         args: ['mcp'],
@@ -54,9 +56,10 @@ function buildJsonMcpConfig(_mcpUrl: string, mindPath: string): Record<string, u
 }
 
 function buildOpenCodeMcpConfig(_mcpUrl: string, mindPath: string): Record<string, unknown> {
+  const serverKey = getBinaryName();
   return {
     mcp: {
-      mind: {
+      [serverKey]: {
         type: 'local',
         command: [mindPath, 'mcp'],
         enabled: true,
@@ -66,7 +69,8 @@ function buildOpenCodeMcpConfig(_mcpUrl: string, mindPath: string): Record<strin
 }
 
 function buildTomlMcpConfig(_mcpUrl: string, mindPath: string): string {
-  return `\n[mcp_servers.mind]\ncommand = "${mindPath}"\nargs = ["mcp"]\n`;
+  const serverKey = getBinaryName();
+  return `\n[mcp_servers.${serverKey}]\ncommand = "${mindPath}"\nargs = ["mcp"]\n`;
 }
 
 // Internal config entry with path components (not yet resolved)

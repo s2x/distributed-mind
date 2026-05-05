@@ -1,6 +1,7 @@
 import { runApiServer } from '../../api/server';
 import { startMcpHttpServer, startMcpServer } from '../../mcp/server';
 import type { MindStore } from '../../store/mind-store';
+import { getBinaryName } from '../../helpers/binary-name';
 import { ArgParser } from '../arg-parser';
 import { getSupportedAgents } from '../capabilities';
 import { runUpdateCommand } from '../self-update';
@@ -133,7 +134,7 @@ export const runtimeGroup: CommandGroup = {
     {
       matches: args => SETUP.matches(args),
       execute: async () => {
-        console.log('mind setup <agent>  Setup MCP for an agent');
+        console.log(`${getBinaryName()} setup <agent>  Setup MCP for an agent`);
         console.log('');
         listAgents();
       },
