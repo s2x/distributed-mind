@@ -10,6 +10,5 @@ export const DIMIND_CONFIG = {
   syncUrl: process.env.DIMIND_SYNC_URL,
   syncAuthToken: process.env.DIMIND_SYNC_AUTH_TOKEN,
   allowInsecureSync: process.env.DIMIND_ALLOW_INSECURE_SYNC === '1',
-  noLegacyWarning: process.env.DIMIND_NO_LEGACY_WARNING === '1',
   clientId: process.env.DIMIND_CLIENT_ID,
 };
