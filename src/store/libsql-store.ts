@@ -21,6 +21,7 @@ import type {
 } from '../types';
 import type { MindStore, LinkedMemorySummary, MemoryPatchInput } from './mind-store';
 import { createLibsqlSpaceRepository } from './libsql-repositories/space-repository';
+import { createLibsqlLinkRepository } from './libsql-repositories/link-repository';
 import {
   createLibsqlLogRepository,
   subscribeToLogs,
@@ -222,6 +223,7 @@ async function initializeLibsqlDatabase(client: Client): Promise<void> {
 
 class LibsqlMindStore implements MindStore {
   private readonly spaceRepository;
+  private readonly linkRepository;
   private readonly logRepository: LogRepository;
 
   constructor(
@@ -229,6 +231,7 @@ class LibsqlMindStore implements MindStore {
     private readonly clientId?: string
   ) {
     this.spaceRepository = createLibsqlSpaceRepository(client);
+    this.linkRepository = createLibsqlLinkRepository(client);
     this.logRepository = createLibsqlLogRepository(client);
   }
 
@@ -367,16 +370,16 @@ class LibsqlMindStore implements MindStore {
 
   // ── Links ──
 
-  async link(_sourceId: number, _targetId: number, _label?: string): Promise<void> {
-    throw new Error('not implemented: link');
+  async link(sourceId: number, targetId: number, label?: string): Promise<void> {
+    return this.linkRepository.linkMemories(sourceId, targetId, label);
   }
 
-  async unlink(_sourceId: number, _targetId: number): Promise<void> {
-    throw new Error('not implemented: unlink');
+  async unlink(sourceId: number, targetId: number): Promise<void> {
+    return this.linkRepository.unlinkMemories(sourceId, targetId);
   }
 
-  async getLinks(_memoryId: number): Promise<Link[]> {
-    throw new Error('not implemented: getLinks');
+  async getLinks(memoryId: number): Promise<Link[]> {
+    return this.linkRepository.getLinks(memoryId);
   }
 
   // ── Search ──
