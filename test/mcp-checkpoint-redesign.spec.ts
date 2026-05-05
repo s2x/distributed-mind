@@ -9,7 +9,7 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
@@ -19,9 +19,9 @@ afterEach(() => {
 // =============================================================================
 
 describe('Phase 2.5: Checkpoint Tools (same space)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     store = createTestStore();
-    store.createSpace('test-space', 'Test space', ['test']);
+    await store.createSpace('test-space', 'Test space', ['test']);
   });
 
   // ==========================================================================
@@ -60,9 +60,9 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
 
       expect(res.checkpoint).toBeDefined();
       // Look up checkpoint by name to verify links
-      const cpMemory = store.getMemory('test-space', res.checkpoint!.name);
+      const cpMemory = await store.getMemory('test-space', res.checkpoint!.name);
       expect(cpMemory).toBeDefined();
-      const links = store.getLinks(cpMemory!.id);
+      const links = await store.getLinks(cpMemory!.id);
       expect(links.some(l => l.target_id === mem.id)).toBe(true);
     });
 
@@ -81,9 +81,9 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       });
 
       expect(res.checkpoint).toBeDefined();
-      const cpMemory = store.getMemory('test-space', res.checkpoint!.name);
+      const cpMemory = await store.getMemory('test-space', res.checkpoint!.name);
       expect(cpMemory).toBeDefined();
-      const links = store.getLinks(cpMemory!.id);
+      const links = await store.getLinks(cpMemory!.id);
       expect(links.some(l => l.target_id === mem.id)).toBe(true);
     });
 
@@ -107,7 +107,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       });
 
       // No :sessions space should exist
-      const sessionsSpace = store.getSpace('test-space:sessions');
+      const sessionsSpace = await store.getSpace('test-space:sessions');
       expect(sessionsSpace).toBeNull();
     });
   });
@@ -364,10 +364,10 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       expect(res.session_memory?.tags).toContain('cat:summary');
 
       // Original checkpoint should be deleted
-      expect(store.getMemory('test-space', checkpointName)).toBeNull();
+      expect(await store.getMemory('test-space', checkpointName)).toBeNull();
 
       // Session memory should exist in sessions space
-      const sessionMem = store.getMemory('sessions/test-space', res.session_memory!.name);
+      const sessionMem = await store.getMemory('sessions/test-space', res.session_memory!.name);
       expect(sessionMem).toBeDefined();
       expect(sessionMem?.tags).toContain('type:session');
       expect(sessionMem?.tags).toContain('cat:summary');
@@ -394,7 +394,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       });
 
       // Session memory should exist in sessions space
-      const sessionMem = store.getMemory('sessions/test-space', res.session_memory!.name);
+      const sessionMem = await store.getMemory('sessions/test-space', res.session_memory!.name);
       expect(sessionMem).toBeDefined();
 
       // Content should include checkpoint data plus summary
@@ -406,7 +406,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       expect(content.originalCheckpoint).toBe(checkpointName);
 
       // Original checkpoint should be deleted
-      expect(store.getMemory('test-space', checkpointName)).toBeNull();
+      expect(await store.getMemory('test-space', checkpointName)).toBeNull();
     });
 
     test('2.5.4c checkpoint_done twice returns error on second call', async () => {
@@ -436,7 +436,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       const tools = createCheckpointTools(store);
 
       // Ensure sessions space doesn't exist
-      expect(store.getSpace('sessions/test-space')).toBeNull();
+      expect(await store.getSpace('sessions/test-space')).toBeNull();
 
       // Create and transform checkpoint
       const created = await tools.checkpoint_save.handler({
@@ -451,7 +451,7 @@ describe('Phase 2.5: Checkpoint Tools (same space)', () => {
       });
 
       // Sessions space should be auto-created
-      expect(store.getSpace('sessions/test-space')).toBeDefined();
+      expect(await store.getSpace('sessions/test-space')).toBeDefined();
       expect(res.session_memory?.space).toBe('sessions/test-space');
     });
   });

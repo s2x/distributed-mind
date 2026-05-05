@@ -10,21 +10,21 @@ function readSnapshot(name: string): string {
 }
 
 describe('memory protocol renderer', () => {
-  test('renders OpenCode protocol variant snapshot', () => {
+  test('renders OpenCode protocol variant snapshot', async () => {
     const rendered = renderMemoryProtocol('opencode');
     const snapshot = readSnapshot('memory-protocol.opencode.md');
 
     expect(rendered).toBe(snapshot);
   });
 
-  test('renders Claude protocol variant snapshot', () => {
+  test('renders Claude protocol variant snapshot', async () => {
     const rendered = renderMemoryProtocol('claude-code');
     const snapshot = readSnapshot('memory-protocol.claude-code.md');
 
     expect(rendered).toBe(snapshot);
   });
 
-  test('renders Codex protocol variant snapshot', () => {
+  test('renders Codex protocol variant snapshot', async () => {
     const rendered = renderMemoryProtocol('codex');
     const snapshot = readSnapshot('memory-protocol.codex.md');
 

@@ -4,14 +4,14 @@ import { ArgParser } from '../src/cli/arg-parser';
 
 describe('ArgParser', () => {
   describe('Multi-word commands', () => {
-    test('should match single-word command', () => {
+    test('should match single-word command', async () => {
       const parser = new ArgParser(['create', '<space>', '<desc>'], 'Test', []);
 
       expect(parser.matches(['create', 'my-space', 'desc'])).toBe(true);
       expect(parser.matches(['other', 'my-space', 'desc'])).toBe(false);
     });
 
-    test('should match two-word command with alias', () => {
+    test('should match two-word command with alias', async () => {
       const parser = new ArgParser(['checkpoint set|cp set', '<space>', '<goal>'], 'Test', []);
 
       expect(parser.matches(['checkpoint', 'set', 'myproj', 'goal'])).toBe(true);
@@ -19,7 +19,7 @@ describe('ArgParser', () => {
       expect(parser.matches(['checkpoint', 'other', 'myproj', 'goal'])).toBe(false);
     });
 
-    test('should match three-word command', () => {
+    test('should match three-word command', async () => {
       const parser = new ArgParser(
         ['checkpoint complete|cp complete', '<space>', '<id>', '<what>'],
         'Test',
@@ -30,7 +30,7 @@ describe('ArgParser', () => {
       expect(parser.matches(['cp', 'complete', 'proj', '1', 'done'])).toBe(true);
     });
 
-    test('should extract params correctly for multi-word commands', () => {
+    test('should extract params correctly for multi-word commands', async () => {
       const parser = new ArgParser(
         ['checkpoint set|cp set', '<space>', '<goal>', '<pending>'],
         'Test',
@@ -44,7 +44,7 @@ describe('ArgParser', () => {
       expect(params.pending).toBe('Fix bug');
     });
 
-    test('should handle flags with multi-word commands', () => {
+    test('should handle flags with multi-word commands', async () => {
       const parser = new ArgParser(
         ['checkpoint set|cp set', '<space>', '<goal>', '<pending>'],
         'Test',
@@ -58,7 +58,7 @@ describe('ArgParser', () => {
       expect(flags.notes).toBe('My notes');
     });
 
-    test('should reject wrong number of args', () => {
+    test('should reject wrong number of args', async () => {
       const parser = new ArgParser(['test', '<arg>'], 'Test', []);
 
       expect(parser.matches(['test'])).toBe(false);
@@ -66,7 +66,7 @@ describe('ArgParser', () => {
       expect(parser.matches(['test', 'a'])).toBe(true);
     });
 
-    test('should handle piped aliases', () => {
+    test('should handle piped aliases', async () => {
       const parser = new ArgParser(['delete|d|rm', '<space>'], 'Test', []);
 
       expect(parser.matches(['delete', 'space'])).toBe(true);
@@ -76,7 +76,7 @@ describe('ArgParser', () => {
   });
 
   describe('getPositionalArgs', () => {
-    test('should extract positional args', () => {
+    test('should extract positional args', async () => {
       const parser = new ArgParser(['test', '<arg>'], 'Test', [{ name: 'flag', hasValue: true }]);
 
       const positional = parser.getPositionalArgs(['test', 'value', '--flag', 'flag-value']);
@@ -84,7 +84,7 @@ describe('ArgParser', () => {
       expect(positional).toEqual(['test', 'value']);
     });
 
-    test('should handle boolean flags', () => {
+    test('should handle boolean flags', async () => {
       const parser = new ArgParser(['test', '<arg>'], 'Test', [
         { name: 'verbose', hasValue: false },
       ]);

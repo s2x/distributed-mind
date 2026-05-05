@@ -8,7 +8,7 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
@@ -18,9 +18,9 @@ afterEach(() => {
 // =============================================================================
 
 describe('Phase 2.2: Memories Tools Redesign', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     store = createTestStore();
-    store.createSpace('test-space', 'Test space', ['test']);
+    await store.createSpace('test-space', 'Test space', ['test']);
   });
 
   // ==========================================================================
@@ -89,7 +89,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
     test('2.2.3 memory.read noPromote:true returns links_to and linked_by arrays', async () => {
       // Create target memories first
       await store.addMemory('test-space', 'target1', 'Target 1 content', { tags: ['test'] });
-      const target = store.getMemory('test-space', 'target1')!;
+      const target = (await store.getMemory('test-space', 'target1'))!;
 
       // Create source memory with link
       await store.addMemory('test-space', 'source1', 'Source content', {
@@ -123,7 +123,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         tags: ['cat:pattern'],
         pinned: true,
       });
-      const target = store.getMemory('test-space', 'target1')!;
+      const target = (await store.getMemory('test-space', 'target1'))!;
 
       // Create source with link to target
       await store.addMemory('test-space', 'source1', 'Source content', {
@@ -161,7 +161,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         tier: 2,
         tags: ['test'],
       });
-      const memBefore = store.getMemory('test-space', 'warm-memory')!;
+      const memBefore = (await store.getMemory('test-space', 'warm-memory'))!;
       expect(memBefore.tier).toBe(2);
 
       const tools = createMemoryTools(store);
@@ -182,7 +182,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         tier: 1,
         tags: ['test'],
       });
-      const memBefore = store.getMemory('test-space', 'hot-memory')!;
+      const memBefore = (await store.getMemory('test-space', 'hot-memory'))!;
       expect(memBefore.tier).toBe(1);
 
       const tools = createMemoryTools(store);
@@ -204,7 +204,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         tags: ['test'],
         pinned: true,
       });
-      const memBefore = store.getMemory('test-space', 'pinned-memory')!;
+      const memBefore = (await store.getMemory('test-space', 'pinned-memory'))!;
       expect(memBefore.tier).toBe(2);
       expect(memBefore.pinned).toBe(true);
 
@@ -223,7 +223,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
     test('memory.read returns links_to and linked_by', async () => {
       // Create target and source memories with link
       await store.addMemory('test-space', 'target1', 'Target content', { tags: ['test'] });
-      const target = store.getMemory('test-space', 'target1')!;
+      const target = (await store.getMemory('test-space', 'target1'))!;
 
       await store.addMemory('test-space', 'source1', 'Source content', {
         tags: ['test'],
@@ -260,7 +260,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         tags: ['new:tag'],
       });
 
-      const updated = store.getMemory('test-space', 'my-memory');
+      const updated = await store.getMemory('test-space', 'my-memory');
       expect(updated?.tags).toEqual(['new:tag']);
     });
 
@@ -276,7 +276,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         content: 'Updated content',
       });
 
-      const updated = store.getMemory('test-space', 'my-memory');
+      const updated = await store.getMemory('test-space', 'my-memory');
       expect(updated?.tags).toEqual(['cat:decision', 'cat:pattern']);
     });
 
@@ -290,7 +290,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
         content: 'New content',
       });
 
-      const updated = store.getMemory('test-space', 'my-memory');
+      const updated = await store.getMemory('test-space', 'my-memory');
       expect(updated?.content).toBe('New content');
       expect((res as any).structuredContent?.memory?.content).toBe('New content');
       expect(res.memory?.space).toBe('test-space');
@@ -332,7 +332,7 @@ describe('Phase 2.2: Memories Tools Redesign', () => {
       });
 
       expect(res.content[0]?.text).toContain('deleted');
-      expect(store.getMemory('test-space', 'to-delete')).toBeNull();
+      expect(await store.getMemory('test-space', 'to-delete')).toBeNull();
     });
   });
 

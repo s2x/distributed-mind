@@ -13,7 +13,7 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
@@ -62,7 +62,7 @@ function expectNoBoundaryLeaks(value: unknown) {
 describe('MCP YAML content stage 1', () => {
   test('in-scope tools return raw YAML content matching structured payloads', async () => {
     store = createTestStore();
-    store.createSpace('projects/mind', 'Mind project', ['type:project']);
+    await store.createSpace('projects/mind', 'Mind project', ['type:project']);
     await store.addMemory('projects/mind', 'related-memory', 'Related content', {
       tags: ['cat:decision'],
     });
@@ -159,7 +159,7 @@ describe('MCP YAML content stage 1', () => {
 
   test('in-scope YAML payloads are normalized before serialization', async () => {
     store = createTestStore();
-    store.createSpace('projects/mind', 'Mind project', ['type:project']);
+    await store.createSpace('projects/mind', 'Mind project', ['type:project']);
 
     const spaceTools = createSpaceTools(store);
     const memoryTools = createMemoryTools(store);
@@ -207,7 +207,7 @@ describe('MCP YAML content stage 1', () => {
 
   test('content-only tools remain unchanged and system_instructions stays as protocol text', async () => {
     store = createTestStore();
-    store.createSpace('projects/mind', 'Mind project', ['type:project']);
+    await store.createSpace('projects/mind', 'Mind project', ['type:project']);
     const source = await store.addMemory('projects/mind', 'source', 'Source content', {
       tags: ['cat:decision'],
     });
@@ -246,7 +246,7 @@ describe('MCP YAML content stage 1', () => {
     expect(spaceDelete.structuredContent).toBeUndefined();
     expect(spaceDelete.content[0]?.text).toContain('deleted');
 
-    expect(store.getLinks(source.id)).toEqual([]);
+    expect(await store.getLinks(source.id)).toEqual([]);
 
     // @ts-ignore — handler accepts 0 args but type system requires 1
     const systemInstructions: any = await systemTools.system_instructions.handler();

@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 describe('Phase 1.4 — Tags validation: createSpace', () => {
-  test('createSpace without tags should throw error', () => {
+  test('createSpace without tags should throw error', async () => {
     store = createTestStore();
 
     expect(() => (store as any).createSpace('test', 'Test space')).toThrow(
@@ -19,7 +19,7 @@ describe('Phase 1.4 — Tags validation: createSpace', () => {
     );
   });
 
-  test('createSpace with empty array of tags should throw error', () => {
+  test('createSpace with empty array of tags should throw error', async () => {
     store = createTestStore();
 
     expect(() => (store as any).createSpace('test', 'Test space', [])).toThrow(

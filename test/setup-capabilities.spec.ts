@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 describe('Setup capability model', () => {
-  test('declares explicit per-level capability status for each configured agent', () => {
+  test('declares explicit per-level capability status for each configured agent', async () => {
     const matrix = getAgentCapabilityMatrix();
     expect(matrix.length).toBeGreaterThanOrEqual(6);
 
@@ -80,7 +80,7 @@ describe('Setup capability model', () => {
     ).toBe(true);
   });
 
-  test('no roadmap agents in capability matrix', () => {
+  test('no roadmap agents in capability matrix', async () => {
     const matrix = getAgentCapabilityMatrix();
     const agentNames = matrix.map(entry => entry.agent);
 
@@ -103,7 +103,7 @@ describe('Setup capability model', () => {
     expect(antigravity?.capabilities.L3_HOOKS.status).toBe('unsupported');
   });
 
-  test('setup command output exposes capability statuses and evidence notes', () => {
+  test('setup command output exposes capability statuses and evidence notes', async () => {
     const logSpy = spyOn(console, 'log');
 
     listAgents();

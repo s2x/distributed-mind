@@ -7,19 +7,19 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
 describe('Phase 1.2 — MindStore interface: getHotMemories', () => {
   test('getHotMemories should return HotMemorySummary[] for a space', async () => {
     store = createTestStore();
-    store.createSpace('test', 'Test space', ['test']);
+    await store.createSpace('test', 'Test space', ['test']);
     await store.addMemory('test', 'mem1', 'content', { tags: ['backend'], tier: 1 });
     await store.addMemory('test', 'mem2', 'content', { tags: ['frontend'], tier: 2 });
     await store.addMemory('test', 'mem3', 'content', { tags: ['archive'], tier: 3 });
 
-    const hot = (store as any).getHotMemories('test');
+    const hot = await (store as any).getHotMemories('test');
 
     expect(Array.isArray(hot)).toBe(true);
     expect(hot.length).toBe(2); // only T1 + T2
@@ -30,14 +30,14 @@ describe('Phase 1.2 — MindStore interface: getHotMemories', () => {
 
   test('getHotMemories should return correct HotMemorySummary fields', async () => {
     store = createTestStore();
-    store.createSpace('test', 'Test space', ['test']);
+    await store.createSpace('test', 'Test space', ['test']);
     const mem = await store.addMemory('test', 'hot-mem', 'some content', {
       tags: ['project', 'important'],
       tier: 1,
       pinned: true,
     });
 
-    const hot = (store as any).getHotMemories('test');
+    const hot = await (store as any).getHotMemories('test');
 
     expect(hot.length).toBe(1);
     const summary = hot[0] as HotMemorySummary;
@@ -51,69 +51,69 @@ describe('Phase 1.2 — MindStore interface: getHotMemories', () => {
     expect(summary.updated_at.length).toBeGreaterThan(0);
   });
 
-  test('getHotMemories should return empty array when no memories', () => {
+  test('getHotMemories should return empty array when no memories', async () => {
     store = createTestStore();
-    store.createSpace('empty', 'Empty space', ['test']);
+    await store.createSpace('empty', 'Empty space', ['test']);
 
-    const hot = (store as any).getHotMemories('empty');
+    const hot = await (store as any).getHotMemories('empty');
     expect(hot).toEqual([]);
   });
 
-  test('getHotMemories should return empty array for non-existent space', () => {
+  test('getHotMemories should return empty array for non-existent space', async () => {
     store = createTestStore();
 
-    const hot = (store as any).getHotMemories('non-existent');
+    const hot = await (store as any).getHotMemories('non-existent');
     expect(hot).toEqual([]);
   });
 });
 
 describe('Phase 1.2 — MindStore interface: resolveMemoryRef', () => {
-  test('resolveMemoryRef should parse "space:name" correctly', () => {
+  test('resolveMemoryRef should parse "space:name" correctly', async () => {
     store = createTestStore();
 
-    const result = (store as any).resolveMemoryRef('projects/mind:my-memory');
+    const result = await (store as any).resolveMemoryRef('projects/mind:my-memory');
 
     expect(result).not.toBeNull();
     expect(result!.space).toBe('projects/mind');
     expect(result!.name).toBe('my-memory');
   });
 
-  test('resolveMemoryRef should handle names with colons', () => {
+  test('resolveMemoryRef should handle names with colons', async () => {
     store = createTestStore();
 
     // The first colon is the separator; everything after is the memory name
-    const result = (store as any).resolveMemoryRef('my-space:mem:with:colons');
+    const result = await (store as any).resolveMemoryRef('my-space:mem:with:colons');
 
     expect(result).not.toBeNull();
     expect(result!.space).toBe('my-space');
     expect(result!.name).toBe('mem:with:colons');
   });
 
-  test('resolveMemoryRef should return null for invalid format (no colon)', () => {
+  test('resolveMemoryRef should return null for invalid format (no colon)', async () => {
     store = createTestStore();
 
-    const result = (store as any).resolveMemoryRef('no-colon');
+    const result = await (store as any).resolveMemoryRef('no-colon');
     expect(result).toBeNull();
   });
 
-  test('resolveMemoryRef should return null for empty string', () => {
+  test('resolveMemoryRef should return null for empty string', async () => {
     store = createTestStore();
 
-    const result = (store as any).resolveMemoryRef('');
+    const result = await (store as any).resolveMemoryRef('');
     expect(result).toBeNull();
   });
 
-  test('resolveMemoryRef should return null for space-only (empty name after colon)', () => {
+  test('resolveMemoryRef should return null for space-only (empty name after colon)', async () => {
     store = createTestStore();
 
-    const result = (store as any).resolveMemoryRef('space-only:');
+    const result = await (store as any).resolveMemoryRef('space-only:');
     expect(result).toBeNull();
   });
 
-  test('resolveMemoryRef should return null for empty space (leading colon)', () => {
+  test('resolveMemoryRef should return null for empty space (leading colon)', async () => {
     store = createTestStore();
 
-    const result = (store as any).resolveMemoryRef(':memory-name');
+    const result = await (store as any).resolveMemoryRef(':memory-name');
     expect(result).toBeNull();
   });
 });
@@ -121,12 +121,12 @@ describe('Phase 1.2 — MindStore interface: resolveMemoryRef', () => {
 describe('Phase 1.3 — SQLite store implementation: getHotMemories', () => {
   test('getHotMemories returns T1 + T2 only (not T3)', async () => {
     store = createTestStore();
-    store.createSpace('test', 'Test space', ['test']);
+    await store.createSpace('test', 'Test space', ['test']);
     await store.addMemory('test', 't1', 'content', { tier: 1, tags: ['test'] });
     await store.addMemory('test', 't2', 'content', { tier: 2, tags: ['test'] });
     await store.addMemory('test', 't3', 'content', { tier: 3, tags: ['test'] });
 
-    const hot = (store as any).getHotMemories('test');
+    const hot = await (store as any).getHotMemories('test');
     const names = hot.map((m: HotMemorySummary) => m.name).sort();
 
     expect(names).toEqual(['t1', 't2']);
@@ -135,7 +135,7 @@ describe('Phase 1.3 — SQLite store implementation: getHotMemories', () => {
 
   test('getHotMemories includes pinned status correctly', async () => {
     store = createTestStore();
-    store.createSpace('test', 'Test space', ['test']);
+    await store.createSpace('test', 'Test space', ['test']);
     await store.addMemory('test', 'pinned', 'content', {
       tier: 1,
       pinned: true,
@@ -147,7 +147,7 @@ describe('Phase 1.3 — SQLite store implementation: getHotMemories', () => {
       tags: ['test'],
     });
 
-    const hot = (store as any).getHotMemories('test');
+    const hot = await (store as any).getHotMemories('test');
 
     const pinnedMem = hot.find((m: HotMemorySummary) => m.name === 'pinned');
     const freeMem = hot.find((m: HotMemorySummary) => m.name === 'free');
@@ -157,13 +157,13 @@ describe('Phase 1.3 — SQLite store implementation: getHotMemories', () => {
 
   test('getHotMemories returns hot memories sorted by tier then name', async () => {
     store = createTestStore();
-    store.createSpace('test', 'Test space', ['test']);
+    await store.createSpace('test', 'Test space', ['test']);
     await store.addMemory('test', 'warm-a', 'content', { tier: 2, tags: ['test'] });
     await store.addMemory('test', 'hot-a', 'content', { tier: 1, tags: ['test'] });
     await store.addMemory('test', 'warm-b', 'content', { tier: 2, tags: ['test'] });
     await store.addMemory('test', 'hot-b', 'content', { tier: 1, tags: ['test'] });
 
-    const hot = (store as any).getHotMemories('test');
+    const hot = await (store as any).getHotMemories('test');
 
     expect(hot.length).toBe(4);
     // T1 memories should come before T2
@@ -175,35 +175,35 @@ describe('Phase 1.3 — SQLite store implementation: getHotMemories', () => {
 });
 
 describe('Phase 1.3 — SQLite store implementation: resolveMemoryRef', () => {
-  test('resolveMemoryRef parses simple space:name', () => {
+  test('resolveMemoryRef parses simple space:name', async () => {
     store = createTestStore();
 
-    const result = (store as any).resolveMemoryRef('test:auth-flow');
+    const result = await (store as any).resolveMemoryRef('test:auth-flow');
     expect(result).toEqual({ space: 'test', name: 'auth-flow' });
   });
 
-  test('resolveMemoryRef handles nested path as space name', () => {
+  test('resolveMemoryRef handles nested path as space name', async () => {
     store = createTestStore();
 
-    const result = (store as any).resolveMemoryRef('projects/mind:session-2024');
+    const result = await (store as any).resolveMemoryRef('projects/mind:session-2024');
     expect(result).toEqual({ space: 'projects/mind', name: 'session-2024' });
   });
 
-  test('resolveMemoryRef returns null when no colon', () => {
+  test('resolveMemoryRef returns null when no colon', async () => {
     store = createTestStore();
 
-    expect((store as any).resolveMemoryRef('just-a-name')).toBeNull();
+    expect(await (store as any).resolveMemoryRef('just-a-name')).toBeNull();
   });
 
-  test('resolveMemoryRef returns null for whitespace-only', () => {
+  test('resolveMemoryRef returns null for whitespace-only', async () => {
     store = createTestStore();
 
-    expect((store as any).resolveMemoryRef('   ')).toBeNull();
+    expect(await (store as any).resolveMemoryRef('   ')).toBeNull();
   });
 
-  test('resolveMemoryRef returns null for colon-only', () => {
+  test('resolveMemoryRef returns null for colon-only', async () => {
     store = createTestStore();
 
-    expect((store as any).resolveMemoryRef(':')).toBeNull();
+    expect(await (store as any).resolveMemoryRef(':')).toBeNull();
   });
 });

@@ -7,7 +7,7 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
@@ -15,7 +15,7 @@ describe('Phase 2.4: Links Tools Redesign', () => {
   describe('link.create accepts "space:name" format', () => {
     test('2.4.1: link.create accepts "space:name" format for sourceRef and targetRef', async () => {
       store = createTestStore();
-      store.createSpace('proj', 'Project', ['test']);
+      await store.createSpace('proj', 'Project', ['test']);
       const mem1 = await store.addMemory('proj', 'mem1', 'content 1', { tags: ['test'] });
       const mem2 = await store.addMemory('proj', 'mem2', 'content 2', { tags: ['test'] });
 
@@ -30,14 +30,14 @@ describe('Phase 2.4: Links Tools Redesign', () => {
       expect(res.content[0]!.text).toContain('mem2');
       expect(res.content[0]!.text).toContain('relates_to');
 
-      const links = store.getLinks(mem1.id);
+      const links = await store.getLinks(mem1.id);
       expect(links.length).toBe(1);
       expect(links[0]!.target_id).toBe(mem2.id);
     });
 
     test('2.4.2: link.create accepts "name" shorthand (same space)', async () => {
       store = createTestStore();
-      store.createSpace('proj', 'Project', ['test']);
+      await store.createSpace('proj', 'Project', ['test']);
       const mem1 = await store.addMemory('proj', 'mem1', 'content 1', { tags: ['test'] });
       const mem2 = await store.addMemory('proj', 'mem2', 'content 2', { tags: ['test'] });
 
@@ -51,14 +51,14 @@ describe('Phase 2.4: Links Tools Redesign', () => {
       expect(res.content[0]!.text).toContain('mem1');
       expect(res.content[0]!.text).toContain('mem2');
 
-      const links = store.getLinks(mem1.id);
+      const links = await store.getLinks(mem1.id);
       expect(links.length).toBe(1);
       expect(links[0]!.target_id).toBe(mem2.id);
     });
 
     test('2.4.3: link.create with invalid ref format throws "invalid memory reference"', async () => {
       store = createTestStore();
-      store.createSpace('proj', 'Project', ['test']);
+      await store.createSpace('proj', 'Project', ['test']);
       await store.addMemory('proj', 'mem1', 'content 1', { tags: ['test'] });
 
       const tools = createLinkTools(store);
@@ -72,7 +72,7 @@ describe('Phase 2.4: Links Tools Redesign', () => {
 
     test('2.4.4: link.create with non-existing memory throws error', async () => {
       store = createTestStore();
-      store.createSpace('proj', 'Project', ['test']);
+      await store.createSpace('proj', 'Project', ['test']);
       await store.addMemory('proj', 'mem1', 'content 1', { tags: ['test'] });
 
       const tools = createLinkTools(store);
@@ -88,10 +88,10 @@ describe('Phase 2.4: Links Tools Redesign', () => {
   describe('link.delete accepts "space:name" format', () => {
     test('2.4.5: link.delete accepts "space:name" format', async () => {
       store = createTestStore();
-      store.createSpace('proj', 'Project', ['test']);
+      await store.createSpace('proj', 'Project', ['test']);
       const mem1 = await store.addMemory('proj', 'mem1', 'content 1', { tags: ['test'] });
       const mem2 = await store.addMemory('proj', 'mem2', 'content 2', { tags: ['test'] });
-      store.link(mem1.id, mem2.id);
+      await store.link(mem1.id, mem2.id);
 
       const tools = createLinkTools(store);
       const res = await tools.link_delete.handler({
@@ -101,16 +101,16 @@ describe('Phase 2.4: Links Tools Redesign', () => {
 
       expect(res.content[0]!.text).toContain('Unlinked');
 
-      const links = store.getLinks(mem1.id);
+      const links = await store.getLinks(mem1.id);
       expect(links.length).toBe(0);
     });
 
     test('2.4.6: link.delete accepts "name" shorthand (same space)', async () => {
       store = createTestStore();
-      store.createSpace('proj', 'Project', ['test']);
+      await store.createSpace('proj', 'Project', ['test']);
       const mem1 = await store.addMemory('proj', 'mem1', 'content 1', { tags: ['test'] });
       const mem2 = await store.addMemory('proj', 'mem2', 'content 2', { tags: ['test'] });
-      store.link(mem1.id, mem2.id);
+      await store.link(mem1.id, mem2.id);
 
       const tools = createLinkTools(store);
       const res = await tools.link_delete.handler({
@@ -120,15 +120,15 @@ describe('Phase 2.4: Links Tools Redesign', () => {
 
       expect(res.content[0]!.text).toContain('Unlinked');
 
-      const links = store.getLinks(mem1.id);
+      const links = await store.getLinks(mem1.id);
       expect(links.length).toBe(0);
     });
   });
 
   describe('links_list removed', () => {
-    test('2.4.7: links_list no longer exists (tool not found)', () => {
+    test('2.4.7: links_list no longer exists (tool not found)', async () => {
       store = createTestStore();
-      store.createSpace('proj', 'Project', ['test']);
+      await store.createSpace('proj', 'Project', ['test']);
 
       const tools = createLinkTools(store);
       // links_list should not exist as a tool

@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test';
 import { getCurrentVersion, getInstallerPath, getRootPath } from '../src/cli/self-update';
 
 describe('self-update path resolution', () => {
-  test('resolves repo-local paths under the current src layout', () => {
+  test('resolves repo-local paths under the current src layout', async () => {
     const expectedRepoRoot = path.resolve(import.meta.dir, '..');
     const oneLevelAboveRepo = path.resolve(expectedRepoRoot, '..');
 
@@ -16,7 +16,7 @@ describe('self-update path resolution', () => {
     expect(fs.existsSync(getInstallerPath())).toBe(true);
   });
 
-  test('reads the current version from the repo-local package.json', () => {
+  test('reads the current version from the repo-local package.json', async () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(path.resolve(import.meta.dir, '..'), 'package.json'), 'utf-8')
     ) as { version: string };

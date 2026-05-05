@@ -13,9 +13,9 @@ import type { Memory, Tier } from '../src/types';
 
 function createMockStore(links: any[], memories: Map<number, Memory>): MindStore {
   return {
-    getLinks: (id: number) => links.filter(l => l.source_id === id || l.target_id === id),
-    getMemoryById: (id: number) => memories.get(id) ?? null,
-    getLinkedMemorySummaries: () => ({ links_to: [], linked_by: [] }),
+    getLinks: (id: number) => Promise.resolve(links.filter(l => l.source_id === id || l.target_id === id)),
+    getMemoryById: (id: number) => Promise.resolve(memories.get(id) ?? null),
+    getLinkedMemorySummaries: () => Promise.resolve({ links_to: [], linked_by: [] }),
     // Other methods unused by helpers under test
   } as unknown as MindStore;
 }
@@ -24,7 +24,7 @@ function createMockStore(links: any[], memories: Map<number, Memory>): MindStore
 
 describe('link-building helpers', () => {
   describe('transformLinkedSummary', () => {
-    test('transforms LinkedMemorySummary to EnrichedLink', () => {
+    test('transforms LinkedMemorySummary to EnrichedLink', async () => {
       const summary: LinkedMemorySummary = {
         id: 1,
         name: 'my-memory',
@@ -50,7 +50,7 @@ describe('link-building helpers', () => {
   });
 
   describe('mapLinkedSummariesToLinksFormat', () => {
-    test('transforms getLinkedMemorySummaries output to enriched format', () => {
+    test('transforms getLinkedMemorySummaries output to enriched format', async () => {
       const summaries: { links_to: LinkedMemorySummary[]; linked_by: LinkedMemorySummary[] } = {
         links_to: [
           {
@@ -101,7 +101,7 @@ describe('link-building helpers', () => {
       });
     });
 
-    test('handles empty arrays', () => {
+    test('handles empty arrays', async () => {
       const summaries = { links_to: [], linked_by: [] };
       const result = mapLinkedSummariesToLinksFormat(summaries);
       expect(result.links_to).toHaveLength(0);
@@ -110,7 +110,7 @@ describe('link-building helpers', () => {
   });
 
   describe('buildLinkedMemoriesArray', () => {
-    test('builds enriched linked_memories array from store', () => {
+    test('builds enriched linked_memories array from store', async () => {
       const linkedMem: Memory = {
         id: 42,
         space_name: 'projects/mind',
@@ -131,7 +131,7 @@ describe('link-building helpers', () => {
       const memories = new Map<number, Memory>([[42, linkedMem]]);
       const store = createMockStore(links, memories);
 
-      const result = buildLinkedMemoriesArray(store, 10, 5);
+      const result = await buildLinkedMemoriesArray(store, 10, 5);
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -145,7 +145,7 @@ describe('link-building helpers', () => {
       });
     });
 
-    test('respects limit parameter', () => {
+    test('respects limit parameter', async () => {
       const memories = new Map<number, Memory>();
       const links = [
         { source_id: 1, target_id: 2 },
@@ -175,17 +175,17 @@ describe('link-building helpers', () => {
       }
 
       const store = createMockStore(links, memories);
-      const result = buildLinkedMemoriesArray(store, 1, 3);
+      const result = await buildLinkedMemoriesArray(store, 1, 3);
 
       expect(result).toHaveLength(3);
     });
 
-    test('skips links with no corresponding memory', () => {
+    test('skips links with no corresponding memory', async () => {
       const links = [{ source_id: 1, target_id: 999 }];
       const memories = new Map<number, Memory>();
       const store = createMockStore(links, memories);
 
-      const result = buildLinkedMemoriesArray(store, 1, 5);
+      const result = await buildLinkedMemoriesArray(store, 1, 5);
       expect(result).toHaveLength(0);
     });
   });
@@ -195,7 +195,7 @@ describe('link-building helpers', () => {
 
 describe('checkpoint-content helpers', () => {
   describe('buildCheckpointContent', () => {
-    test('creates JSON string with all required fields', () => {
+    test('creates JSON string with all required fields', async () => {
       const result = buildCheckpointContent(
         'Implement feature X',
         'Write tests, update docs',
@@ -210,13 +210,13 @@ describe('checkpoint-content helpers', () => {
       expect(parsed.updatedAt).toBeDefined();
     });
 
-    test('handles undefined notes', () => {
+    test('handles undefined notes', async () => {
       const result = buildCheckpointContent('Goal only', 'Pending only');
       const parsed = JSON.parse(result);
       expect(parsed.notes).toBe('');
     });
 
-    test('handles null/undefined values gracefully', () => {
+    test('handles null/undefined values gracefully', async () => {
       const result = buildCheckpointContent(
         undefined as unknown as string,
         undefined as unknown as string,
@@ -228,7 +228,7 @@ describe('checkpoint-content helpers', () => {
       expect(parsed.notes).toBe('');
     });
 
-    test('uses provided createdAt and updatedAt when given', () => {
+    test('uses provided createdAt and updatedAt when given', async () => {
       const result = buildCheckpointContent(
         'Goal',
         'Pending',
@@ -243,7 +243,7 @@ describe('checkpoint-content helpers', () => {
   });
 
   describe('fetchCheckpointContent', () => {
-    test('parses valid checkpoint JSON content', () => {
+    test('parses valid checkpoint JSON content', async () => {
       const memory: Memory = {
         id: 1,
         space_name: 'test',
@@ -276,7 +276,7 @@ describe('checkpoint-content helpers', () => {
       expect(result!.updatedAt).toBe('2026-01-02 12:00:00');
     });
 
-    test('returns null on JSON parse error', () => {
+    test('returns null on JSON parse error', async () => {
       const memory: Memory = {
         id: 1,
         space_name: 'test',
@@ -297,7 +297,7 @@ describe('checkpoint-content helpers', () => {
       expect(result).toBeNull();
     });
 
-    test('handles missing fields in JSON with defaults', () => {
+    test('handles missing fields in JSON with defaults', async () => {
       const memory: Memory = {
         id: 1,
         space_name: 'test',

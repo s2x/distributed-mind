@@ -22,14 +22,14 @@ const SYSTEM_INSTRUCTIONS_SNAPSHOT_PATH = join(
 );
 
 describe('MCP System Tools', () => {
-  test('system instructions renderer should match snapshot', () => {
+  test('system instructions renderer should match snapshot', async () => {
     const snapshotText = readFileSync(SYSTEM_INSTRUCTIONS_SNAPSHOT_PATH, 'utf-8');
 
     expect(renderSystemInstructions()).toBe(snapshotText);
     expect(renderSystemInstructions()).toBe(snapshotText);
   });
 
-  test('system instructions renderer should be deterministic and equal to canonical source text', () => {
+  test('system instructions renderer should be deterministic and equal to canonical source text', async () => {
     const sourceText = readFileSync(SYSTEM_INSTRUCTIONS_SOURCE_PATH, 'utf-8');
 
     expect(renderSystemInstructions()).toBe(sourceText);

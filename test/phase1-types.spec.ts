@@ -5,7 +5,7 @@ import type { TierChange, HotMemorySummary } from '../src/types';
 
 describe('Phase 1.1 — Type definitions', () => {
   describe('TierChange interface', () => {
-    test('should have correct shape: from Tier, to Tier, reason', () => {
+    test('should have correct shape: from Tier, to Tier, reason', async () => {
       const change: TierChange = {
         from: 2,
         to: 1,
@@ -16,7 +16,7 @@ describe('Phase 1.1 — Type definitions', () => {
       expect(change.reason).toBe('promote');
     });
 
-    test('should accept all reason variants', () => {
+    test('should accept all reason variants', async () => {
       const promote: TierChange = { from: 2, to: 1, reason: 'promote' };
       const demote: TierChange = { from: 1, to: 2, reason: 'demote' };
       const auto: TierChange = { from: 3, to: 2, reason: 'auto_promote' };
@@ -26,7 +26,7 @@ describe('Phase 1.1 — Type definitions', () => {
       expect(auto.reason).toBe('auto_promote');
     });
 
-    test('should allow all tier values 1-3 for from/to', () => {
+    test('should allow all tier values 1-3 for from/to', async () => {
       const t1to3: TierChange = { from: 1, to: 3, reason: 'demote' };
       const t3to1: TierChange = { from: 3, to: 1, reason: 'promote' };
       expect(t1to3.from).toBe(1);
@@ -35,7 +35,7 @@ describe('Phase 1.1 — Type definitions', () => {
   });
 
   describe('HotMemorySummary type', () => {
-    test('should have required fields: id, name, tier, tags, pinned, updated_at', () => {
+    test('should have required fields: id, name, tier, tags, pinned, updated_at', async () => {
       const summary: HotMemorySummary = {
         id: 1,
         name: 'test-memory',
@@ -52,7 +52,7 @@ describe('Phase 1.1 — Type definitions', () => {
       expect(summary.updated_at).toBe('2026-03-21 10:00:00');
     });
 
-    test('should accept tier 2 as valid HotMemorySummary tier', () => {
+    test('should accept tier 2 as valid HotMemorySummary tier', async () => {
       const warm: HotMemorySummary = {
         id: 2,
         name: 'warm-memory',
@@ -64,7 +64,7 @@ describe('Phase 1.1 — Type definitions', () => {
       expect(warm.tier).toBe(2);
     });
 
-    test('should accept empty tags array', () => {
+    test('should accept empty tags array', async () => {
       const noTags: HotMemorySummary = {
         id: 3,
         name: 'no-tags',

@@ -8,7 +8,7 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
@@ -17,10 +17,10 @@ afterEach(() => {
 // =============================================================================
 
 describe('Phase 6: Integration Tests — Complete Workflows', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     store = createTestStore();
-    store.createSpace('projects/test-repo', 'Test project space', ['type:project']);
-    store.createSpace('other-space', 'Other space', ['test']);
+    await store.createSpace('projects/test-repo', 'Test project space', ['type:project']);
+    await store.createSpace('other-space', 'Other space', ['test']);
   });
 
   // ==========================================================================
@@ -88,14 +88,14 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     expect(done.session_memory!.tags).toContain('type:session');
     expect(done.session_memory!.tags).toContain('cat:summary');
 
-    const sessionMem = store.getMemory('sessions/test-repo', done.session_memory!.name);
+    const sessionMem = await store.getMemory('sessions/test-repo', done.session_memory!.name);
     expect(sessionMem).toBeDefined();
     const content = JSON.parse(sessionMem!.content);
     expect(content.goal).toBe('Implement user auth');
     expect(content.whatWasDone).toBe('Auth implementation complete with JWT and refresh tokens');
 
     // 6. Verify original checkpoint was deleted
-    expect(store.getMemory('projects/test-repo', checkpointName)).toBeNull();
+    expect(await store.getMemory('projects/test-repo', checkpointName)).toBeNull();
 
     // 7. Verify links_failed were reported for invalid links
     // (already verified step 2)
@@ -154,11 +154,11 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     }
 
     // Verify the valid link actually exists in the store
-    const newMem = store.getMemory('projects/test-repo', 'new-memory');
+    const newMem = await store.getMemory('projects/test-repo', 'new-memory');
     expect(newMem).toBeDefined();
-    const links = store.getLinks(newMem!.id);
+    const links = await store.getLinks(newMem!.id);
     expect(links).toHaveLength(1);
-    expect(links[0]!.target_id).toBe(store.getMemory('projects/test-repo', 'valid-memory')!.id);
+    expect(links[0]!.target_id).toBe((await store.getMemory('projects/test-repo', 'valid-memory'))!.id);
   });
 
   // ==========================================================================
@@ -376,12 +376,12 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     expect(created.checkpoint).toBeDefined();
 
     // Verify the checkpoint has a link to the related memory
-    const checkpointMem = store.getMemory('projects/test-repo', created.checkpoint!.name);
+    const checkpointMem = await store.getMemory('projects/test-repo', created.checkpoint!.name);
     expect(checkpointMem).toBeDefined();
-    const links = store.getLinks(checkpointMem!.id);
+    const links = await store.getLinks(checkpointMem!.id);
     expect(links.length).toBe(1);
 
-    const relatedMem = store.getMemory('projects/test-repo', 'related-memory');
+    const relatedMem = await store.getMemory('projects/test-repo', 'related-memory');
     expect(links[0]!.target_id).toBe(relatedMem!.id);
     expect(links[0]!.label).toBe('related');
   });
@@ -401,7 +401,7 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
       tier: 2,
     });
 
-    const memBefore = store.getMemory('projects/test-repo', 'warm-memory')!;
+    const memBefore = (await store.getMemory('projects/test-repo', 'warm-memory'))!;
     expect(memBefore.tier).toBe(2);
 
     // Read it (should promote to T1)
@@ -446,13 +446,13 @@ describe('Phase 6: Integration Tests — Complete Workflows', () => {
     });
 
     // Session memory should have link to the related memory
-    const sessionMem = store.getMemory('sessions/test-repo', done.session_memory!.name);
+    const sessionMem = await store.getMemory('sessions/test-repo', done.session_memory!.name);
     expect(sessionMem).toBeDefined();
-    const sessionLinks = store.getLinks(sessionMem!.id);
+    const sessionLinks = await store.getLinks(sessionMem!.id);
 
     // The session memory should have a link to base-memory
     expect(sessionLinks.length).toBe(1);
-    const baseMem = store.getMemory('projects/test-repo', 'base-memory');
+    const baseMem = await store.getMemory('projects/test-repo', 'base-memory');
     expect(sessionLinks[0]!.target_id).toBe(baseMem!.id);
   });
 });

@@ -7,7 +7,7 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
@@ -64,7 +64,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
   describe('space.get — orientation summary', () => {
     test('2.1.3 space.get returns overview counts, per-tier trending memories, and active_checkpoints', async () => {
       store = createTestStore();
-      store.createSpace('myproject', 'My project', ['test']);
+      await store.createSpace('myproject', 'My project', ['test']);
       await store.addMemory('myproject', 'hot-old', 'hot content', { tier: 1, tags: ['test'] });
       await store.addMemory('myproject', 'hot-new', 'newer hot content', {
         tier: 1,
@@ -129,7 +129,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
 
     test('2.1.4 space.get trending tier blocks exclude checkpoint-tagged memories and internal access fields', async () => {
       store = createTestStore();
-      store.createSpace('myproject', 'My project', ['test']);
+      await store.createSpace('myproject', 'My project', ['test']);
       await store.addMemory('myproject', 'hot1', 'hot content', {
         tier: 1,
         tags: ['cat:decision'],
@@ -164,7 +164,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
 
     test('space.get marks empty tiers as complete coverage', async () => {
       store = createTestStore();
-      store.createSpace('myproject', 'My project', ['test']);
+      await store.createSpace('myproject', 'My project', ['test']);
 
       const tools = createSpaceTools(store);
       const res = await tools.space_get.handler({ name: 'myproject' });
@@ -192,7 +192,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
 
     test('space.get marks tier coverage as subset when the preview is truncated', async () => {
       store = createTestStore();
-      store.createSpace('myproject', 'My project', ['test']);
+      await store.createSpace('myproject', 'My project', ['test']);
 
       for (let index = 0; index < 6; index += 1) {
         await store.addMemory('myproject', `warm-${index}`, `warm content ${index}`, {
@@ -213,7 +213,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
   describe('space.update — tags optional', () => {
     test('2.1.5 space.update with tags replaces entire array', async () => {
       store = createTestStore();
-      store.createSpace('myproject', 'My project', ['type:project', 'cat:decision']);
+      await store.createSpace('myproject', 'My project', ['type:project', 'cat:decision']);
 
       const tools = createSpaceTools(store);
       await tools.space_update.handler({
@@ -221,13 +221,13 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
         tags: ['new:tag'],
       });
 
-      const space = store.getSpace('myproject');
+      const space = await store.getSpace('myproject');
       expect(space?.tags).toEqual(['new:tag']);
     });
 
     test('2.1.6 space.update without tags does not modify existing tags', async () => {
       store = createTestStore();
-      store.createSpace('myproject', 'My project', ['type:project', 'cat:decision']);
+      await store.createSpace('myproject', 'My project', ['type:project', 'cat:decision']);
 
       const tools = createSpaceTools(store);
       const res = await tools.space_update.handler({
@@ -235,7 +235,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
         description: 'Updated description',
       });
 
-      const space = store.getSpace('myproject');
+      const space = await store.getSpace('myproject');
       // Tags order may vary due to DB storage, so sort before comparing
       expect(space?.tags.slice().sort()).toEqual(['cat:decision', 'type:project']);
       expect(res.space?.changed_at).toEqual(expect.any(String));
@@ -245,7 +245,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
 
     test('space.update with empty tags [] clears all tags', async () => {
       store = createTestStore();
-      store.createSpace('myproject', 'My project', ['type:project']);
+      await store.createSpace('myproject', 'My project', ['type:project']);
 
       const tools = createSpaceTools(store);
       await tools.space_update.handler({
@@ -253,7 +253,7 @@ describe('Phase 2.1: Spaces Tools Redesign', () => {
         tags: [],
       });
 
-      const space = store.getSpace('myproject');
+      const space = await store.getSpace('myproject');
       expect(space?.tags).toEqual([]);
     });
   });

@@ -8,7 +8,7 @@ import { createTestStore } from './mocks/test-store';
 
 let store: MindStore & { cleanup: () => void };
 
-afterEach(() => {
+afterEach(async () => {
   store?.cleanup();
 });
 
@@ -27,14 +27,14 @@ async function requestThroughServer(path: string): Promise<Response> {
 describe('API Routes — Space Graph', () => {
   test('returns minimal graph payload including T1-T3 memories', async () => {
     store = createTestStore();
-    store.createSpace('proj', 'Project', ['test']);
+    await store.createSpace('proj', 'Project', ['test']);
 
     const t1 = await store.addMemory('proj', 'hot', 'h', { tier: 1, tags: ['test'] });
     const t2 = await store.addMemory('proj', 'warm', 'w', { tier: 2, tags: ['test'] });
     const t3 = await store.addMemory('proj', 'cold', 'c', { tier: 3, tags: ['test'] });
 
-    store.link(t1.id, t2.id);
-    store.link(t3.id, t1.id);
+    await store.link(t1.id, t2.id);
+    await store.link(t3.id, t1.id);
 
     const payload = await requestJson('/api/spaces/proj/graph');
     expect(payload.meta.total_nodes).toBe(3);
@@ -50,7 +50,7 @@ describe('API Routes — Space Graph', () => {
 
   test('applies guardrail cap and returns truncation metadata', async () => {
     store = createTestStore();
-    store.createSpace('proj', 'Project', ['test']);
+    await store.createSpace('proj', 'Project', ['test']);
 
     for (let i = 0; i < 6; i++) {
       await store.addMemory('proj', `m-${i}`, `content-${i}`, { tier: 3, tags: ['test'] });
@@ -73,7 +73,7 @@ describe('API Routes — Logs', () => {
     await requestJson('/api/logs');
     await requestJson('/api/logs?limit=10');
 
-    const apiLogReads = store.queryLogs({
+    const apiLogReads = await store.queryLogs({
       source: 'api',
       operation: 'get_api_logs',
       limit: 20,
@@ -89,8 +89,8 @@ describe('API Routes — Logs', () => {
     store = createTestStore();
 
     // Add some logs
-    store.addLog({ source: 'cli', operation: 'test_op1' });
-    store.addLog({ source: 'mcp', operation: 'test_op2' });
+    await store.addLog({ source: 'cli', operation: 'test_op1' });
+    await store.addLog({ source: 'mcp', operation: 'test_op2' });
 
     const payload = await requestJson('/api/logs');
     expect(payload.logs).toHaveLength(2);
@@ -102,9 +102,9 @@ describe('API Routes — Logs', () => {
   test('GET /api/logs filters by source', async () => {
     store = createTestStore();
 
-    store.addLog({ source: 'cli', operation: 'cli_op' });
-    store.addLog({ source: 'mcp', operation: 'mcp_op' });
-    store.addLog({ source: 'api', operation: 'api_op' });
+    await store.addLog({ source: 'cli', operation: 'cli_op' });
+    await store.addLog({ source: 'mcp', operation: 'mcp_op' });
+    await store.addLog({ source: 'api', operation: 'api_op' });
 
     const payload = await requestJson('/api/logs?source=cli');
     expect(payload.logs).toHaveLength(1);
@@ -114,9 +114,9 @@ describe('API Routes — Logs', () => {
   test('GET /api/logs filters by operation', async () => {
     store = createTestStore();
 
-    store.addLog({ source: 'cli', operation: 'add' });
-    store.addLog({ source: 'cli', operation: 'list' });
-    store.addLog({ source: 'cli', operation: 'delete' });
+    await store.addLog({ source: 'cli', operation: 'add' });
+    await store.addLog({ source: 'cli', operation: 'list' });
+    await store.addLog({ source: 'cli', operation: 'delete' });
 
     const payload = await requestJson('/api/logs?operation=add');
     expect(payload.logs).toHaveLength(1);
@@ -127,7 +127,7 @@ describe('API Routes — Logs', () => {
     store = createTestStore();
 
     for (let i = 0; i < 15; i++) {
-      store.addLog({ source: 'cli', operation: `op_${i}` });
+      await store.addLog({ source: 'cli', operation: `op_${i}` });
     }
 
     const page1 = await requestJson('/api/logs?limit=5&offset=0');
@@ -145,9 +145,9 @@ describe('API Routes — Logs', () => {
 
     // The router middleware will add logs for each API call,
     // so we add enough logs to ensure our test logs are present
-    store.addLog({ source: 'cli', operation: 'first' });
-    store.addLog({ source: 'cli', operation: 'second' });
-    store.addLog({ source: 'cli', operation: 'third' });
+    await store.addLog({ source: 'cli', operation: 'first' });
+    await store.addLog({ source: 'cli', operation: 'second' });
+    await store.addLog({ source: 'cli', operation: 'third' });
 
     const desc = await requestJson('/api/logs?order=desc&source=cli');
     const cliLogs = desc.logs.filter((log: any) => log.source === 'cli');
@@ -164,9 +164,9 @@ describe('API Routes — Logs', () => {
 
     // Add logs with known IDs - add many to ensure our test logs are present
     // The middleware may add logs, so we add enough to find our ones
-    store.addLog({ source: 'cli', operation: 'test_log_1' });
-    store.addLog({ source: 'cli', operation: 'test_log_2' });
-    store.addLog({ source: 'cli', operation: 'test_log_3' });
+    await store.addLog({ source: 'cli', operation: 'test_log_1' });
+    await store.addLog({ source: 'cli', operation: 'test_log_2' });
+    await store.addLog({ source: 'cli', operation: 'test_log_3' });
 
     // Get all logs to find our test logs
     const allLogs = await requestJson('/api/logs?order=asc&source=cli&limit=50');
