@@ -23,6 +23,7 @@ import type { MindStore, LinkedMemorySummary, MemoryPatchInput } from './mind-st
 import { createLibsqlSpaceRepository } from './libsql-repositories/space-repository';
 import { createLibsqlLinkRepository } from './libsql-repositories/link-repository';
 import { createLibsqlTagRepository, type TagRepository } from './libsql-repositories/tag-repository';
+import { createLibsqlMemoryRepository, type MemoryRepository } from './libsql-repositories/memory-repository';
 import {
   createLibsqlLogRepository,
   subscribeToLogs,
@@ -226,6 +227,7 @@ class LibsqlMindStore implements MindStore {
   private readonly spaceRepository;
   private readonly linkRepository;
   private readonly tagRepository: TagRepository;
+  private readonly memoryRepository: MemoryRepository;
   private readonly logRepository: LogRepository;
 
   constructor(
@@ -235,6 +237,7 @@ class LibsqlMindStore implements MindStore {
     this.spaceRepository = createLibsqlSpaceRepository(client);
     this.linkRepository = createLibsqlLinkRepository(client);
     this.tagRepository = createLibsqlTagRepository(client);
+    this.memoryRepository = createLibsqlMemoryRepository(client, this.tagRepository, clientId);
     this.logRepository = createLibsqlLogRepository(client);
   }
 
@@ -278,58 +281,58 @@ class LibsqlMindStore implements MindStore {
   // ── Memories ──
 
   async addMemory(
-    _space: string,
-    _name: string,
-    _content: string,
-    _opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
+    space: string,
+    name: string,
+    content: string,
+    opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
   ): Promise<Memory> {
-    throw new Error('not implemented: addMemory');
+    return this.memoryRepository.addMemory(space, name, content, opts);
   }
 
-  async getMemory(_space: string, _name: string): Promise<Memory | null> {
-    throw new Error('not implemented: getMemory');
+  async getMemory(space: string, name: string): Promise<Memory | null> {
+    return this.memoryRepository.getMemory(space, name);
   }
 
-  async getMemoryById(_id: number): Promise<Memory | null> {
-    throw new Error('not implemented: getMemoryById');
+  async getMemoryById(id: number): Promise<Memory | null> {
+    return this.memoryRepository.getMemoryById(id);
   }
 
   async listMemories(
-    _space: string,
-    _filter?: { tier?: Tier; tag?: string }
+    space: string,
+    filter?: { tier?: Tier; tag?: string }
   ): Promise<MemorySummary[]> {
-    throw new Error('not implemented: listMemories');
+    return this.memoryRepository.listMemories(space, filter);
   }
 
-  async getHotMemories(_space: string): Promise<HotMemorySummary[]> {
-    throw new Error('not implemented: getHotMemories');
+  async getHotMemories(space: string): Promise<HotMemorySummary[]> {
+    return this.memoryRepository.getHotMemories(space);
   }
 
-  async updateMemory(_id: number, _updates: { name?: string; content?: string }): Promise<void> {
-    throw new Error('not implemented: updateMemory');
+  async updateMemory(id: number, updates: { name?: string; content?: string }): Promise<void> {
+    return this.memoryRepository.updateMemory(id, updates);
   }
 
-  async deleteMemory(_id: number): Promise<void> {
-    throw new Error('not implemented: deleteMemory');
+  async deleteMemory(id: number): Promise<void> {
+    return this.memoryRepository.deleteMemory(id);
   }
 
-  async deleteMemoryByName(_space: string, _name: string): Promise<void> {
-    throw new Error('not implemented: deleteMemoryByName');
+  async deleteMemoryByName(space: string, name: string): Promise<void> {
+    return this.memoryRepository.deleteMemoryByName(space, name);
   }
 
-  async recordAccess(_id: number): Promise<void> {
-    throw new Error('not implemented: recordAccess');
+  async recordAccess(id: number): Promise<void> {
+    return this.memoryRepository.recordAccess(id);
   }
 
-  async getLinkedMemorySummaries(_memoryId: number): Promise<{
+  async getLinkedMemorySummaries(memoryId: number): Promise<{
     links_to: LinkedMemorySummary[];
     linked_by: LinkedMemorySummary[];
   }> {
-    throw new Error('not implemented: getLinkedMemorySummaries');
+    return this.memoryRepository.getLinkedMemorySummaries(memoryId);
   }
 
-  async patchMemory(_id: number, _patch: MemoryPatchInput): Promise<Memory> {
-    throw new Error('not implemented: patchMemory');
+  async patchMemory(id: number, patch: MemoryPatchInput): Promise<Memory> {
+    return this.memoryRepository.patchMemory(id, patch);
   }
 
   // ── Tags ──
@@ -355,20 +358,20 @@ class LibsqlMindStore implements MindStore {
 
   // ── Tiers ──
 
-  async promote(_id: number): Promise<void> {
-    throw new Error('not implemented: promote');
+  async promote(id: number): Promise<void> {
+    return this.memoryRepository.promote(id);
   }
 
-  async demote(_id: number): Promise<void> {
-    throw new Error('not implemented: demote');
+  async demote(id: number): Promise<void> {
+    return this.memoryRepository.demote(id);
   }
 
-  async pin(_id: number): Promise<void> {
-    throw new Error('not implemented: pin');
+  async pin(id: number): Promise<void> {
+    return this.memoryRepository.pin(id);
   }
 
-  async unpin(_id: number): Promise<void> {
-    throw new Error('not implemented: unpin');
+  async unpin(id: number): Promise<void> {
+    return this.memoryRepository.unpin(id);
   }
 
   // ── Links ──
@@ -429,12 +432,12 @@ class LibsqlMindStore implements MindStore {
 
   // ── Migration ──
 
-  async importFromJson(_brain: LegacyBrain): Promise<void> {
-    throw new Error('not implemented: importFromJson');
+  async importFromJson(brain: LegacyBrain): Promise<void> {
+    return this.memoryRepository.importFromJson(brain);
   }
 
-  async resolveMemoryRef(_ref: string): Promise<{ space: string; name: string } | null> {
-    throw new Error('not implemented: resolveMemoryRef');
+  async resolveMemoryRef(ref: string): Promise<{ space: string; name: string } | null> {
+    return this.memoryRepository.resolveMemoryRef(ref);
   }
 
   // ── Logs ──
