@@ -22,6 +22,7 @@ import type {
 import type { MindStore, LinkedMemorySummary, MemoryPatchInput } from './mind-store';
 import { createLibsqlSpaceRepository } from './libsql-repositories/space-repository';
 import { createLibsqlLinkRepository } from './libsql-repositories/link-repository';
+import { createLibsqlTagRepository, type TagRepository } from './libsql-repositories/tag-repository';
 import {
   createLibsqlLogRepository,
   subscribeToLogs,
@@ -224,6 +225,7 @@ async function initializeLibsqlDatabase(client: Client): Promise<void> {
 class LibsqlMindStore implements MindStore {
   private readonly spaceRepository;
   private readonly linkRepository;
+  private readonly tagRepository: TagRepository;
   private readonly logRepository: LogRepository;
 
   constructor(
@@ -232,6 +234,7 @@ class LibsqlMindStore implements MindStore {
   ) {
     this.spaceRepository = createLibsqlSpaceRepository(client);
     this.linkRepository = createLibsqlLinkRepository(client);
+    this.tagRepository = createLibsqlTagRepository(client);
     this.logRepository = createLibsqlLogRepository(client);
   }
 
@@ -331,23 +334,23 @@ class LibsqlMindStore implements MindStore {
 
   // ── Tags ──
 
-  async addMemoryTag(_memoryId: number, _tag: string): Promise<void> {
-    throw new Error('not implemented: addMemoryTag');
+  async addMemoryTag(memoryId: number, tag: string): Promise<void> {
+    return this.tagRepository.addMemoryTag(memoryId, tag);
   }
 
-  async removeMemoryTag(_memoryId: number, _tag: string): Promise<void> {
-    throw new Error('not implemented: removeMemoryTag');
+  async removeMemoryTag(memoryId: number, tag: string): Promise<void> {
+    return this.tagRepository.removeMemoryTag(memoryId, tag);
   }
 
-  async setMemoryTags(_memoryId: number, _tags: string[]): Promise<void> {
-    throw new Error('not implemented: setMemoryTags');
+  async setMemoryTags(memoryId: number, tags: string[]): Promise<void> {
+    return this.tagRepository.setMemoryTags(memoryId, tags);
   }
 
   async listAllTags(): Promise<{
     spaces: { tag: string; count: number }[];
     memories: { tag: string; count: number }[];
   }> {
-    throw new Error('not implemented: listAllTags');
+    return this.tagRepository.listAllTags();
   }
 
   // ── Tiers ──
