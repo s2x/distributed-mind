@@ -111,8 +111,6 @@ mind serve start
 
 #### Step 1 — Run the shared server
 
-The repo ships with `docker-compose.libsql.yml` that starts a libSQL primary on port 8080. Point your reverse proxy (Dokploy, Traefik, nginx, etc.) at that port — it will handle TLS.
-
 ```bash
 # on your server / VPS
 git clone https://github.com/your-org/distributed-mind
@@ -120,7 +118,52 @@ cd distributed-mind
 docker compose -f docker-compose.libsql.yml up -d
 ```
 
-The libSQL server listens on port 8080. Configure your reverse proxy to forward HTTPS traffic to it. No auth token is required by default — restrict access via your proxy or firewall.
+The libSQL server listens on port 8080. Pick one of the two TLS options below.
+
+**Option A — External reverse proxy (Dokploy, Traefik, nginx, …)**
+
+Point your proxy at port 8080 and let it handle TLS. Nothing else to configure.
+
+**Option B — Caddy (self-managed TLS)**
+
+Add Caddy to the compose file:
+
+```yaml
+# append to docker-compose.libsql.yml
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+```
+
+Create `Caddyfile` (replace domain with yours — Caddy fetches the cert automatically):
+
+```
+team-brain.example.com {
+  reverse_proxy libsql-primary:8080
+  encode gzip
+}
+```
+
+Then restart:
+
+```bash
+docker compose -f docker-compose.libsql.yml up -d
+```
+
+**Option C — No TLS (local network / VPN only)**
+
+Skip TLS entirely — clients must set `DIMIND_ALLOW_INSECURE_SYNC=1`.
 
 #### Step 2 — Configure each client
 
@@ -141,10 +184,10 @@ source .env.dimind
 ./dimind status        # verify connection + sync state
 ```
 
-For local development (HTTP, no TLS):
+For Option C (no TLS — local network or VPN):
 
 ```bash
-DIMIND_SYNC_URL=http://localhost:8080
+DIMIND_SYNC_URL=http://192.168.1.100:8080
 DIMIND_ALLOW_INSECURE_SYNC=1
 ```
 
