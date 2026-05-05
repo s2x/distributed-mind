@@ -9,14 +9,14 @@ export function createLinkHandler(store: MindStore) {
       throw new Error('Both sourceRef and targetRef are required.');
     }
 
-    const source = resolveRefWithFallback(store, parsed.sourceRef);
-    const target = resolveRefWithFallback(store, parsed.targetRef, source.space);
+    const source = await resolveRefWithFallback(store, parsed.sourceRef);
+    const target = await resolveRefWithFallback(store, parsed.targetRef, source.space);
 
     if (source.id === target.id) {
       throw new Error('Cannot link a memory to itself.');
     }
 
-    store.link(source.id, target.id, parsed.label);
+    await store.link(source.id, target.id, parsed.label);
 
     return {
       content: [

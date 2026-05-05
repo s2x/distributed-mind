@@ -9,10 +9,10 @@ export function deleteLinkHandler(store: MindStore) {
       throw new Error('Both sourceRef and targetRef are required.');
     }
 
-    const source = resolveRefWithFallback(store, parsed.sourceRef);
-    const target = resolveRefWithFallback(store, parsed.targetRef, source.space);
+    const source = await resolveRefWithFallback(store, parsed.sourceRef);
+    const target = await resolveRefWithFallback(store, parsed.targetRef, source.space);
 
-    store.unlink(source.id, target.id);
+    await store.unlink(source.id, target.id);
 
     return {
       content: [

@@ -14,26 +14,26 @@ export function updateSpaceHandler(store: MindStore) {
     if (parsed.description !== undefined) {
       updates.description = parsed.description;
     }
-    store.updateSpace(parsed.name, updates);
+    await store.updateSpace(parsed.name, updates);
 
     if (parsed.tags !== undefined) {
-      const currentSpace = store.getSpace(parsed.name);
+      const currentSpace = await store.getSpace(parsed.name);
       const currentTags = currentSpace?.tags ?? [];
 
       for (const tag of currentTags) {
         if (!parsed.tags.includes(tag)) {
-          store.removeSpaceTag(parsed.name, tag);
+          await store.removeSpaceTag(parsed.name, tag);
         }
       }
 
       for (const tag of parsed.tags) {
         if (!currentTags.includes(tag)) {
-          store.addSpaceTag(parsed.name, tag);
+          await store.addSpaceTag(parsed.name, tag);
         }
       }
     }
 
-    const space = store.getSpace(parsed.name);
+    const space = await store.getSpace(parsed.name);
     return buildYamlContent({
       space: space ? presentSpaceResponse(space) : undefined,
     });

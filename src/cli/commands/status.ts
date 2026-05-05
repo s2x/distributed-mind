@@ -15,8 +15,8 @@ const STATUS_SPACE = new ArgParser(
   'Shows tier breakdown for a specific space'
 );
 
-function renderStatus(store: MindStore, logger: Logger, space?: string): void {
-  const status = store.getStatus(space);
+async function renderStatus(store: MindStore, logger: Logger, space?: string): Promise<void> {
+  const status = await store.getStatus(space);
 
   if (space) {
     logger.logInfo(style(`🧠 Status: ${space}`, ['bold', 'magenta']));
@@ -66,13 +66,13 @@ export const statusGroup: CommandGroup = {
       matches: args => STATUS_SPACE.matches(args),
       execute: async (args, store, logger) => {
         const { space } = STATUS_SPACE.getParams(args);
-        renderStatus(store, logger, space);
+        await renderStatus(store, logger, space);
       },
     },
     {
       matches: args => STATUS.matches(args),
       execute: async (args, store, logger) => {
-        renderStatus(store, logger);
+        await renderStatus(store, logger);
       },
     },
   ],

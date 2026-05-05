@@ -33,7 +33,7 @@ export async function completeCheckpoint(
   summary: string
 ): Promise<CompleteCheckpointResult> {
   // Get full checkpoint memory
-  const checkpointMemory = store.getMemoryById(checkpointMemoryId);
+  const checkpointMemory = await store.getMemoryById(checkpointMemoryId);
   if (!checkpointMemory) {
     throw new Error(`Checkpoint with id ${checkpointMemoryId} could not be loaded.`);
   }
@@ -42,7 +42,7 @@ export async function completeCheckpoint(
   const checkpointContent = JSON.parse(checkpointMemory.content);
 
   // Get links from the checkpoint (linked_memories are stored as links, not in content)
-  const checkpointLinks = store.getLinks(checkpointMemory.id);
+  const checkpointLinks = await store.getLinks(checkpointMemory.id);
 
   // Derive sessions space: "projects/mind" -> "sessions/mind"
   const sessionSpaceName = space.startsWith('projects/')
@@ -50,9 +50,9 @@ export async function completeCheckpoint(
     : `sessions/${space}`;
 
   // Auto-create sessions space if it doesn't exist
-  if (!store.getSpace(sessionSpaceName)) {
+  if (!(await store.getSpace(sessionSpaceName))) {
     try {
-      store.createSpace(sessionSpaceName, `Session summaries for ${space}`, ['type:project']);
+      await store.createSpace(sessionSpaceName, `Session summaries for ${space}`, ['type:project']);
     } catch (e: any) {
       throw new Error(`Could not create sessions space "${sessionSpaceName}": ${e.message}`);
     }
@@ -82,14 +82,14 @@ export async function completeCheckpoint(
   // The checkpoint had links to related memories; we copy those to the session memory
   for (const link of checkpointLinks) {
     try {
-      store.link(sessionMemory.id, link.target_id, link.label || 'related');
+      await store.link(sessionMemory.id, link.target_id, link.label || 'related');
     } catch {
       // Ignore link errors (best-effort)
     }
   }
 
   // Delete the original checkpoint (not just mark complete)
-  store.deleteMemory(checkpointMemory.id);
+  await store.deleteMemory(checkpointMemory.id);
 
   return {
     sessionMemory: {

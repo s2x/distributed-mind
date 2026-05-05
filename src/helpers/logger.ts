@@ -33,6 +33,6 @@ export interface LogEntryInput {
 
 export function createLogEntry(store: MindStore) {
   return (entry: LogEntryInput): void => {
-    store.addLog(entry);
+    void store.addLog(entry);
   };
 }

@@ -67,12 +67,12 @@ export async function buildRecoveryPack(
   let checkpoint: RecoveryCheckpoint | null = null;
   const context_hits: RecoveryPack['context_hits'] = [];
 
-  const spaceExists = store.getSpace(space);
+  const spaceExists = await store.getSpace(space);
   if (!spaceExists) {
     guidance.push(`Space "${space}" not found.`);
     guidance.push(`Use checkpoint_save with space="${space}" to start continuity.`);
   } else {
-    const allCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
+    const allCheckpoints = await store.listMemories(space, { tag: 'checkpoint' });
     let candidates = allCheckpoints.filter(memory => memory.tags.includes('active'));
 
     // When includeHistory=true, look for session memories in sessions/<repo>
@@ -82,7 +82,7 @@ export async function buildRecoveryPack(
         ? `sessions/${space.slice('projects/'.length)}`
         : `sessions/${space}`;
 
-      const sessionMemories = store.listMemories(sessionSpaceName, { tag: 'type:session' });
+      const sessionMemories = await store.listMemories(sessionSpaceName, { tag: 'type:session' });
       candidates = [...candidates, ...sessionMemories];
     }
 
@@ -93,10 +93,10 @@ export async function buildRecoveryPack(
       guidance.push('No active checkpoint found.');
       guidance.push(`Create one with checkpoint_save space="${space}".`);
     } else {
-      const memory = store.getMemoryById(latest.id);
+      const memory = await store.getMemoryById(latest.id);
       if (memory) {
         const content = parseCheckpointContent(memory.content);
-        const links = store.getLinks(latest.id).slice(0, 5);
+        const links = (await store.getLinks(latest.id)).slice(0, 5);
         checkpoint = {
           name: memory.name,
           space: memory.space_name,
@@ -129,7 +129,7 @@ export async function buildRecoveryPack(
   }
 
   if (context_hits.length === 0) {
-    const recent = store.queryMemories({ space, limit: 5 });
+    const recent = await store.queryMemories({ space, limit: 5 });
     for (const memory of recent) {
       if (memory.tags?.includes('checkpoint')) continue;
       context_hits.push({

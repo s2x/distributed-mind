@@ -18,16 +18,16 @@ export function saveCheckpointHandler(store: MindStore) {
 
     const space = parsed.space;
 
-    if (!store.getSpace(space)) {
+    if (!(await store.getSpace(space))) {
       throw new Error(`Space "${space}" not found.`);
     }
 
-    const existingCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
+    const existingCheckpoints = await store.listMemories(space, { tag: 'checkpoint' });
     const activeCheckpoint = existingCheckpoints.find(memory => memory.tags.includes('active'));
 
     let checkpoint;
     if (activeCheckpoint) {
-      const memory = store.getMemoryById(activeCheckpoint.id);
+      const memory = await store.getMemoryById(activeCheckpoint.id);
       if (memory) {
         const existingContent = fetchCheckpointContent(memory);
         if (existingContent) {
@@ -39,7 +39,7 @@ export function saveCheckpointHandler(store: MindStore) {
               existingContent.createdAt
             ),
           });
-          checkpoint = store.getMemoryById(activeCheckpoint.id);
+          checkpoint = await store.getMemoryById(activeCheckpoint.id);
         }
       }
     } else {
@@ -58,8 +58,8 @@ export function saveCheckpointHandler(store: MindStore) {
     if (parsed.linked_memories && parsed.linked_memories.length > 0 && checkpoint) {
       for (const ref of parsed.linked_memories) {
         try {
-          const resolved = resolveRefWithFallback(store, ref, space);
-          store.link(checkpoint.id, resolved.id, 'related');
+          const resolved = await resolveRefWithFallback(store, ref, space);
+          await store.link(checkpoint.id, resolved.id, 'related');
         } catch {
           // Ignore link errors
         }

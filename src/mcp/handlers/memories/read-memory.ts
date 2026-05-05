@@ -32,13 +32,13 @@ export function readMemoryHandler(store: MindStore) {
       throw new Error('Both space and memory name are required.');
     }
 
-    const memory = store.getMemory(parsed.space, parsed.name);
+    const memory = await store.getMemory(parsed.space, parsed.name);
     if (!memory) {
       throw new Error(`Memory "${parsed.name}" not found in space "${parsed.space}".`);
     }
 
     if (parsed.noPromote) {
-      const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
+      const linkedSummaries = await store.getLinkedMemorySummaries(memory.id);
       const { links_to, linked_by } = mapLinkedSummariesToLinksFormat(linkedSummaries);
 
       return buildYamlContent({
@@ -52,13 +52,13 @@ export function readMemoryHandler(store: MindStore) {
     const fromTier = memory.tier;
     const wasPinned = memory.pinned;
 
-    store.recordAccess(memory.id);
+    await store.recordAccess(memory.id);
 
-    const updatedMemory = store.getMemoryById(memory.id);
+    const updatedMemory = await store.getMemoryById(memory.id);
     const toTier = updatedMemory?.tier ?? fromTier;
     const tier_change = calculateTierChange(fromTier, toTier, wasPinned);
 
-    const linkedSummaries = store.getLinkedMemorySummaries(memory.id);
+    const linkedSummaries = await store.getLinkedMemorySummaries(memory.id);
     const { links_to, linked_by } = mapLinkedSummariesToLinksFormat(linkedSummaries);
 
     return buildYamlContent({

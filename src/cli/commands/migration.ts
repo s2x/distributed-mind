@@ -21,7 +21,7 @@ export const migrationGroup: CommandGroup = {
 
         const raw = fs.readFileSync(CONFIG.legacyJsonPath, 'utf8');
         const brain = JSON.parse(raw);
-        store.importFromJson(brain);
+        await store.importFromJson(brain);
         logger.logInfo(style('✅ Import complete', ['bold', 'green']));
 
         const spaces = Object.keys(brain);

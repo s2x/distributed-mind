@@ -8,7 +8,7 @@ export function deleteSpaceHandler(store: MindStore) {
       throw new Error('Space name is required.');
     }
 
-    store.deleteSpace(parsed.name);
+    await store.deleteSpace(parsed.name);
     return {
       content: [{ type: 'text', text: `Space "${parsed.name}" deleted.` }],
     };

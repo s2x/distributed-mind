@@ -10,7 +10,7 @@ export function updateMemoryHandler(store: MindStore) {
       throw new Error('Both space and name are required.');
     }
 
-    const existing = store.getMemory(parsed.space, parsed.name);
+    const existing = await store.getMemory(parsed.space, parsed.name);
     if (!existing) {
       throw new Error(`Memory "${parsed.name}" not found in space "${parsed.space}".`);
     }
@@ -23,10 +23,10 @@ export function updateMemoryHandler(store: MindStore) {
     }
 
     if (parsed.tags !== undefined) {
-      store.setMemoryTags(existing.id, parsed.tags);
+      await store.setMemoryTags(existing.id, parsed.tags);
     }
 
-    const memory = store.getMemoryById(existing.id);
+    const memory = await store.getMemoryById(existing.id);
     return buildYamlContent({
       memory: memory ? presentMemoryResponse(memory) : undefined,
     });

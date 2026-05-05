@@ -50,7 +50,7 @@ export const memoriesGroup: CommandGroup = {
         const flags = LIST.getFlags(args);
         const tier = flags.tier ? (parseInt(String(flags.tier)) as Tier) : undefined;
         const tag = flags.tag ? String(flags.tag) : undefined;
-        const memories = store.listMemories(space, { tier, tag });
+        const memories = await store.listMemories(space, { tier, tag });
 
         const scopeLabel = tier ? ` [${tierLabel(tier)}]` : ' [T1+T2]';
 
@@ -91,11 +91,11 @@ export const memoriesGroup: CommandGroup = {
       matches: args => READ.matches(args),
       execute: async (args, store, logger) => {
         const { space, name } = READ.getParams(args);
-        const beforeRead = store.getMemory(space, name);
+        const beforeRead = await store.getMemory(space, name);
         if (!beforeRead) throw new Error(`Memory "${name}" not found in space "${space}"`);
 
-        store.recordAccess(beforeRead.id);
-        const memory = store.getMemoryById(beforeRead.id);
+        await store.recordAccess(beforeRead.id);
+        const memory = await store.getMemoryById(beforeRead.id);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
 
         const pin = memory.pinned ? ' 📌' : '';
@@ -113,7 +113,7 @@ export const memoriesGroup: CommandGroup = {
       matches: args => EDIT.matches(args),
       execute: async (args, store, logger) => {
         const { space, name, content } = EDIT.getParams(args);
-        const memory = store.getMemory(space, name);
+        const memory = await store.getMemory(space, name);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
         await store.updateMemory(memory.id, { content });
         logger.logInfo(style(`✅ Memory "${name}" updated`, ['bold', 'green']));
@@ -123,7 +123,7 @@ export const memoriesGroup: CommandGroup = {
       matches: args => REMOVE.matches(args),
       execute: async (args, store, logger) => {
         const { space, name } = REMOVE.getParams(args);
-        store.deleteMemoryByName(space, name);
+        await store.deleteMemoryByName(space, name);
         logger.logInfo(style(`✅ Memory "${name}" removed from "${space}"`, ['bold', 'green']));
       },
     },
@@ -131,9 +131,9 @@ export const memoriesGroup: CommandGroup = {
       matches: args => TAG_MEMORY.matches(args),
       execute: async (args, store, logger) => {
         const { space, name, tag } = TAG_MEMORY.getParams(args);
-        const memory = store.getMemory(space, name);
+        const memory = await store.getMemory(space, name);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
-        store.addMemoryTag(memory.id, tag);
+        await store.addMemoryTag(memory.id, tag);
         logger.logInfo(style(`✅ Tag #${normalizeTag(tag)} added to "${name}"`, ['bold', 'green']));
       },
     },
@@ -141,9 +141,9 @@ export const memoriesGroup: CommandGroup = {
       matches: args => UNTAG_MEMORY.matches(args),
       execute: async (args, store, logger) => {
         const { space, name, tag } = UNTAG_MEMORY.getParams(args);
-        const memory = store.getMemory(space, name);
+        const memory = await store.getMemory(space, name);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
-        store.removeMemoryTag(memory.id, tag);
+        await store.removeMemoryTag(memory.id, tag);
         logger.logInfo(
           style(`✅ Tag #${normalizeTag(tag)} removed from "${name}"`, ['bold', 'green'])
         );

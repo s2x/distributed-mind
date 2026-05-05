@@ -32,7 +32,7 @@ export function addMemoryHandler(store: MindStore) {
       linksToIds = [];
       for (const ref of parsed.links_to) {
         try {
-          const resolved = resolveRefWithFallback(store, ref, parsed.space);
+          const resolved = await resolveRefWithFallback(store, ref, parsed.space);
           linksToIds.push(resolved.id);
           linksCreated.push({
             source: parsed.name,

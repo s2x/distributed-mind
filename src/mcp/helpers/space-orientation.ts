@@ -35,7 +35,7 @@ export async function buildTrendingTierBlock(
   const filteredMemories: Array<ReturnType<typeof presentHotMemoryResponse>> = [];
 
   for (let offset = 0; offset < totalInTier; offset += TRENDING_BATCH_SIZE) {
-    const memories = store.queryMemories({
+    const memories = await store.queryMemories({
       space,
       tier,
       limit: TRENDING_BATCH_SIZE,

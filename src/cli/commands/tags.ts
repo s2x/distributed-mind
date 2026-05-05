@@ -22,7 +22,7 @@ export const tagsGroup: CommandGroup = {
         const showMemories =
           flags.memories !== undefined ||
           (flags.spaces === undefined && flags.memories === undefined);
-        const tags = store.listAllTags();
+        const tags = await store.listAllTags();
 
         if (tags.spaces.length === 0 && tags.memories.length === 0) {
           logger.logInfo('No tags found');

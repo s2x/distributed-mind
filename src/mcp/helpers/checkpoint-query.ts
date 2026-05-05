@@ -67,7 +67,7 @@ export async function buildCheckpointSummary(
   store: MindStore,
   memory: MemorySummary
 ): Promise<CheckpointSummary> {
-  const full = store.getMemoryById(memory.id);
+  const full = await store.getMemoryById(memory.id);
   const parsedContent = full ? fetchCheckpointContent(full) : null;
 
   return {
@@ -96,12 +96,12 @@ export async function fetchAllCheckpointMemories(
 
   for (let offset = 0; offset < total; offset += CHECKPOINT_BATCH_SIZE) {
     checkpoints.push(
-      ...store.queryMemories({
+      ...(await store.queryMemories({
         space,
         tag: 'checkpoint',
         limit: CHECKPOINT_BATCH_SIZE,
         offset,
-      })
+      }))
     );
   }
 

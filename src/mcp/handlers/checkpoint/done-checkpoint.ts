@@ -15,17 +15,17 @@ export function doneCheckpointHandler(store: MindStore) {
 
     let checkpointMemory;
     if (parsed.checkpointName) {
-      checkpointMemory = store.getMemory(space, parsed.checkpointName);
+      checkpointMemory = await store.getMemory(space, parsed.checkpointName);
       if (!checkpointMemory) {
         throw new Error(`Checkpoint "${parsed.checkpointName}" not found in "${space}".`);
       }
     } else {
-      const checkpoints = store.listMemories(space, { tag: 'checkpoint' });
+      const checkpoints = await store.listMemories(space, { tag: 'checkpoint' });
       checkpointMemory = checkpoints.find(memory => memory.tags.includes('active'));
       if (!checkpointMemory) {
         throw new Error(`No active checkpoint found in "${space}".`);
       }
-      checkpointMemory = store.getMemoryById(checkpointMemory.id);
+      checkpointMemory = await store.getMemoryById(checkpointMemory.id);
       if (!checkpointMemory) {
         throw new Error('Active checkpoint could not be loaded.');
       }

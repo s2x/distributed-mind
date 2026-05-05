@@ -16,14 +16,13 @@ async function main() {
 
   // Run log cleanup on startup and every hour (fire-and-forget)
   const runLogCleanup = () => {
-    try {
-      const deleted = store.cleanupOldLogs(CONFIG.logRetentionMinutes);
+    store.cleanupOldLogs(CONFIG.logRetentionMinutes).then(deleted => {
       if (deleted > 0) {
         logger.logInfo(`Cleaned up ${deleted} old log entries`);
       }
-    } catch {
+    }).catch(() => {
       // Non-blocking: don't fail startup if cleanup fails
-    }
+    });
   };
   runLogCleanup();
   const cleanupInterval = setInterval(runLogCleanup, 60 * 60 * 1000); // Every hour

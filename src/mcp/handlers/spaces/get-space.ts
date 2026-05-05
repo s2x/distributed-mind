@@ -18,7 +18,7 @@ export function getSpaceHandler(store: MindStore) {
       throw new Error('Space name is required.');
     }
 
-    const space = store.getSpace(parsed.name);
+    const space = await store.getSpace(parsed.name);
     if (!space) {
       throw new Error(`Space "${parsed.name}" does not exist.`);
     }
@@ -41,7 +41,7 @@ export function getSpaceHandler(store: MindStore) {
       );
     const activeCheckpoints = await fetchCheckpointSummaries(store, sortedActiveCheckpoints);
 
-    const status = store.getStatus(parsed.name);
+    const status = await store.getStatus(parsed.name);
 
     return buildYamlContent({
       space: presentSpaceResponse(space),

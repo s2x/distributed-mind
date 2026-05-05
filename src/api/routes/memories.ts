@@ -22,22 +22,22 @@ export const memoryRoutes: RouteDefinition[] = [
   {
     method: 'GET',
     match: regex(/^\/api\/spaces\/([^/]+)\/graph$/, ['space']),
-    handle: ({ params, url, store, json }) => {
+    handle: async ({ params, url, store, json }) => {
       const rawLimit = parseIntParam(url.searchParams.get('limit'));
-      const graph = store.getSpaceGraph(params.space!, { limit: rawLimit, maxLimit: 1000 });
+      const graph = await store.getSpaceGraph(params.space!, { limit: rawLimit, maxLimit: 1000 });
       return json(graph);
     },
   },
   {
     method: 'GET',
     match: regex(/^\/api\/memories\/query$/, []),
-    handle: ({ url, store, json }) => {
+    handle: async ({ url, store, json }) => {
       const tier = parseTier(url.searchParams.get('tier'));
       const tagRaw = url.searchParams.get('tag');
       const tag = tagRaw ? normalizeTag(tagRaw) : undefined;
 
       return json(
-        store.queryMemories({
+        await store.queryMemories({
           space: url.searchParams.get('space') ?? undefined,
           tag,
           tier,
@@ -52,19 +52,19 @@ export const memoryRoutes: RouteDefinition[] = [
   {
     method: 'GET',
     match: regex(/^\/api\/spaces\/([^/]+)\/memories$/, ['space']),
-    handle: ({ params, url, store, json }) => {
+    handle: async ({ params, url, store, json }) => {
       const space = params.space!;
       const tier = parseTier(url.searchParams.get('tier'));
       const tagRaw = url.searchParams.get('tag');
       const tag = tagRaw ? normalizeTag(tagRaw) : undefined;
 
       if (tier !== undefined) {
-        return json(store.listMemories(space, { tier, tag }));
+        return json(await store.listMemories(space, { tier, tag }));
       }
 
-      const t1 = store.listMemories(space, { tier: 1, tag });
-      const t2 = store.listMemories(space, { tier: 2, tag });
-      const t3 = store.listMemories(space, { tier: 3, tag });
+      const t1 = await store.listMemories(space, { tier: 1, tag });
+      const t2 = await store.listMemories(space, { tier: 2, tag });
+      const t3 = await store.listMemories(space, { tier: 3, tag });
       return json([...t1, ...t2, ...t3]);
     },
   },
@@ -95,8 +95,8 @@ export const memoryRoutes: RouteDefinition[] = [
   {
     method: 'GET',
     match: regex(/^\/api\/spaces\/([^/]+)\/memories\/([^/]+)$/, ['space', 'name']),
-    handle: ({ params, store, json, err }) => {
-      const memory = store.getMemory(params.space!, params.name!);
+    handle: async ({ params, store, json, err }) => {
+      const memory = await store.getMemory(params.space!, params.name!);
       if (!memory) return err('Memory not found', 404);
       return json(memory);
     },
@@ -107,7 +107,7 @@ export const memoryRoutes: RouteDefinition[] = [
     handle: async ({ params, req, store, json, err }) => {
       const space = params.space!;
       const name = params.name!;
-      const memory = store.getMemory(space, name);
+      const memory = await store.getMemory(space, name);
       if (!memory) return err('Memory not found', 404);
 
       const body = (await req.json()) as {
@@ -121,21 +121,21 @@ export const memoryRoutes: RouteDefinition[] = [
 
       if (body.content !== undefined)
         await store.updateMemory(memory.id, { content: body.content });
-      if (body.promote) store.promote(memory.id);
-      if (body.demote) store.demote(memory.id);
-      if (body.pinned === true) store.pin(memory.id);
-      if (body.pinned === false) store.unpin(memory.id);
-      if (body.addTag) store.addMemoryTag(memory.id, body.addTag);
-      if (body.removeTag) store.removeMemoryTag(memory.id, body.removeTag);
+      if (body.promote) await store.promote(memory.id);
+      if (body.demote) await store.demote(memory.id);
+      if (body.pinned === true) await store.pin(memory.id);
+      if (body.pinned === false) await store.unpin(memory.id);
+      if (body.addTag) await store.addMemoryTag(memory.id, body.addTag);
+      if (body.removeTag) await store.removeMemoryTag(memory.id, body.removeTag);
 
-      return json(store.getMemoryById(memory.id));
+      return json(await store.getMemoryById(memory.id));
     },
   },
   {
     method: 'DELETE',
     match: regex(/^\/api\/spaces\/([^/]+)\/memories\/([^/]+)$/, ['space', 'name']),
-    handle: ({ params, store, json }) => {
-      store.deleteMemoryByName(params.space!, params.name!);
+    handle: async ({ params, store, json }) => {
+      await store.deleteMemoryByName(params.space!, params.name!);
       return json({ ok: true });
     },
   },

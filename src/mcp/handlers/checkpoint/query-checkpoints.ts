@@ -18,7 +18,7 @@ export function queryCheckpointsHandler(store: MindStore) {
 
     const space = parsed.space;
 
-    if (!store.getSpace(space)) {
+    if (!(await store.getSpace(space))) {
       const error: SoftError = {
         code: 'space_not_found',
         message: `Space "${space}" not found.`,

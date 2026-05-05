@@ -83,7 +83,7 @@ export const searchGroup: CommandGroup = {
           throw new Error('--offset must be a valid number.');
         }
 
-        const results = store.queryMemories({
+        const results = await store.queryMemories({
           space: flags.space ? String(flags.space) : undefined,
           tag: flags.tag ? String(flags.tag) : undefined,
           tier,

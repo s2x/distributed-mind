@@ -46,7 +46,7 @@ export const spacesGroup: CommandGroup = {
               .split(',')
               .map(t => t.trim())
           : ['untagged'];
-        store.createSpace(space, description, tags);
+        await store.createSpace(space, description, tags);
         logger.logInfo(style(`✅ Space "${space}" created`, ['bold', 'green']));
       },
     },
@@ -56,7 +56,7 @@ export const spacesGroup: CommandGroup = {
         const flags = LIST.getFlags(args);
         const tag = flags.tag ? String(flags.tag) : undefined;
         const includeHidden = flags.hidden === true;
-        const spaces = store.listSpaces({ tag, includeHidden });
+        const spaces = await store.listSpaces({ tag, includeHidden });
 
         if (spaces.length === 0) {
           logger.logInfo('No spaces found');
@@ -77,7 +77,7 @@ export const spacesGroup: CommandGroup = {
       matches: args => DELETE.matches(args),
       execute: async (args, store, logger) => {
         const { space } = DELETE.getParams(args);
-        store.deleteSpace(space);
+        await store.deleteSpace(space);
         logger.logInfo(style(`✅ Space "${space}" deleted`, ['bold', 'green']));
       },
     },
@@ -85,7 +85,7 @@ export const spacesGroup: CommandGroup = {
       matches: args => RENAME.matches(args),
       execute: async (args, store, logger) => {
         const params = RENAME.getParams(args);
-        store.renameSpace(params.old, params.new);
+        await store.renameSpace(params.old, params.new);
         logger.logInfo(
           style(`✅ Space "${params.old}" renamed to "${params.new}"`, ['bold', 'green'])
         );
@@ -95,7 +95,7 @@ export const spacesGroup: CommandGroup = {
       matches: args => DESCRIBE.matches(args),
       execute: async (args, store, logger) => {
         const { space, description } = DESCRIBE.getParams(args);
-        store.updateSpace(space, { description });
+        await store.updateSpace(space, { description });
         logger.logInfo(style(`✅ Space "${space}" description updated`, ['bold', 'green']));
       },
     },
@@ -122,7 +122,7 @@ export const spacesGroup: CommandGroup = {
           return;
         }
 
-        store.updateSpace(space, updates);
+        await store.updateSpace(space, updates);
 
         const parts: string[] = [];
         if (updates.description !== undefined) parts.push('description');
@@ -137,7 +137,7 @@ export const spacesGroup: CommandGroup = {
       matches: args => TAG.matches(args),
       execute: async (args, store, logger) => {
         const { space, tag } = TAG.getParams(args);
-        store.addSpaceTag(space, tag);
+        await store.addSpaceTag(space, tag);
         logger.logInfo(
           style(`✅ Tag #${normalizeTag(tag)} added to space "${space}"`, ['bold', 'green'])
         );
@@ -147,7 +147,7 @@ export const spacesGroup: CommandGroup = {
       matches: args => UNTAG.matches(args),
       execute: async (args, store, logger) => {
         const { space, tag } = UNTAG.getParams(args);
-        store.removeSpaceTag(space, tag);
+        await store.removeSpaceTag(space, tag);
         logger.logInfo(
           style(`✅ Tag #${normalizeTag(tag)} removed from space "${space}"`, ['bold', 'green'])
         );

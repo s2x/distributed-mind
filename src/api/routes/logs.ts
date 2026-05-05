@@ -10,7 +10,7 @@ export const logRoutes: RouteDefinition[] = [
     handle: async (ctx: RouteContext) => {
       const { store, json, err } = ctx;
       try {
-        const deleted = store.clearAllLogs();
+        const deleted = await store.clearAllLogs();
         return json({ deleted });
       } catch (e: any) {
         return err(e.message);
@@ -41,7 +41,7 @@ export const logRoutes: RouteDefinition[] = [
       const since = sinceStr ? parseInt(sinceStr, 10) : undefined;
 
       try {
-        const result = store.queryLogs({
+        const result = await store.queryLogs({
           source,
           operation,
           search,
@@ -80,12 +80,12 @@ export const logRoutes: RouteDefinition[] = [
 
       // Create a streaming response with proper SSE
       const stream = new ReadableStream({
-        start(controller) {
+        async start(controller) {
           // Send initial comments to establish connection
           controller.enqueue(new TextEncoder().encode(': connected\n\n'));
 
           // Get initial logs after lastId
-          const initialResult = store.queryLogs({
+          const initialResult = await store.queryLogs({
             source,
             limit: 100,
             offset: 0,

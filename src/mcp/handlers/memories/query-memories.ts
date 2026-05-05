@@ -101,7 +101,7 @@ export function queryMemoriesHandler(store: MindStore) {
       const limit = parsed.limit ?? 25;
       memories = filteredResults.slice(offset, offset + limit);
     } else {
-      memories = store.queryMemories({
+      memories = await store.queryMemories({
         space: spaceFilter,
         tag: parsed.tag,
         tier: tierFilter as Tier | undefined,

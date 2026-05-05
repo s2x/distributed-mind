@@ -8,7 +8,7 @@ export function deleteMemoryHandler(store: MindStore) {
       throw new Error('Both space and memory name are required.');
     }
 
-    store.deleteMemoryByName(parsed.space, parsed.name);
+    await store.deleteMemoryByName(parsed.space, parsed.name);
     return {
       content: [
         { type: 'text', text: `Memory "${parsed.name}" deleted from space "${parsed.space}".` },

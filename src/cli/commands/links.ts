@@ -31,12 +31,12 @@ export const linksGroup: CommandGroup = {
         const src = parseMemoryRef(source);
         const tgt = parseMemoryRef(target);
 
-        const srcMem = store.getMemory(src.space, src.name);
+        const srcMem = await store.getMemory(src.space, src.name);
         if (!srcMem) throw new Error(`Memory "${src.name}" not found in space "${src.space}"`);
-        const tgtMem = store.getMemory(tgt.space, tgt.name);
+        const tgtMem = await store.getMemory(tgt.space, tgt.name);
         if (!tgtMem) throw new Error(`Memory "${tgt.name}" not found in space "${tgt.space}"`);
 
-        store.link(srcMem.id, tgtMem.id, label);
+        await store.link(srcMem.id, tgtMem.id, label);
         logger.logInfo(
           style(`🔗 Linked: ${source} → ${target}` + (label ? ` [${label}]` : ''), [
             'bold',
@@ -52,12 +52,12 @@ export const linksGroup: CommandGroup = {
         const src = parseMemoryRef(source);
         const tgt = parseMemoryRef(target);
 
-        const srcMem = store.getMemory(src.space, src.name);
+        const srcMem = await store.getMemory(src.space, src.name);
         if (!srcMem) throw new Error(`Memory "${src.name}" not found in space "${src.space}"`);
-        const tgtMem = store.getMemory(tgt.space, tgt.name);
+        const tgtMem = await store.getMemory(tgt.space, tgt.name);
         if (!tgtMem) throw new Error(`Memory "${tgt.name}" not found in space "${tgt.space}"`);
 
-        store.unlink(srcMem.id, tgtMem.id);
+        await store.unlink(srcMem.id, tgtMem.id);
         logger.logInfo(style(`🔗 Unlinked: ${source} ✕ ${target}`, ['bold', 'green']));
       },
     },
@@ -65,10 +65,10 @@ export const linksGroup: CommandGroup = {
       matches: args => LINKS.matches(args),
       execute: async (args, store, logger) => {
         const { space, name } = LINKS.getParams(args);
-        const memory = store.getMemory(space, name);
+        const memory = await store.getMemory(space, name);
         if (!memory) throw new Error(`Memory "${name}" not found in space "${space}"`);
 
-        const links = store.getLinks(memory.id);
+        const links = await store.getLinks(memory.id);
         if (links.length === 0) {
           logger.logInfo('No links found');
           return;

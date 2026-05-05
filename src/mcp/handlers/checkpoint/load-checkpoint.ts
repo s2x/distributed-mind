@@ -41,16 +41,16 @@ export function loadCheckpointHandler(store: MindStore) {
       throw new Error('Space is required.');
     }
 
-    let checkpointMemory = store.getMemory(data.space, data.checkpointName);
+    let checkpointMemory = await store.getMemory(data.space, data.checkpointName);
     if (!checkpointMemory) {
       throw new Error(`Checkpoint "${data.checkpointName}" not found in "${data.space}".`);
     }
-    checkpointMemory = store.getMemoryById(checkpointMemory.id);
+    checkpointMemory = await store.getMemoryById(checkpointMemory.id);
     if (!checkpointMemory) {
       throw new Error(`Checkpoint "${data.checkpointName}" could not be loaded.`);
     }
 
-    const linked_memories = buildLinkedMemoriesArray(store, checkpointMemory.id);
+    const linked_memories = await buildLinkedMemoriesArray(store, checkpointMemory.id);
     const checkpointContent = fetchCheckpointContent(checkpointMemory);
 
     const checkpoint = {

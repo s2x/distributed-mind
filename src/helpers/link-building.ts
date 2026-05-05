@@ -58,17 +58,17 @@ export function mapLinkedSummariesToLinksFormat(summaries: {
  *
  * Used by checkpoint_load (MCP) and recover (CLI) handlers.
  */
-export function buildLinkedMemoriesArray(
+export async function buildLinkedMemoriesArray(
   store: MindStore,
   memoryId: number,
   limit?: number
-): EnrichedLink[] {
+): Promise<EnrichedLink[]> {
   const linked_memories: EnrichedLink[] = [];
-  const links = store.getLinks(memoryId);
+  const links = await store.getLinks(memoryId);
   const linksToInclude = typeof limit === 'number' ? links.slice(0, limit) : links;
 
   for (const link of linksToInclude) {
-    const linkedMem = store.getMemoryById(link.target_id);
+    const linkedMem = await store.getMemoryById(link.target_id);
     if (linkedMem) {
       linked_memories.push({
         name: linkedMem.name,

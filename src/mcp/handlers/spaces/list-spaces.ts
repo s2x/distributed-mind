@@ -5,7 +5,7 @@ import { SpaceListSchema } from '../../schemas/spaces/list-spaces';
 export function listSpacesHandler(store: MindStore) {
   return async (args: unknown) => {
     const parsed = SpaceListSchema.parse(args ?? {});
-    const spaces = store.listSpaces(parsed.tag ? { tag: parsed.tag } : undefined);
+    const spaces = await store.listSpaces(parsed.tag ? { tag: parsed.tag } : undefined);
 
     return buildYamlContent({
       spaces,

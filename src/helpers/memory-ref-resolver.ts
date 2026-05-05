@@ -1,14 +1,14 @@
 import type { MindStore } from '../store/mind-store';
 
-export function resolveRefWithFallback(
+export async function resolveRefWithFallback(
   store: MindStore,
   ref: string,
   fallbackSpace?: string
-): { id: number; space: string; name: string } {
-  const parsed = store.resolveMemoryRef(ref);
+): Promise<{ id: number; space: string; name: string }> {
+  const parsed = await store.resolveMemoryRef(ref);
 
   if (parsed) {
-    const memory = store.getMemory(parsed.space, parsed.name);
+    const memory = await store.getMemory(parsed.space, parsed.name);
     if (!memory) {
       throw new Error(`memory not found: ${ref}`);
     }
@@ -16,15 +16,15 @@ export function resolveRefWithFallback(
   }
 
   if (fallbackSpace) {
-    const memory = store.getMemory(fallbackSpace, ref);
+    const memory = await store.getMemory(fallbackSpace, ref);
     if (memory) {
       return { id: memory.id, space: fallbackSpace, name: memory.name };
     }
   }
 
-  const spaces = store.listSpaces();
+  const spaces = await store.listSpaces();
   for (const spaceSummary of spaces) {
-    const memory = store.getMemory(spaceSummary.name, ref);
+    const memory = await store.getMemory(spaceSummary.name, ref);
     if (memory) {
       return { id: memory.id, space: spaceSummary.name, name: memory.name };
     }

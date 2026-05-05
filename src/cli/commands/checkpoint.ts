@@ -21,12 +21,12 @@ const p = ArgParser.param.bind(ArgParser);
  * Parse comma-separated memory refs and create links from the checkpoint memory.
  * Silently skips unresolvable refs.
  */
-function linkMemoriesToCheckpoint(
+async function linkMemoriesToCheckpoint(
   store: MindStore,
   checkpointId: number,
   linkedMemoriesFlag: string,
   space: string
-): void {
+): Promise<void> {
   const refs = linkedMemoriesFlag
     .split(',')
     .map(r => r.trim())
@@ -34,8 +34,8 @@ function linkMemoriesToCheckpoint(
 
   for (const ref of refs) {
     try {
-      const resolved = resolveRefWithFallback(store, ref, space);
-      store.link(checkpointId, resolved.id, 'related');
+      const resolved = await resolveRefWithFallback(store, ref, space);
+      await store.link(checkpointId, resolved.id, 'related');
     } catch {
       // Ignore link errors silently
     }
@@ -106,19 +106,19 @@ export const checkpointGroup: CommandGroup = {
           : undefined;
 
         // Verify the space exists
-        if (!store.getSpace(space)) {
+        if (!(await store.getSpace(space))) {
           logger.logInfo(style(`❌ Space "${space}" not found`, ['red']));
           return;
         }
 
         // Check if there's already an active checkpoint
-        const existingCheckpoints = store.listMemories(space, { tag: 'checkpoint' });
+        const existingCheckpoints = await store.listMemories(space, { tag: 'checkpoint' });
         const activeCheckpoint = existingCheckpoints.find(m => m.tags.includes('active'));
 
         let checkpoint;
         if (activeCheckpoint) {
           // Update existing active checkpoint
-          const memory = store.getMemoryById(activeCheckpoint.id);
+          const memory = await store.getMemoryById(activeCheckpoint.id);
           if (memory) {
             const existingContent = fetchCheckpointContent(memory);
             if (existingContent) {
@@ -130,7 +130,7 @@ export const checkpointGroup: CommandGroup = {
                   existingContent.createdAt
                 ),
               });
-              checkpoint = store.getMemoryById(activeCheckpoint.id);
+              checkpoint = await store.getMemoryById(activeCheckpoint.id);
             }
           }
         } else {
@@ -169,13 +169,13 @@ export const checkpointGroup: CommandGroup = {
 
         let memory;
         if (checkpointName) {
-          memory = store.getMemory(space, checkpointName);
+          memory = await store.getMemory(space, checkpointName);
         } else {
           // Find active checkpoint
-          const checkpoints = store.listMemories(space, { tag: 'checkpoint' });
+          const checkpoints = await store.listMemories(space, { tag: 'checkpoint' });
           const active = checkpoints.find(m => m.tags.includes('active'));
           if (active) {
-            memory = store.getMemoryById(active.id);
+            memory = await store.getMemoryById(active.id);
           }
         }
 
@@ -214,19 +214,19 @@ export const checkpointGroup: CommandGroup = {
         }
 
         // Find checkpoint by name
-        let checkpointMemory = store.getMemory(space, checkpointName);
+        let checkpointMemory = await store.getMemory(space, checkpointName);
         if (!checkpointMemory) {
           logger.logInfo(style(`Checkpoint "${checkpointName}" not found in "${space}"`, ['red']));
           return;
         }
-        checkpointMemory = store.getMemoryById(checkpointMemory.id);
+        checkpointMemory = await store.getMemoryById(checkpointMemory.id);
         if (!checkpointMemory) {
           logger.logInfo(style(`Checkpoint "${checkpointName}" could not be loaded`, ['red']));
           return;
         }
 
         // Use shared helpers for building linked_memories and parsing content
-        const linked_memories = buildLinkedMemoriesArray(store, checkpointMemory.id, 5);
+        const linked_memories = await buildLinkedMemoriesArray(store, checkpointMemory.id, 5);
         const checkpointContent = fetchCheckpointContent(checkpointMemory);
         const checkpoint = buildRecoverableCheckpoint(
           checkpointMemory,
@@ -245,13 +245,13 @@ export const checkpointGroup: CommandGroup = {
         const space = params.space;
         const status = flags.status ? String(flags.status) : undefined;
 
-        if (!store.getSpace(space)) {
+        if (!(await store.getSpace(space))) {
           logger.logInfo(style(`No checkpoint space found for "${space}"`, ['yellow']));
           return;
         }
 
         // Get all checkpoints
-        let checkpoints = store.listMemories(space, { tag: 'checkpoint' });
+        let checkpoints = await store.listMemories(space, { tag: 'checkpoint' });
 
         // Filter by status if specified
         if (status && status !== 'all') {

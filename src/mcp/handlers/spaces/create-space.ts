@@ -20,8 +20,8 @@ export function createSpaceHandler(store: MindStore) {
       throw new Error(`Invalid arguments: ${msg}`);
     }
 
-    store.createSpace(parsed.name, parsed.description, parsed.tags);
-    const space = store.getSpace(parsed.name);
+    await store.createSpace(parsed.name, parsed.description, parsed.tags);
+    const space = await store.getSpace(parsed.name);
     return buildYamlContent({
       space: space ? presentSpaceResponse(space) : undefined,
     });
