@@ -436,7 +436,7 @@ class LibsqlMindStore implements MindStore {
 
   // ── Logs ──
 
-  async addLog(_entry: {
+  async addLog(entry: {
     source: 'cli' | 'mcp' | 'api';
     operation: string;
     level?: 'info' | 'warn' | 'error';
@@ -446,10 +446,10 @@ class LibsqlMindStore implements MindStore {
     callerInfo?: Record<string, unknown>;
     durationMs?: number;
   }): Promise<void> {
-    throw new Error('not implemented: addLog');
+    return this.logRepository.addLog(entry);
   }
 
-  async queryLogs(_filter?: {
+  async queryLogs(filter?: {
     source?: string;
     operation?: string;
     search?: string;
@@ -461,23 +461,23 @@ class LibsqlMindStore implements MindStore {
     order?: 'asc' | 'desc';
     since?: number;
   }): Promise<{ logs: unknown[]; total: number; limit: number; offset: number }> {
-    throw new Error('not implemented: queryLogs');
+    return this.logRepository.queryLogs(filter);
   }
 
-  async cleanupOldLogs(_retentionMinutes: number): Promise<number> {
-    throw new Error('not implemented: cleanupOldLogs');
+  async cleanupOldLogs(retentionMinutes: number): Promise<number> {
+    return this.logRepository.cleanupOldLogs(retentionMinutes);
   }
 
   async clearAllLogs(): Promise<number> {
-    throw new Error('not implemented: clearAllLogs');
+    return this.logRepository.clearAllLogs();
   }
 
-  subscribeToLogs(_sessionId: string, _controller: unknown, _filter?: string): void {
-    throw new Error('not implemented: subscribeToLogs');
+  subscribeToLogs(sessionId: string, controller: unknown, filter?: string): void {
+    subscribeToLogs(sessionId, controller as any, filter);
   }
 
-  unsubscribeFromLogs(_sessionId: string): void {
-    throw new Error('not implemented: unsubscribeFromLogs');
+  unsubscribeFromLogs(sessionId: string): void {
+    unsubscribeFromLogs(sessionId);
   }
 
   // ── Lifecycle ──
