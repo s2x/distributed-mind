@@ -108,6 +108,18 @@ export interface MindStore {
   pin(id: number): Promise<void>;
   unpin(id: number): Promise<void>;
 
+  // Persistence (libSQL / distributed mode only)
+  /**
+   * Mark a memory as hard-persistent: exempt from LRU eviction and tier limits.
+   * Not available on bun:sqlite backend — throws "not supported".
+   */
+  promoteToHard(spaceName: string, memoryName: string): Promise<void>;
+  /**
+   * Mark a memory as soft-persistent: subject to LRU eviction and tier limits.
+   * Not available on bun:sqlite backend — throws "not supported".
+   */
+  demoteToSoft(spaceName: string, memoryName: string): Promise<void>;
+
   // Links
   link(sourceId: number, targetId: number, label?: string): Promise<void>;
   unlink(sourceId: number, targetId: number): Promise<void>;

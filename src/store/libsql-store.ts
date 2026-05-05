@@ -377,6 +377,14 @@ class LibsqlMindStore implements MindStore {
     return this.memoryRepository.unpin(id);
   }
 
+  async promoteToHard(spaceName: string, memoryName: string): Promise<void> {
+    return this.memoryRepository.promoteToHard(spaceName, memoryName);
+  }
+
+  async demoteToSoft(spaceName: string, memoryName: string): Promise<void> {
+    return this.memoryRepository.demoteToSoft(spaceName, memoryName);
+  }
+
   // ── Links ──
 
   async link(sourceId: number, targetId: number, label?: string): Promise<void> {

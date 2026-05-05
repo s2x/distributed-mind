@@ -79,6 +79,7 @@ function printHelp(logger: Logger): void {
     'Search',
     'Status',
     'Tags',
+    'Sync',
     'Checkpoint',
   ];
   for (const name of sections) {
