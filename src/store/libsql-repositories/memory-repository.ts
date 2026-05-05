@@ -24,7 +24,7 @@ export interface MemoryRow {
   pinned: number;
   access_count: number;
   last_accessed_at: string | null;
-  embedding: Uint8Array | null;
+  embedding: Uint8Array | ArrayBuffer | null;
   created_at: string;
   updated_at: string;
   changed_at: string;
@@ -80,8 +80,9 @@ function rowToMemory(row: MemoryRow, tags: string[]): Memory {
     pinned: row.pinned !== 0,
     access_count: row.access_count,
     last_accessed_at: row.last_accessed_at,
-    // libSQL returns Uint8Array for BLOB columns; convert to Float32Array
-    embedding: row.embedding ? blobToVector(row.embedding) : null,
+    // libSQL returns ArrayBuffer for BLOB columns (not Uint8Array like bun:sqlite).
+    // blobToVector handles both types.
+    embedding: row.embedding ? blobToVector(row.embedding as unknown as ArrayBuffer) : null,
     tags,
     created_at: row.created_at,
     updated_at: row.updated_at,

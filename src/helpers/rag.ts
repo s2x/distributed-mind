@@ -126,6 +126,15 @@ export function vectorToBlob(vector: EmbeddingVector): Uint8Array {
   return new Uint8Array(buffer);
 }
 
-export function blobToVector(blob: Uint8Array): Float32Array {
-  return new Float32Array(blob.buffer);
+/**
+ * Convert a raw BLOB back to a Float32Array.
+ * Handles both Uint8Array (bun:sqlite) and ArrayBuffer (libSQL @libsql/client)
+ * since the two drivers return different JS types for BLOB columns.
+ */
+export function blobToVector(blob: Uint8Array | ArrayBuffer): Float32Array {
+  if (blob instanceof ArrayBuffer) {
+    return new Float32Array(blob);
+  }
+  // Uint8Array — use byteOffset/byteLength to handle sub-array views correctly
+  return new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
 }
