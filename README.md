@@ -19,6 +19,7 @@ modify that memory through the CLI and web UI.
   context and continue work.
 - **Search when you need it.** Full-text search is built in, and semantic
   search is available as an optional add-on.
+- **Team mode available.** `dimind` (companion binary) connects to a shared libSQL server for distributed team memory with hard/soft persistence.
 
 Get started with [Installation](#installation) or jump straight to the
 [Quick start](#quick-start).
@@ -103,6 +104,35 @@ mind search architecture
 mind serve start
 # Open http://localhost:30303
 ```
+
+### Team Mode (dimind)
+
+**Experimental:** dimind extends Mind with distributed team memory using libSQL embedded replica.
+
+```bash
+dimind setup              # Configure team memory (same as mind setup)
+dimind status             # Check sync status with remote server
+./dimind sync             # Sync with remote libSQL server
+```
+
+Configure with `.env.dimind`:
+
+```bash
+DIMIND_SYNC_URL=https://libsql-server.example.com
+DIMIND_SYNC_AUTH_TOKEN=your-token
+DIMIND_CLIENT_ID=your-team-member-id
+```
+
+dimind shares all `mind` commands and adds:
+
+- `--hard` flag: create permanent memories (exempt from eviction)
+- `--soft` flag: create evictable memories (default behavior)
+- `promote-to-hard`: convert soft memory to permanent
+- `demote-to-soft`: convert hard memory to evictable
+- `history <space> <name>`: show version audit trail for hard memories
+- `export / import`: backup and restore team memory
+
+For details, see [CLAUDE.md](./CLAUDE.md).
 
 ### Agent setup
 

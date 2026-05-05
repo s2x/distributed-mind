@@ -6,11 +6,16 @@ This document describes the **mind** project: its architecture, behavior, techni
 
 ## 1. Project overview
 
-**mind** is a CLI tool for persistent long-term memory — tracking thoughts, ideas, tasks, and knowledge. Data is organized into named **spaces**, each containing **memories** with full-text search, tags, links, and a 3-tier CPU-cache-style access-frequency system.
+**mind** is a CLI tool for persistent long-term memory — tracking thoughts, ideas, tasks, and knowledge. Data is organized into named **spaces**, each containing **memories** with full-text search, tags, links, and a 3-tier CPU-cache-style access-frequency system. **dimind** (team variant) extends this with a distributed libSQL backend for team-shared memory with soft/hard persistence model.
 
 - **Runtime:** [Bun](https://bun.sh/)
 - **Language:** TypeScript (strict mode, ESNext)
-- **Entry point:** the **`mind`** Bash script at project root; invokes `src/mind.ts`. Supports subcommands: `serve` (HTTP server), `mcp` (MCP server), `setup` (agent configuration), and `update` (self-update from GitHub releases). Also supports `--complete` flag to delegate to `src/complete.ts` (not yet implemented).
+- **Entry points:** 
+  - `mind` (Bash script) — invokes `src/mind.ts` for single-agent mode. Supports subcommands: `serve` (HTTP server), `mcp` (MCP server), `setup` (agent configuration), and `update` (self-update from GitHub releases).
+  - `dimind` (Bash script / binary) — invokes `src/dimind.ts` for team-shared mode. Connects to remote libSQL server via `DIMIND_SYNC_URL` and uses embedded replica for sync. Supports all `mind` commands plus `sync`, `history`, and persistence control (`--soft`, `--hard`).
+- **Persistence backends:**
+  - `createSqliteStore` — local bun:sqlite (v7 schema)
+  - `createLibsqlStore` — libSQL embedded replica with remote sync (v8 schema with persistence model)
 - **Persistence:** SQLite database at `data/mind.db` (path configurable via `MIND_DATA_DIR` env var or `MIND_DB_PATH` for full path override). The legacy `brain.json` is supported as a migration source via `mind import`.
 - **RAG/Embeddings:** Optional semantic search via OpenAI `text-embedding-3-small`. Enable with `MIND_RAG=true` + `OPENAI_API_KEY`. Embeddings stored as BLOBs in SQLite; generated fire-and-forget on add/update.
 - **Layout:** **`src/`** contains CLI, MCP, and API server code. **`test/`** contains backend/CLI tests. **`web/`** contains frontend source (`web/src`), styles (`web/styles`), static assets (`web/assets`), static HTML shell (`web/public`), and web-specific tests (`web/test`). **`scripts/`** contains E2E test scripts.
@@ -56,9 +61,10 @@ User → ./mind <command> [args] [--flag value]
 | Setup/runtime helpers | `src/cli/setup.ts`                                                   | Agent setup + detached process management helpers for MCP/web servers. Uses a capability-driven adapter model (L1 MCP, L2 instruction injection, L3 hooks automation) with explicit status (`supported`/`unsupported`/`unverified`) and visible fallback diagnostics. OpenCode/Claude/Codex L2 protocol injection now renders from a single canonical template source at setup-time (agent-specific wording via internal renderer), while preserving idempotent/non-destructive managed-file behavior. Cursor setup preserves existing L1/L3 behavior and provisions global L3 hooks automation via managed `~/.cursor/hooks.json` entries and managed executable script artifacts in `~/.cursor/hooks/`. |
 | Shared helpers        | `src/helpers/*.ts`                                                   | Shared helpers: logger, tag normalization, formatting/memory refs, markdown resource loading, RAG helpers, shared memory-ref resolution (`resolveRefWithFallback`), link-building (`buildLinkedMemoriesArray`, `mapLinkedSummariesToLinksFormat`, `transformLinkedSummary`), and checkpoint-content (`buildCheckpointContent`, `fetchCheckpointContent`).                                                                                                                                                                                                                                                                                                                                                 |
 | MindStore interface   | `src/store/mind-store.ts`                                            | Abstract interface for all data operations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| SQLite store          | `src/store/sqlite-store.ts`                                          | Full `MindStore` implementation using `bun:sqlite`. Uses repository factory pattern internally (6 repositories in `src/store/repositories/`). Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| SQLite store          | `src/store/sqlite-store.ts`                                          | Full `MindStore` implementation using `bun:sqlite`. Uses repository factory pattern internally (6 repositories in `src/store/repositories/`). Handles tiers, LRU eviction, tags, links, FTS, status, import. Generates embeddings in background when RAG enabled.
+| libSQL store          | `src/store/libsql-store.ts`                                          | Full `MindStore` implementation using `@libsql/client` embedded replica. Uses 6 libSQL repositories in `src/store/libsql-repositories/`. Adds persistence model (soft/hard), version audit trail, and remote sync. Hard memories exempt from LRU eviction and tier limits.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Store repositories    | `src/store/repositories/*.ts`                                        | 6 focused repositories: `SpaceRepository`, `MemoryRepository`, `LinkRepository`, `TagRepository`, `LogRepository`, `SearchRepository`. Composed by `sqlite-store.ts` into the full MindStore.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Schema                | `src/store/schema.ts`                                                | SQLite schema (tables, indexes, FTS5 table). No triggers (see §3). `initializeDatabase()` function. Schema version 5 (migrates v1→v2→v3→v4→v5).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Schema                | `src/store/schema.ts` + `src/store/libsql-schema.ts`                 | SQLite v7 schema (tables, indexes, FTS5 table) in `schema.ts`. No triggers (see §3). libSQL v8 schema in `libsql-schema.ts` with persistence model and version audit. Both `initializeDatabase()` functions migrate older schemas automatically.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | MCP server            | `src/mcp/server.ts`                                                  | MCP stdio server using `@modelcontextprotocol/sdk`. Exposes tools across spaces, memories, links, checkpoints, and system categories.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | MCP tools             | `src/mcp/tools/`                                                     | Tool declarations and wiring only: `spaces.ts`, `memories.ts`, `links.ts`, `checkpoint.ts`, `status.ts`, `system.ts`. Endpoint schemas live in `src/mcp/schemas/<family>/<endpoint>.ts`, endpoint handlers live in `src/mcp/handlers/<family>/<endpoint>.ts`, and MCP-only helpers (including YAML parity + JSON-schema conversion) live in `src/mcp/helpers/`.                                                                                                                                                                                                                                                                                                                                           |
 | API server            | `src/api/server.ts`                                                  | Bun HTTP server that serves `/api/*` routes and static web files from `web/` (SPA shell in `web/public/index.html`, frontend modules in `web/src`, styles in `web/styles`, assets in `web/assets`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -83,7 +89,7 @@ Neural Map API/UI touchpoints:
 - **Space:** `{ name: string, description: string, hidden: boolean, tags: string[], created_at, updated_at }`. Identified by name (primary key).
 - **Hidden spaces:** Spaces can be marked hidden and are omitted from default `list`; include them with `list --hidden`.
 - **Checkpoints:** Session checkpoints are stored as tagged memories (`checkpoint` tag) in the same project space.
-- **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at, changed_at }`. Identified by `(space_name, name)`.
+- **Memory:** `{ id: number, space_name: string, name: string, content: string, tier: 1|2|3, pinned: boolean, access_count: number, last_accessed_at: string|null, tags: string[], embedding: Float32Array|null, created_at, updated_at, changed_at }`. Identified by `(space_name, name)`. In libSQL (v8), adds `persistence: 'soft'|'hard'` (soft=agent-autonomous, evictable; hard=user-explicit, permanent), `created_by: string|null` (client ID), and `client_id: string|null` (dimind team member).
 - **Tier system:**
   - 🔴 **T1 (hot)** — frequently accessed (limit: 25/space)
   - 🟡 **T2 (warm)** — default for new memories (limit: 50/space)
@@ -109,16 +115,22 @@ Neural Map API/UI touchpoints:
 | `links`        | `source_id` (FK), `target_id` (FK), `label`                                                                                                                                                              | No self-links. Cascades on memory delete.                        |
 | `memories_fts` | FTS5 virtual table: `name`, `content`                                                                                                                                                                    | Synced manually (no triggers).                                   |
 | `logs`         | `id` (PK), `source`, `operation`, `level`, `input_data`, `output_data`, `error_message`, `caller_info`, `duration_ms`, `timestamp`                                                                       | Operation audit logging (fire-and-forget).                       |
+| `memory_versions` | `id` (PK), `memory_id` (FK), `version`, `content`, `changed_at`, `changed_by` | Audit trail for hard memory changes (libSQL v8 only). Stores every update/delete to hard memories. |
 
 ---
 
 ## 3. Technical considerations
 
-- **Schema version:** Current schema is version 7. Existing v1 databases (tier `CHECK (tier BETWEEN 1 AND 3)`) are migrated automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds the `embedding BLOB` column. V3→V4 adds `changed_at` and backfills it from `updated_at`. V4→V5 adds `spaces.hidden` with default `0`. V5→V6 adds the `logs` table for operation auditing. V6→V7 removes T4 (frozen) tier; all T4 memories migrate to T3 which becomes unlimited.
+- **Schema versions:**
+  - **SQLite v7 (mind):** Current for bun:sqlite backend. Existing v1 databases migrate automatically via a 12-step rename-and-recreate pattern in `MIGRATE_V1_TO_V2`. V2→V3 adds `embedding BLOB`. V3→V4 adds `changed_at`. V4→V5 adds `spaces.hidden`. V5→V6 adds `logs` table. V6→V7 removes T4 tier; all T4 memories migrate to T3 (unlimited).
+  - **libSQL v8 (dimind):** Team variant with persistence model. Adds `persistence` column on memories (`'soft'|'hard'`), `created_by`, `client_id`, and `memory_versions` audit table for hard write history. Hard memories are exempt from LRU eviction and tier limits. Soft memories are evictable like T1-T3 tier logic.
 - **Bun:** The project is run and tested with Bun. Use `bun run`, `bun test`, and Bun's built-in TypeScript + SQLite support. No separate compile step.
 - **bun:sqlite FTS5 bug:** bun:sqlite (v1.2.10) cannot handle FTS5 `content=table` sync triggers — any UPDATE or DELETE on the source table errors with "N values for M columns". **Workaround:** `memories_fts` is a standalone FTS5 table (no `content=` option, no triggers). FTS is synced manually in `sqlite-store.ts` via `ftsInsert`, `ftsUpdate`, `ftsDelete` helpers called from `addMemory`, `updateMemory`, `deleteMemory`, `deleteMemoryByName`, `deleteSpace`, and `importFromJson`.
 - **Styling:** Terminal output uses `bun-style` for bold, colors, etc. Tests assert on the styled strings.
-- **Config / storage path:** `src/config.ts` resolves `CONFIG.dbPath` from `MIND_DB_PATH` env var (full path override) or `MIND_DATA_DIR` env var + `mind.db` (defaults to `data/` at repo root). The web server uses `MIND_DATA_DIR` (or `/data` in Docker). `data/` is in `.gitignore`. HTTP idle timeouts are configurable via `MIND_MCP_IDLE_TIMEOUT` (default 120s) and `MIND_API_IDLE_TIMEOUT` (default 30s). Log retention is configurable via `MIND_LOG_RETENTION_MINUTES` (default 10080 minutes = 7 days). Web server port is controlled via `MIND_PORT` (default: 30303).
+- **Config / storage path:**
+  - **mind (SQLite):** `src/config.ts` resolves `CONFIG.dbPath` from `MIND_DB_PATH` env var (full path override) or `MIND_DATA_DIR` env var + `mind.db` (defaults to `data/` at repo root). The web server uses `MIND_DATA_DIR` (or `/data` in Docker). `data/` is in `.gitignore`.
+  - **dimind (libSQL):** Requires `DIMIND_SYNC_URL` (remote libSQL server) and optional `DIMIND_SYNC_AUTH_TOKEN`. `DIMIND_DATABASE_URL` specifies local replica path (defaults to `data/dimind.db`). `DIMIND_DATA_DIR` controls overall data directory. `DIMIND_CLIENT_ID` is the team member identity. Hard-fails if `MIND_*` env vars are set (prevents config collision).
+  - **Common:** HTTP idle timeouts via `MIND_MCP_IDLE_TIMEOUT` (default 120s) and `MIND_API_IDLE_TIMEOUT` (default 30s). Log retention via `MIND_LOG_RETENTION_MINUTES` (default 10080 min = 7 days). Web server port via `MIND_PORT` (default 30303).
 - **Setup capability model:** each agent adapter declares L1 (MCP), L2 (instruction/protocol injection), and L3 (hooks/session automation) with status `supported`, `unsupported`, or `unverified`, plus confidence/evidence/fallback notes printed during `mind setup` flows. All agents now use stdio transport (command + args) for MCP wiring, not HTTP URL. No silent capability skip.
 - **Claude setup behavior:** `mind setup claude-code` deep-merges `~/.claude/settings.json`, writes/refreshes `~/.claude/instructions/mind-memory-protocol.md`, and upserts a managed block in `~/.claude/CLAUDE.md` pointing to that protocol. Managed-block/hook wiring now self-heals dirty duplicate entries on reruns, and setup removes known legacy per-agent protocol files to prevent regressions. L3 hook automation is opt-in (`MIND_SETUP_CLAUDE_ENABLE_HOOKS=true`) and non-blocking; failures fall back to manual workflow guidance.
 - **Capability declarations beyond wired adapters:** VSCode and Antigravity are fully supported agents.
@@ -147,7 +159,7 @@ Neural Map API/UI touchpoints:
 bun install
 ```
 
-### 4.2 Running the CLI
+### 4.2 Running the CLI (mind)
 
 From the project root:
 
@@ -158,6 +170,31 @@ From the project root:
 Example: `./mind help`, `./mind create my-space "Description"`, `./mind search "auth" --tier 1`.
 
 The `data/` directory and `mind.db` are created automatically on first run.
+
+### 4.2a Running the Team CLI (dimind)
+
+From the project root:
+
+```bash
+./dimind <command> [args] [--flag value]
+```
+
+All `mind` commands are available (spaces, memories, links, search, etc.). dimind adds team-specific commands:
+
+```bash
+./dimind sync                    # Sync with remote libSQL server
+./dimind sync --pull            # Pull remote changes
+./dimind sync --status          # Show sync status
+./dimind add <space> <name> "content" --hard    # Add hard memory (permanent)
+./dimind add <space> <name> "content" --soft    # Add soft memory (default: hard)
+./dimind memory promote-to-hard <space> <name>  # Convert to hard (permanent)
+./dimind memory demote-to-soft <space> <name>   # Convert to soft (evictable)
+./dimind history <space> <name>                 # Show hard memory edit history
+./dimind export --format sql > backup.sql       # Export all memories
+./dimind import --from backup.sql               # Import from backup
+```
+
+Hard memories require `DIMIND_SYNC_URL` and `DIMIND_CLIENT_ID` env vars (set in `.env.dimind` or as arguments).
 
 ### 4.3 Running the Web Server
 
@@ -345,6 +382,17 @@ The MCP server exposes 18 tools for agent integration:
 | `system_instructions` | Returns the complete mind usage protocol for agents |
 
 For stage 1 MCP content rendering, all structured tools above except `system_instructions` emit a single raw YAML text item that is semantically identical to `structuredContent`. Content-only tools (`space_delete`, `memory_delete`, `link_create`, `link_delete`) remain unchanged.
+
+### 4.9a dimind MCP Tools (persistence model)
+
+dimind exposes 4 additional tools for hard/soft persistence control:
+
+| Tool                    | Description                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `memory_remember`       | Add a hard memory to a space (permanent, exempt from LRU). Best-effort `links_to` support; returns `links_created` and `links_failed`.  |
+| `memory_note`           | Add a soft memory to a space (evictable, subject to tier limits). Best-effort `links_to` support; returns `links_created` and `links_failed`. |
+| `memory_promote_to_hard` | Convert a soft memory to hard (permanent). Includes optional version audit reason.                                                     |
+| `memory_demote_to_soft` | Convert a hard memory to soft (evictable). Soft memories revert to default tier behavior.                                               |
 
 ### 4.10 Mind Memory Protocol
 

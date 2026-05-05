@@ -1,9 +1,9 @@
-# bun:sqlite vs libSQL — Gotchas worth knowing before/during Phase 1
+# libSQL Implementation Gotchas
 
-> **Status:** Pre-implementation notes for `PLAN-libsql-distributed.md`.
-> Living document — extend during Phase 1 with concrete incidents and resolutions.
+> **Status:** Live document capturing actual incidents and resolutions from Phase 0-4.
+> Updated during implementation — each gotcha and workaround reflects real discoveries.
 
-This is a practical list of differences between `bun:sqlite` (current backend) and `@libsql/client` (target backend) that will surface during the libSQL store implementation. Severity tiers reflect likelihood of causing bugs if unhandled.
+Practical differences and gotchas between `bun:sqlite` and `@libsql/client` encountered during libSQL backend implementation.
 
 ---
 
@@ -137,4 +137,69 @@ This is a practical list of differences between `bun:sqlite` (current backend) a
 
 ---
 
-*Extend this document with concrete incidents and resolutions discovered during Phase 1. Each "surprise" should land here so the next dev does not re-discover it.*
+---
+
+## Confirmed Implementation Findings (Phases 0-4)
+
+### ✓ BigInt → Number Works (with intMode)
+
+**Resolution:** Set `intMode: 'number'` in libSQL client config. All INTEGER columns return JavaScript Number type. Tested across memory ID, tier, access_count, pinned boolean columns.
+
+### ✓ BLOB → ArrayBuffer (Not Uint8Array)
+
+**Resolution:** Cast `result.embedding as ArrayBuffer | null`. Convert to Float32Array view when needed:
+```typescript
+const buf = result.embedding as ArrayBuffer | null;
+if (buf) {
+  const view = new Float32Array(buf);
+}
+```
+
+### ✓ Multi-Statement Execute Fails
+
+**Confirmed:** `execute()` cannot run multiple statements. Must split by `;` or use `batch()` for multiple statements.
+
+**Resolution:** In schema init, split manually or use `batch()`:
+```typescript
+await db.batch([
+  { sql: "CREATE TABLE spaces ...", args: [] },
+  { sql: "CREATE TABLE memories ...", args: [] },
+]);
+```
+
+### ✓ PRAGMA Before Batch
+
+**Confirmed:** PRAGMA statements must run separately before batch or other operations.
+
+**Resolution:**
+```typescript
+await db.execute("PRAGMA foreign_keys = ON");
+// now safe to batch
+await db.batch([...]);
+```
+
+### ✓ lastInsertRowid Always BigInt
+
+**Confirmed:** Even with `intMode: 'number'`, `result.lastInsertRowid` is BigInt.
+
+**Resolution:** Cast explicitly:
+```typescript
+const id = Number(result.lastInsertRowid);
+```
+
+### ✓ Boolean Columns Return 0/1
+
+**Confirmed:** SQLite NUMERIC columns used for booleans (pinned, hidden) return raw 0 or 1, not true/false.
+
+**Resolution:** Cast in code or use helper:
+```typescript
+const memory = {
+  ...row,
+  pinned: row.pinned === 1,
+  hidden: row.hidden === 1
+};
+```
+
+---
+
+*Each finding was validated during implementation and applied to libsql-store.ts and libsql-repositories/*.ts.*

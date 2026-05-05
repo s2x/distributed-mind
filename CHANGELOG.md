@@ -27,6 +27,37 @@ Example:
 
 ## [Unreleased]
 
+### Added
+
+- `dimind` binary: team-shared brain using `@libsql/client` embedded replica with remote sync
+- `MindStore` interface: all methods now return `Promise<T>` (async-compatible with both SQLite and libSQL backends)
+- libSQL backend: `createLibsqlStore()` factory, schema v8 with soft/hard persistence model
+- Soft/hard persistence model: soft=agent-autonomous (evictable, tier-bound); hard=user-explicit (permanent, exempt from LRU and tier limits)
+- `memory_versions` table: audit trail for hard memory changes (update/delete history with version, timestamp, client ID)
+- New MCP tools for dimind: `memory_remember` (hard add), `memory_note` (soft add), `memory_promote_to_hard`, `memory_demote_to_soft`
+- `dimind add` defaults to hard persistence; `dimind add --soft` for soft writes
+- `dimind memory promote-to-hard` / `demote-to-soft` CLI commands with optional audit reason
+- `dimind history <space> <name>` shows hard memory version audit trail
+- `dimind sync` / `dimind sync --pull` / `dimind sync --status` commands for libSQL remote sync
+- `dimind export --format sql` and `dimind import --from <file>` for portability
+- Docker Compose for libSQL-server primary + Caddy reverse proxy (no JWT for local setup)
+- Backup/restore scripts at `scripts/backup.sh` and `scripts/restore.sh`
+- `.env.example.dimind` template for team configuration
+
+### Changed
+
+- All `MindStore` methods now async (Phase 0 refactor) — affects CLI, API, MCP, and helpers
+- ESLint rule `@typescript-eslint/no-floating-promises` added to prevent await drift
+- `src/store/factory.ts` selects backend: `createSqliteStore` (bun:sqlite) or `createLibsqlStore` (@libsql/client)
+- Hard memories exempt from LRU eviction and tier limits (v8 libSQL only)
+- MIND_* env vars cause hard error in dimind context (prevents silent config collision)
+
+### Technical
+
+- Phase 0: async refactor of all store call sites (CLI, API, MCP, helpers)
+- libSQL schema v8: adds `persistence` ('soft'|'hard'), `created_by`, `client_id` columns on memories; new `memory_versions` audit table
+- SQLite remains v7 (no persistence model in local-only mode)
+
 ## [1.4.0] - 2026-04-10
 
 ### Added
