@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import { homedir } from 'os';
 import * as path from 'path';
 
+import { getBinaryName } from '../helpers/binary-name';
+
 // Supported agent types that can have skills installed
 export type AgentSkillType =
   | 'opencode'
@@ -22,34 +24,35 @@ export interface AgentSkillPaths {
 // Map each agent type to its skill installation directory
 function getAgentSkillPaths(agent: AgentSkillType): AgentSkillPaths {
   const home = process.env.HOME ?? homedir();
+  const skillName = `${getBinaryName()}-management`;
 
   switch (agent) {
     case 'opencode':
       return {
-        skillsDir: path.join(home, '.config', 'opencode', 'skills', 'mind-management'),
+        skillsDir: path.join(home, '.config', 'opencode', 'skills', skillName),
       };
     case 'claude-code':
       return {
-        skillsDir: path.join(home, '.claude', 'skills', 'mind-management'),
+        skillsDir: path.join(home, '.claude', 'skills', skillName),
       };
     case 'cursor':
       return {
-        skillsDir: path.join(home, '.cursor', 'skills', 'mind-management'),
+        skillsDir: path.join(home, '.cursor', 'skills', skillName),
       };
     case 'codex':
     case 'windsurf':
     case 'vscode':
       // Shared ~/.agents/skills for cross-agent compatibility
       return {
-        skillsDir: path.join(home, '.agents', 'skills', 'mind-management'),
+        skillsDir: path.join(home, '.agents', 'skills', skillName),
       };
     case 'gemini-cli':
       return {
-        skillsDir: path.join(home, '.gemini', 'skills', 'mind-management'),
+        skillsDir: path.join(home, '.gemini', 'skills', skillName),
       };
     case 'antigravity':
       return {
-        skillsDir: path.join(home, '.gemini', 'antigravity', 'skills', 'mind-management'),
+        skillsDir: path.join(home, '.gemini', 'antigravity', 'skills', skillName),
       };
   }
 }

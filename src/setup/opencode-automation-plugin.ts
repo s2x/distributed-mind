@@ -13,7 +13,7 @@ import { basename } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const MIND_BIN = ${resolvedMindPath};
-const FALLBACK_MIND_BIN = 'mind';
+const FALLBACK_MIND_BIN = ${JSON.stringify(mindPath.includes('dimind') ? 'dimind' : 'mind')};
 const STATE_VERSION = 1;
 const MAX_STATE_KEYS = 400;
 const MAX_CONTEXT_CHARS = 1600;
@@ -86,7 +86,7 @@ function getSessionSpace(ctx) {
 }
 
 function getStatePath() {
-  return import.meta.dir + '/.mind-automation-state.json';
+  return import.meta.dir + '/.' + FALLBACK_MIND_BIN + '-automation-state.json';
 }
 
 function loadState() {

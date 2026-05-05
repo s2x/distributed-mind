@@ -20,19 +20,21 @@ import { renderMemoryProtocol } from './memory-protocol';
 
 const DEFAULT_MCP_PORT = 7438;
 
-const OPENCODE_MEMORY_PROTOCOL_FILENAME = 'mind-memory-protocol.md';
+const bin = getBinaryName();
 
-const OPENCODE_AUTOMATION_PLUGIN_FILENAME = 'mind-automation.js';
+const OPENCODE_MEMORY_PROTOCOL_FILENAME = `${bin}-memory-protocol.md`;
 
-const CLAUDE_MEMORY_PROTOCOL_FILENAME = 'mind-memory-protocol.md';
+const OPENCODE_AUTOMATION_PLUGIN_FILENAME = `${bin}-automation.js`;
+
+const CLAUDE_MEMORY_PROTOCOL_FILENAME = `${bin}-memory-protocol.md`;
 
 const CLAUDE_MANAGED_BLOCK_START = '<!-- mind managed protocol start -->';
 const CLAUDE_MANAGED_BLOCK_END = '<!-- mind managed protocol end -->';
 
-const CLAUDE_HOOK_SCRIPT_NAME = 'mind-session-summary.sh';
+const CLAUDE_HOOK_SCRIPT_NAME = `${bin}-session-summary.sh`;
 const CLAUDE_HOOKS_OPT_IN_ENV = 'MIND_SETUP_CLAUDE_ENABLE_HOOKS';
 
-const CURSOR_HOOK_SCRIPT_NAME = 'mind-session-continuity.sh';
+const CURSOR_HOOK_SCRIPT_NAME = `${bin}-session-continuity.sh`;
 const CURSOR_HOOK_EVENTS = ['sessionStart', 'preCompact', 'stop'] as const;
 
 const LEGACY_PROTOCOL_FILENAMES = [
@@ -653,7 +655,7 @@ async function setupOpenCode(
   try {
     const skillPath = ensureMindManagementSkill('opencode');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -675,7 +677,7 @@ async function setupClaudeCode(
   try {
     const skillPath = ensureMindManagementSkill('claude-code');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -711,7 +713,7 @@ async function setupCursor(merged: Record<string, unknown>): Promise<Record<stri
   try {
     const skillPath = ensureMindManagementSkill('cursor');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -729,7 +731,7 @@ async function setupCodex(_configPath: string, _snippet: string): Promise<void> 
   try {
     const skillPath = ensureMindManagementSkill('codex');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -742,7 +744,7 @@ async function setupWindsurf(): Promise<void> {
   try {
     const skillPath = ensureMindManagementSkill('windsurf');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -755,7 +757,7 @@ async function setupGeminiCli(): Promise<void> {
   try {
     const skillPath = ensureMindManagementSkill('gemini-cli');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -768,7 +770,7 @@ async function setupVscode(): Promise<void> {
   try {
     const skillPath = ensureMindManagementSkill('vscode');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -781,7 +783,7 @@ async function setupAntigravity(): Promise<void> {
   try {
     const skillPath = ensureMindManagementSkill('antigravity');
     if (skillPath) {
-      console.log(`✅ mind-management skill installed`);
+      console.log(`✅ ${getBinaryName()}-management skill installed`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
