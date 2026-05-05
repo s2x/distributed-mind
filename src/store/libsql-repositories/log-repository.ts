@@ -185,7 +185,10 @@ export function createLibsqlLogRepository(client: Client): LogRepository {
       args: params,
     });
 
-    const total = (countResult.rows[0] as { total: number })?.total || 0;
+    const totalRow = countResult.rows[0];
+    const total = (totalRow && typeof totalRow === 'object' && 'total' in totalRow)
+      ? (totalRow.total as number)
+      : 0;
 
     const limit = Math.max(1, Math.min(500, filter?.limit ?? 100));
     const offset = Math.max(0, filter?.offset ?? 0);
@@ -217,17 +220,35 @@ export function createLibsqlLogRepository(client: Client): LogRepository {
 
   async function cleanupOldLogs(retentionMinutes: number): Promise<number> {
     const cutoff = new Date(Date.now() - retentionMinutes * 60 * 1000).toISOString();
-    const result = await client.execute({
+    // First count how many will be deleted
+    const countResult = await client.execute({
+      sql: 'SELECT COUNT(*) as count FROM logs WHERE timestamp < ?',
+      args: [cutoff],
+    });
+    const count = (countResult.rows[0] && typeof countResult.rows[0] === 'object' && 'count' in countResult.rows[0])
+      ? (countResult.rows[0].count as number)
+      : 0;
+
+    // Then delete
+    await client.execute({
       sql: 'DELETE FROM logs WHERE timestamp < ?',
       args: [cutoff],
     });
-    // libSQL returns changes as a number in the result
-    return typeof result.changes === 'number' ? result.changes : 0;
+
+    return count;
   }
 
   async function clearAllLogs(): Promise<number> {
-    const result = await client.execute('DELETE FROM logs');
-    return typeof result.changes === 'number' ? result.changes : 0;
+    // First count all logs
+    const countResult = await client.execute('SELECT COUNT(*) as count FROM logs');
+    const count = (countResult.rows[0] && typeof countResult.rows[0] === 'object' && 'count' in countResult.rows[0])
+      ? (countResult.rows[0].count as number)
+      : 0;
+
+    // Then delete
+    await client.execute('DELETE FROM logs');
+
+    return count;
   }
 
   return {
