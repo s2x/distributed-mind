@@ -1,3 +1,4 @@
+import { getBinaryName } from '../helpers/binary-name';
 import { renderCommands } from '../helpers/format';
 import type { Logger } from '../helpers/logger';
 import { createLogEntry } from '../helpers/logger';
@@ -14,7 +15,7 @@ export async function executeCommand(
   logger: Logger
 ): Promise<void> {
   if (args.length === 0) {
-    throw new Error('No arguments provided. Run mind help for usage.');
+    throw new Error(`No arguments provided. Run ${getBinaryName()} help for usage.`);
   }
 
   if (HELP_ALIASES.has(args[0]!)) {
@@ -36,7 +37,7 @@ export async function executeCommand(
   }
 
   if (!matchedCommand) {
-    throw new Error(`Unknown command "${args[0]}". Run mind help for the list of valid commands.`);
+    throw new Error(`Unknown command "${args[0]}". Run ${getBinaryName()} help for the list of valid commands.`);
   }
 
   // CLI logging middleware
@@ -69,7 +70,8 @@ export async function executeCommand(
 }
 
 function printHelp(logger: Logger): void {
-  logger.logInfo(style('🧠 mind — long-term memory for agents and humans', ['bold']));
+  const bin = getBinaryName();
+  logger.logInfo(style(`🧠 ${bin} — long-term memory for agents and humans`, ['bold']));
 
   const sections = [
     'Spaces',

@@ -1,3 +1,4 @@
+import { getBinaryName } from '../helpers/binary-name';
 import { style } from '../helpers/style';
 
 export class ArgParser {
@@ -182,7 +183,7 @@ export class ArgParser {
 
     return (
       style(
-        'mind ' +
+        getBinaryName() + ' ' +
           this.shape
             .map(part => {
               if (this.isParam(part)) {
