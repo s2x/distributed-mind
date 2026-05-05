@@ -51,6 +51,7 @@ export default [
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-floating-promises': 'error',
       'no-undef': 'off',
     },
   },
