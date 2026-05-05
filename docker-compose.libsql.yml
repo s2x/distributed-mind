@@ -2,23 +2,12 @@ services:
   libsql-primary:
     image: ghcr.io/tursodatabase/libsql-server:latest
     platform: linux/amd64
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080"
     volumes:
       - ./data/libsql-primary:/var/lib/sqld
     environment:
       - SQLD_NODE=primary
-    restart: unless-stopped
-
-  caddy:
-    image: caddy:2-alpine
-    ports:
-      - "443:443"
-      - "80:80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
     restart: unless-stopped
 
   backup:
@@ -28,7 +17,3 @@ services:
       - ./data/libsql-primary:/data/libsql-primary:ro
       - ./scripts/backup.sh:/usr/local/bin/backup.sh
     entrypoint: ["/bin/sh", "-c", "while true; do /usr/local/bin/backup.sh; sleep ${DIMIND_BACKUP_INTERVAL_HOURS:-6}h; done"]
-
-volumes:
-  caddy_data:
-  caddy_config:

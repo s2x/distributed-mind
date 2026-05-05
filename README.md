@@ -111,7 +111,7 @@ mind serve start
 
 #### Step 1 — Run the shared server
 
-The repo ships with `docker-compose.libsql.yml` that starts a libSQL primary and a Caddy reverse proxy:
+The repo ships with `docker-compose.libsql.yml` that starts a libSQL primary on port 8080. Point your reverse proxy (Dokploy, Traefik, nginx, etc.) at that port — it will handle TLS.
 
 ```bash
 # on your server / VPS
@@ -120,23 +120,7 @@ cd distributed-mind
 docker compose -f docker-compose.libsql.yml up -d
 ```
 
-By default Caddy listens on port 80 (HTTP). For HTTPS with automatic TLS, edit `Caddyfile`:
-
-```
-# replace :80 block with:
-team-brain.example.com {
-  reverse_proxy libsql-primary:8080
-  encode gzip
-}
-```
-
-Then redeploy:
-
-```bash
-docker compose -f docker-compose.libsql.yml up -d --force-recreate caddy
-```
-
-The libSQL server is now available at `http://team-brain.example.com` (or `https://` after TLS setup). No auth token is required by default — add your own reverse-proxy auth or restrict access by IP if needed.
+The libSQL server listens on port 8080. Configure your reverse proxy to forward HTTPS traffic to it. No auth token is required by default — restrict access via your proxy or firewall.
 
 #### Step 2 — Configure each client
 
