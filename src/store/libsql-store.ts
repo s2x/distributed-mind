@@ -30,6 +30,7 @@ import {
   unsubscribeFromLogs,
   type LogRepository,
 } from './libsql-repositories/log-repository';
+import { createLibsqlSearchRepository, type SearchRepository } from './libsql-repositories/search-repository';
 
 // ── Schema v8 ──
 // Fresh init only — not a migration of existing bun:sqlite data.
@@ -229,6 +230,7 @@ class LibsqlMindStore implements MindStore {
   private readonly tagRepository: TagRepository;
   private readonly memoryRepository: MemoryRepository;
   private readonly logRepository: LogRepository;
+  private readonly searchRepository: SearchRepository;
 
   constructor(
     private readonly client: Client,
@@ -239,6 +241,7 @@ class LibsqlMindStore implements MindStore {
     this.tagRepository = createLibsqlTagRepository(client);
     this.memoryRepository = createLibsqlMemoryRepository(client, this.tagRepository, clientId);
     this.logRepository = createLibsqlLogRepository(client);
+    this.searchRepository = createLibsqlSearchRepository(client);
   }
 
   // ── Spaces ──
@@ -390,38 +393,38 @@ class LibsqlMindStore implements MindStore {
 
   // ── Search ──
 
-  async search(_query: string, _filter?: SearchFilter): Promise<SearchResult[]> {
-    throw new Error('not implemented: search');
+  async search(query: string, filter?: SearchFilter): Promise<SearchResult[]> {
+    return this.searchRepository.searchMemories(query, filter);
   }
 
   async searchFallback(
-    _query: string,
-    _filter?: SearchFilter
+    query: string,
+    filter?: SearchFilter
   ): Promise<{ results: SearchResult[]; search_method: string }> {
-    throw new Error('not implemented: searchFallback');
+    return this.searchRepository.searchFallback(query, filter);
   }
 
-  async queryMemories(_filter?: MemoryQueryFilter): Promise<MemorySummary[]> {
-    throw new Error('not implemented: queryMemories');
+  async queryMemories(filter?: MemoryQueryFilter): Promise<MemorySummary[]> {
+    return this.searchRepository.queryMemories(filter);
   }
 
-  async queryMemoriesCount(_filter: {
+  async queryMemoriesCount(filter: {
     space?: string;
     tag?: string;
     tier?: number;
     from?: string;
     to?: string;
   }): Promise<number> {
-    throw new Error('not implemented: queryMemoriesCount');
+    return this.searchRepository.queryMemoriesCount(filter);
   }
 
   // ── Graph ──
 
   async getSpaceGraph(
-    _space: string,
-    _opts?: { limit?: number; maxLimit?: number }
+    space: string,
+    opts?: { limit?: number; maxLimit?: number }
   ): Promise<SpaceGraphResult> {
-    throw new Error('not implemented: getSpaceGraph');
+    return this.searchRepository.getSpaceGraph(space, opts);
   }
 
   // ── Status ──
