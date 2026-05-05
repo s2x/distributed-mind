@@ -5,17 +5,17 @@ import type { Database } from 'bun:sqlite';
 import { normalizeTag, normalizeTags } from '../../helpers/tags';
 
 export interface TagRepository {
-  addMemoryTag(memoryId: number, tag: string): void;
-  removeMemoryTag(memoryId: number, tag: string): void;
-  setMemoryTags(memoryId: number, tags: string[]): void;
-  listAllTags(): {
+  addMemoryTag(memoryId: number, tag: string): Promise<void>;
+  removeMemoryTag(memoryId: number, tag: string): Promise<void>;
+  setMemoryTags(memoryId: number, tags: string[]): Promise<void>;
+  listAllTags(): Promise<{
     spaces: { tag: string; count: number }[];
     memories: { tag: string; count: number }[];
-  };
+  }>;
 }
 
 export function createTagRepository(db: Database): TagRepository {
-  function addMemoryTag(memoryId: number, tag: string): void {
+  async function addMemoryTag(memoryId: number, tag: string): Promise<void> {
     const normalized = normalizeTag(tag);
     db.run('INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)', [
       memoryId,
@@ -23,12 +23,12 @@ export function createTagRepository(db: Database): TagRepository {
     ]);
   }
 
-  function removeMemoryTag(memoryId: number, tag: string): void {
+  async function removeMemoryTag(memoryId: number, tag: string): Promise<void> {
     const normalized = normalizeTag(tag);
     db.run('DELETE FROM memory_tags WHERE memory_id = ? AND tag = ?', [memoryId, normalized]);
   }
 
-  function setMemoryTags(memoryId: number, tags: string[]): void {
+  async function setMemoryTags(memoryId: number, tags: string[]): Promise<void> {
     const transaction = db.transaction(() => {
       // Clear existing tags
       db.run('DELETE FROM memory_tags WHERE memory_id = ?', [memoryId]);
@@ -44,10 +44,10 @@ export function createTagRepository(db: Database): TagRepository {
     transaction();
   }
 
-  function listAllTags(): {
+  async function listAllTags(): Promise<{
     spaces: { tag: string; count: number }[];
     memories: { tag: string; count: number }[];
-  } {
+  }> {
     const spaceTags = db
       .query('SELECT tag, COUNT(*) as count FROM space_tags GROUP BY tag ORDER BY tag')
       .all() as {

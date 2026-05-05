@@ -7,14 +7,14 @@ import type { Space, SpaceSummary } from '../../types';
 import { FtsHelper } from '../shared';
 
 export interface SpaceRepository {
-  createSpace(name: string, description: string, tags?: string[]): void;
-  getSpace(name: string): Space | null;
-  listSpaces(filter?: { tag?: string; includeHidden?: boolean }): SpaceSummary[];
-  updateSpace(name: string, updates: { description?: string; hidden?: boolean }): void;
-  deleteSpace(name: string): void;
-  renameSpace(oldName: string, newName: string): void;
-  addSpaceTag(space: string, tag: string): void;
-  removeSpaceTag(space: string, tag: string): void;
+  createSpace(name: string, description: string, tags?: string[]): Promise<void>;
+  getSpace(name: string): Promise<Space | null>;
+  listSpaces(filter?: { tag?: string; includeHidden?: boolean }): Promise<SpaceSummary[]>;
+  updateSpace(name: string, updates: { description?: string; hidden?: boolean }): Promise<void>;
+  deleteSpace(name: string): Promise<void>;
+  renameSpace(oldName: string, newName: string): Promise<void>;
+  addSpaceTag(space: string, tag: string): Promise<void>;
+  removeSpaceTag(space: string, tag: string): Promise<void>;
 }
 
 export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceRepository {
@@ -25,7 +25,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     return rows.map(r => r.tag);
   }
 
-  function createSpace(name: string, description: string, tags?: string[]): void {
+  async function createSpace(name: string, description: string, tags?: string[]): Promise<void> {
     if (!tags || tags.length === 0) {
       throw new Error('Tags are required and cannot be empty');
     }
@@ -50,7 +50,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     }
   }
 
-  function getSpace(name: string): Space | null {
+  async function getSpace(name: string): Promise<Space | null> {
     const row = db.query('SELECT * FROM spaces WHERE name = ?').get(name) as any;
     if (!row) return null;
     return {
@@ -63,7 +63,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     };
   }
 
-  function listSpaces(filter?: { tag?: string; includeHidden?: boolean }): SpaceSummary[] {
+  async function listSpaces(filter?: { tag?: string; includeHidden?: boolean }): Promise<SpaceSummary[]> {
     let sql: string;
     let params: any[];
 
@@ -101,7 +101,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     }));
   }
 
-  function updateSpace(name: string, updates: { description?: string; hidden?: boolean }): void {
+  async function updateSpace(name: string, updates: { description?: string; hidden?: boolean }): Promise<void> {
     const row = db.query('SELECT 1 FROM spaces WHERE name = ?').get(name);
     if (!row)
       throw new Error(`Space "${name}" does not exist. Create it first with space_create tool.`);
@@ -123,7 +123,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     }
   }
 
-  function deleteSpace(name: string): void {
+  async function deleteSpace(name: string): Promise<void> {
     const row = db.query('SELECT 1 FROM spaces WHERE name = ?').get(name);
     if (!row)
       throw new Error(`Space "${name}" does not exist. Create it first with space_create tool.`);
@@ -136,7 +136,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     db.run('DELETE FROM spaces WHERE name = ?', [name]);
   }
 
-  function renameSpace(oldName: string, newName: string): void {
+  async function renameSpace(oldName: string, newName: string): Promise<void> {
     const row = db.query('SELECT 1 FROM spaces WHERE name = ?').get(oldName);
     if (!row)
       throw new Error(`Space "${oldName}" does not exist. Create it first with space_create tool.`);
@@ -148,7 +148,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     db.run('UPDATE spaces SET name = ?, updated_at = ? WHERE name = ?', [newName, ts, oldName]);
   }
 
-  function addSpaceTag(space: string, tag: string): void {
+  async function addSpaceTag(space: string, tag: string): Promise<void> {
     const row = db.query('SELECT 1 FROM spaces WHERE name = ?').get(space);
     if (!row)
       throw new Error(`Space "${space}" does not exist. Create it first with space_create tool.`);
@@ -157,7 +157,7 @@ export function createSpaceRepository(db: Database, fts: FtsHelper): SpaceReposi
     db.run('INSERT OR IGNORE INTO space_tags (space_name, tag) VALUES (?, ?)', [space, normalized]);
   }
 
-  function removeSpaceTag(space: string, tag: string): void {
+  async function removeSpaceTag(space: string, tag: string): Promise<void> {
     const row = db.query('SELECT 1 FROM spaces WHERE name = ?').get(space);
     if (!row)
       throw new Error(`Space "${space}" does not exist. Create it first with space_create tool.`);

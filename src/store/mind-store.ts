@@ -39,14 +39,14 @@ export interface MemoryPatchInput {
 
 export interface MindStore {
   // Spaces
-  createSpace(name: string, description: string, tags?: string[]): void;
-  getSpace(name: string): Space | null;
-  listSpaces(filter?: { tag?: string; includeHidden?: boolean }): SpaceSummary[];
-  updateSpace(name: string, updates: { description?: string; hidden?: boolean }): void;
-  deleteSpace(name: string): void;
-  renameSpace(oldName: string, newName: string): void;
-  addSpaceTag(space: string, tag: string): void;
-  removeSpaceTag(space: string, tag: string): void;
+  createSpace(name: string, description: string, tags?: string[]): Promise<void>;
+  getSpace(name: string): Promise<Space | null>;
+  listSpaces(filter?: { tag?: string; includeHidden?: boolean }): Promise<SpaceSummary[]>;
+  updateSpace(name: string, updates: { description?: string; hidden?: boolean }): Promise<void>;
+  deleteSpace(name: string): Promise<void>;
+  renameSpace(oldName: string, newName: string): Promise<void>;
+  addSpaceTag(space: string, tag: string): Promise<void>;
+  removeSpaceTag(space: string, tag: string): Promise<void>;
 
   // Memories
   addMemory(
@@ -55,43 +55,43 @@ export interface MindStore {
     content: string,
     opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
   ): Promise<Memory>;
-  getMemory(space: string, name: string): Memory | null;
-  getMemoryById(id: number): Memory | null;
+  getMemory(space: string, name: string): Promise<Memory | null>;
+  getMemoryById(id: number): Promise<Memory | null>;
   /**
    * List memories in a space.
    * Default (no tier filter): returns T1 + T2 only.
    * Passing tier 3 will return T3 memories.
    * T4 has been removed — listing with tier=3 or no filter only.
    */
-  listMemories(space: string, filter?: { tier?: Tier; tag?: string }): MemorySummary[];
+  listMemories(space: string, filter?: { tier?: Tier; tag?: string }): Promise<MemorySummary[]>;
   /**
    * Get hot (T1 + T2) memories as summaries for a space.
    * Used by MCP tools to provide a fast overview without full content.
    */
-  getHotMemories(space: string): HotMemorySummary[];
+  getHotMemories(space: string): Promise<HotMemorySummary[]>;
   updateMemory(id: number, updates: { name?: string; content?: string }): Promise<void>;
-  deleteMemory(id: number): void;
-  deleteMemoryByName(space: string, name: string): void;
+  deleteMemory(id: number): Promise<void>;
+  deleteMemoryByName(space: string, name: string): Promise<void>;
   /**
    * Record an access (bumps count + last_accessed_at).
    * Also auto-promotes non-pinned memories one tier up (with LRU eviction if destination is full).
    * Silently skips promotion if destination is full and all are pinned.
    */
-  recordAccess(id: number): void;
-  getLinkedMemorySummaries(memoryId: number): {
+  recordAccess(id: number): Promise<void>;
+  getLinkedMemorySummaries(memoryId: number): Promise<{
     links_to: LinkedMemorySummary[];
     linked_by: LinkedMemorySummary[];
-  };
+  }>;
   patchMemory(id: number, patch: MemoryPatchInput): Promise<Memory>;
 
   // Tags
-  addMemoryTag(memoryId: number, tag: string): void;
-  removeMemoryTag(memoryId: number, tag: string): void;
-  setMemoryTags(memoryId: number, tags: string[]): void;
-  listAllTags(): {
+  addMemoryTag(memoryId: number, tag: string): Promise<void>;
+  removeMemoryTag(memoryId: number, tag: string): Promise<void>;
+  setMemoryTags(memoryId: number, tags: string[]): Promise<void>;
+  listAllTags(): Promise<{
     spaces: { tag: string; count: number }[];
     memories: { tag: string; count: number }[];
-  };
+  }>;
 
   // Tiers
   /**
@@ -99,19 +99,19 @@ export interface MindStore {
    * Evicts LRU non-pinned from destination if full.
    * Throws if already at T1 or destination is full and all are pinned.
    */
-  promote(id: number): void;
+  promote(id: number): Promise<void>;
   /**
    * Demote memory one tier down (T1→T2, T2→T3).
    * Throws if already at lowest tier (T3).
    */
-  demote(id: number): void;
-  pin(id: number): void;
-  unpin(id: number): void;
+  demote(id: number): Promise<void>;
+  pin(id: number): Promise<void>;
+  unpin(id: number): Promise<void>;
 
   // Links
-  link(sourceId: number, targetId: number, label?: string): void;
-  unlink(sourceId: number, targetId: number): void;
-  getLinks(memoryId: number): Link[];
+  link(sourceId: number, targetId: number, label?: string): Promise<void>;
+  unlink(sourceId: number, targetId: number): Promise<void>;
+  getLinks(memoryId: number): Promise<Link[]>;
 
   // Search (T4 memories are no longer applicable - T3 is unlimited)
   // When RAG is enabled, returns FTS results merged with semantic similarity scores
@@ -124,7 +124,7 @@ export interface MindStore {
   ): Promise<{ results: SearchResult[]; search_method: string }>;
 
   // Query memories by metadata/date with pagination
-  queryMemories(filter?: MemoryQueryFilter): MemorySummary[];
+  queryMemories(filter?: MemoryQueryFilter): Promise<MemorySummary[]>;
 
   // Count memories matching the given filters (without fetching all rows)
   queryMemoriesCount(filter: {
@@ -136,18 +136,18 @@ export interface MindStore {
   }): Promise<number>;
 
   // Graph view (includes T1..T3 only)
-  getSpaceGraph(space: string, opts?: { limit?: number; maxLimit?: number }): SpaceGraphResult;
+  getSpaceGraph(space: string, opts?: { limit?: number; maxLimit?: number }): Promise<SpaceGraphResult>;
 
   // Status
-  getStatus(space?: string): StatusResult;
+  getStatus(space?: string): Promise<StatusResult>;
 
   // Migration
-  importFromJson(brain: LegacyBrain): void;
+  importFromJson(brain: LegacyBrain): Promise<void>;
   /**
    * Parse a memory reference string "space:name" into its components.
    * Returns null if the format is invalid (no colon, empty space, or empty name).
    */
-  resolveMemoryRef(ref: string): { space: string; name: string } | null;
+  resolveMemoryRef(ref: string): Promise<{ space: string; name: string } | null>;
 
   // Logs
   addLog(entry: {
@@ -159,7 +159,7 @@ export interface MindStore {
     errorMessage?: string;
     callerInfo?: Record<string, unknown>;
     durationMs?: number;
-  }): void;
+  }): Promise<void>;
   queryLogs(filter?: {
     source?: string;
     operation?: string;
@@ -171,9 +171,9 @@ export interface MindStore {
     offset?: number;
     order?: 'asc' | 'desc';
     since?: number;
-  }): { logs: any[]; total: number; limit: number; offset: number };
-  cleanupOldLogs(retentionMinutes: number): number;
-  clearAllLogs(): number;
+  }): Promise<{ logs: any[]; total: number; limit: number; offset: number }>;
+  cleanupOldLogs(retentionMinutes: number): Promise<number>;
+  clearAllLogs(): Promise<number>;
   subscribeToLogs(sessionId: string, controller: any, filter?: string): void;
   unsubscribeFromLogs(sessionId: string): void;
 

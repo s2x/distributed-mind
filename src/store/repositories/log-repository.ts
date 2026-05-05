@@ -14,7 +14,7 @@ export interface LogEntryInput {
 }
 
 export interface LogRepository {
-  addLog(entry: LogEntryInput): void;
+  addLog(entry: LogEntryInput): Promise<void>;
   queryLogs(filter?: {
     source?: string;
     operation?: string;
@@ -26,9 +26,9 @@ export interface LogRepository {
     offset?: number;
     order?: 'asc' | 'desc';
     since?: number;
-  }): { logs: any[]; total: number; limit: number; offset: number };
-  cleanupOldLogs(retentionMinutes: number): number;
-  clearAllLogs(): number;
+  }): Promise<{ logs: any[]; total: number; limit: number; offset: number }>;
+  cleanupOldLogs(retentionMinutes: number): Promise<number>;
+  clearAllLogs(): Promise<number>;
 }
 
 // ── SSE Pub/Sub for real-time logs ──
@@ -86,7 +86,7 @@ function truncateLogField(value: unknown): string | null {
 export function createLogRepository(db: Database): LogRepository {
   let lastLogId = 0;
 
-  function addLog(entry: LogEntryInput): void {
+  async function addLog(entry: LogEntryInput): Promise<void> {
     try {
       // Fire-and-forget: don't await, don't block
       db.run(
@@ -118,7 +118,7 @@ export function createLogRepository(db: Database): LogRepository {
     }
   }
 
-  function queryLogs(filter?: {
+  async function queryLogs(filter?: {
     source?: string;
     operation?: string;
     search?: string;
@@ -129,7 +129,7 @@ export function createLogRepository(db: Database): LogRepository {
     offset?: number;
     order?: 'asc' | 'desc';
     since?: number;
-  }): { logs: any[]; total: number; limit: number; offset: number } {
+  }): Promise<{ logs: any[]; total: number; limit: number; offset: number }> {
     const conditions: string[] = [];
     const params: any[] = [];
 
@@ -209,7 +209,7 @@ export function createLogRepository(db: Database): LogRepository {
     };
   }
 
-  function cleanupOldLogs(retentionMinutes: number): number {
+  async function cleanupOldLogs(retentionMinutes: number): Promise<number> {
     const cutoff = new Date(Date.now() - retentionMinutes * 60 * 1000)
       .toISOString()
       .replace('T', ' ')
@@ -218,7 +218,7 @@ export function createLogRepository(db: Database): LogRepository {
     return result.changes;
   }
 
-  function clearAllLogs(): number {
+  async function clearAllLogs(): Promise<number> {
     const result = db.run('DELETE FROM logs');
     return result.changes;
   }

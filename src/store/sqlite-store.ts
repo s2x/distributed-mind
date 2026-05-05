@@ -97,7 +97,7 @@ export function createSqliteStore(dbPath: string): MindStore {
 
   // ── Build MindStore interface (flat object for backward compatibility) ──
 
-  function getStatus(space?: string): StatusResult {
+  async function getStatus(space?: string): Promise<StatusResult> {
     const spaceFilter = space ? 'WHERE space_name = ?' : '';
     const spaceParams: any[] = space ? [space] : [];
 

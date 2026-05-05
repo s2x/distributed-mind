@@ -28,7 +28,7 @@ export interface SearchRepository {
     query: string,
     filter?: { space?: string; tag?: string; tier?: Tier }
   ): Promise<SearchResult[]>;
-  queryMemories(filter?: MemoryQueryFilter): MemorySummary[];
+  queryMemories(filter?: MemoryQueryFilter): Promise<MemorySummary[]>;
   queryMemoriesCount(filter: {
     space?: string;
     tag?: string;
@@ -39,7 +39,7 @@ export interface SearchRepository {
   getSpaceGraph(
     space: string,
     opts?: { limit?: number; maxLimit?: number }
-  ): {
+  ): Promise<{
     nodes: { id: number; name: string; tier: Tier; links_to: number[]; linked_by: number[] }[];
     meta: {
       total_nodes: number;
@@ -49,7 +49,7 @@ export interface SearchRepository {
       max_limit: number;
       truncated: boolean;
     };
-  };
+  }>;
 }
 
 function getTagsForMemory(db: Database, memoryId: number): string[] {
@@ -413,7 +413,7 @@ export function createSearchRepository(
     });
   }
 
-  function queryMemories(filter?: MemoryQueryFilter): MemorySummary[] {
+  async function queryMemories(filter?: MemoryQueryFilter): Promise<MemorySummary[]> {
     let sql =
       'SELECT m.id, m.space_name, m.name, m.tier, m.pinned, m.access_count, m.created_at, m.updated_at, m.changed_at FROM memories m';
     const joinParams: any[] = [];
@@ -514,10 +514,10 @@ export function createSearchRepository(
     return row.count;
   }
 
-  function getSpaceGraph(
+  async function getSpaceGraph(
     space: string,
     opts?: { limit?: number; maxLimit?: number }
-  ): {
+  ): Promise<{
     nodes: { id: number; name: string; tier: Tier; links_to: number[]; linked_by: number[] }[];
     meta: {
       total_nodes: number;
@@ -527,7 +527,7 @@ export function createSearchRepository(
       max_limit: number;
       truncated: boolean;
     };
-  } {
+  }> {
     const spaceRow = db.query('SELECT 1 FROM spaces WHERE name = ?').get(space);
     if (!spaceRow)
       throw new Error(`Space "${space}" does not exist. Create it first with space_create tool.`);

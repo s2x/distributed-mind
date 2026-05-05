@@ -20,25 +20,25 @@ export interface MemoryRepository {
     content: string,
     opts?: { tags?: string[]; tier?: Tier; pinned?: boolean; linksToIds?: number[] }
   ): Promise<Memory>;
-  getMemory(space: string, name: string): Memory | null;
-  getMemoryById(id: number): Memory | null;
-  listMemories(space: string, filter?: { tier?: Tier; tag?: string }): MemorySummary[];
-  getHotMemories(space: string): HotMemorySummary[];
-  resolveMemoryRef(ref: string): { space: string; name: string } | null;
+  getMemory(space: string, name: string): Promise<Memory | null>;
+  getMemoryById(id: number): Promise<Memory | null>;
+  listMemories(space: string, filter?: { tier?: Tier; tag?: string }): Promise<MemorySummary[]>;
+  getHotMemories(space: string): Promise<HotMemorySummary[]>;
+  resolveMemoryRef(ref: string): Promise<{ space: string; name: string } | null>;
   updateMemory(id: number, updates: { name?: string; content?: string }): Promise<void>;
-  deleteMemory(id: number): void;
-  deleteMemoryByName(space: string, name: string): void;
-  recordAccess(id: number): void;
-  getLinkedMemorySummaries(memoryId: number): {
+  deleteMemory(id: number): Promise<void>;
+  deleteMemoryByName(space: string, name: string): Promise<void>;
+  recordAccess(id: number): Promise<void>;
+  getLinkedMemorySummaries(memoryId: number): Promise<{
     links_to: LinkedMemorySummary[];
     linked_by: LinkedMemorySummary[];
-  };
+  }>;
   patchMemory(id: number, patch: MemoryPatchInput): Promise<Memory>;
-  promote(id: number): void;
-  demote(id: number): void;
-  pin(id: number): void;
-  unpin(id: number): void;
-  importFromJson(brain: LegacyBrain): void;
+  promote(id: number): Promise<void>;
+  demote(id: number): Promise<void>;
+  pin(id: number): Promise<void>;
+  unpin(id: number): Promise<void>;
+  importFromJson(brain: LegacyBrain): Promise<void>;
 }
 
 function getTagsForMemory(db: Database, memoryId: number): string[] {
@@ -228,7 +228,7 @@ export function createMemoryRepository(
     return rowToMemory(db, db.query('SELECT * FROM memories WHERE id = ?').get(id) as any);
   }
 
-  function getMemory(space: string, name: string): Memory | null {
+  async function getMemory(space: string, name: string): Promise<Memory | null> {
     const row = db
       .query('SELECT * FROM memories WHERE space_name = ? AND name = ?')
       .get(space, name) as any;
@@ -236,13 +236,13 @@ export function createMemoryRepository(
     return rowToMemory(db, row);
   }
 
-  function getMemoryById(id: number): Memory | null {
+  async function getMemoryById(id: number): Promise<Memory | null> {
     const row = db.query('SELECT * FROM memories WHERE id = ?').get(id) as any;
     if (!row) return null;
     return rowToMemory(db, row);
   }
 
-  function listMemories(space: string, filter?: { tier?: Tier; tag?: string }): MemorySummary[] {
+  async function listMemories(space: string, filter?: { tier?: Tier; tag?: string }): Promise<MemorySummary[]> {
     const spaceRow = db.query('SELECT 1 FROM spaces WHERE name = ?').get(space);
     if (!spaceRow)
       throw new Error(`Space "${space}" does not exist. Create it first with space_create tool.`);
@@ -286,7 +286,7 @@ export function createMemoryRepository(
     }));
   }
 
-  function getHotMemories(space: string): HotMemorySummary[] {
+  async function getHotMemories(space: string): Promise<HotMemorySummary[]> {
     const rows = db
       .query(
         `SELECT id, name, tier, pinned, updated_at
@@ -306,7 +306,7 @@ export function createMemoryRepository(
     }));
   }
 
-  function resolveMemoryRef(ref: string): { space: string; name: string } | null {
+  async function resolveMemoryRef(ref: string): Promise<{ space: string; name: string } | null> {
     const idx = ref.indexOf(':');
     if (idx <= 0) return null;
     const space = ref.slice(0, idx);
@@ -354,20 +354,20 @@ export function createMemoryRepository(
     }
   }
 
-  function deleteMemory(id: number): void {
+  async function deleteMemory(id: number): Promise<void> {
     requireMemory(db, id);
     fts.delete(id);
     db.run('DELETE FROM memories WHERE id = ?', [id]);
   }
 
-  function deleteMemoryByName(space: string, name: string): void {
-    const mem = getMemory(space, name);
+  async function deleteMemoryByName(space: string, name: string): Promise<void> {
+    const mem = await getMemory(space, name);
     if (!mem) throw new Error(`Memory "${name}" not found in space "${space}"`);
     fts.delete(mem.id);
     db.run('DELETE FROM memories WHERE id = ?', [mem.id]);
   }
 
-  function recordAccess(id: number): void {
+  async function recordAccess(id: number): Promise<void> {
     const row = requireMemory(db, id);
     const ts = now();
 
@@ -388,10 +388,10 @@ export function createMemoryRepository(
     }
   }
 
-  function getLinkedMemorySummaries(memoryId: number): {
+  async function getLinkedMemorySummaries(memoryId: number): Promise<{
     links_to: LinkedMemorySummary[];
     linked_by: LinkedMemorySummary[];
-  } {
+  }> {
     requireMemory(db, memoryId);
 
     const linksToRows = db
@@ -563,7 +563,7 @@ export function createMemoryRepository(
     return rowToMemory(db, db.query('SELECT * FROM memories WHERE id = ?').get(id) as any);
   }
 
-  function promote(id: number): void {
+  async function promote(id: number): Promise<void> {
     const row = requireMemory(db, id);
     if (row.tier <= 1) throw new Error('Memory is already at the highest tier');
 
@@ -579,7 +579,7 @@ export function createMemoryRepository(
     ]);
   }
 
-  function demote(id: number): void {
+  async function demote(id: number): Promise<void> {
     const row = requireMemory(db, id);
     if (row.tier >= 3) throw new Error('Memory is already at the lowest tier');
     const ts = now();
@@ -590,7 +590,7 @@ export function createMemoryRepository(
     ]);
   }
 
-  function pin(id: number): void {
+  async function pin(id: number): Promise<void> {
     requireMemory(db, id);
     const ts = now();
     db.run('UPDATE memories SET pinned = 1, updated_at = ?, changed_at = ? WHERE id = ?', [
@@ -600,7 +600,7 @@ export function createMemoryRepository(
     ]);
   }
 
-  function unpin(id: number): void {
+  async function unpin(id: number): Promise<void> {
     requireMemory(db, id);
     const ts = now();
     db.run('UPDATE memories SET pinned = 0, updated_at = ?, changed_at = ? WHERE id = ?', [
@@ -610,7 +610,7 @@ export function createMemoryRepository(
     ]);
   }
 
-  function importFromJson(brain: LegacyBrain): void {
+  async function importFromJson(brain: LegacyBrain): Promise<void> {
     const transaction = db.transaction(() => {
       for (const [spaceName, spaceData] of Object.entries(brain)) {
         const existing = db.query('SELECT 1 FROM spaces WHERE name = ?').get(spaceName);

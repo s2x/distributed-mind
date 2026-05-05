@@ -6,13 +6,13 @@ import type { Link } from '../../types';
 import { requireMemory } from '../shared';
 
 export interface LinkRepository {
-  linkMemories(sourceId: number, targetId: number, label?: string): void;
-  unlinkMemories(sourceId: number, targetId: number): void;
-  getLinks(memoryId: number): Link[];
+  linkMemories(sourceId: number, targetId: number, label?: string): Promise<void>;
+  unlinkMemories(sourceId: number, targetId: number): Promise<void>;
+  getLinks(memoryId: number): Promise<Link[]>;
 }
 
 export function createLinkRepository(db: Database): LinkRepository {
-  function linkMemories(sourceId: number, targetId: number, label?: string): void {
+  async function linkMemories(sourceId: number, targetId: number, label?: string): Promise<void> {
     requireMemory(db, sourceId);
     requireMemory(db, targetId);
     if (sourceId === targetId) throw new Error('Cannot link a memory to itself');
@@ -24,11 +24,11 @@ export function createLinkRepository(db: Database): LinkRepository {
     );
   }
 
-  function unlinkMemories(sourceId: number, targetId: number): void {
+  async function unlinkMemories(sourceId: number, targetId: number): Promise<void> {
     db.run('DELETE FROM links WHERE source_id = ? AND target_id = ?', [sourceId, targetId]);
   }
 
-  function getLinks(memoryId: number): Link[] {
+  async function getLinks(memoryId: number): Promise<Link[]> {
     const rows = db
       .query(
         `SELECT l.*,
