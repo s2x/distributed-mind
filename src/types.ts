@@ -188,3 +188,18 @@ export interface LogQueryResult {
   limit: number;
   offset: number;
 }
+
+// ── Persistence / versioning types (dimind-only) ──
+
+export interface MemoryVersion {
+  id: number;
+  memoryId: number;
+  spaceName: string;
+  name: string;
+  content: string;
+  operation: 'update' | 'delete' | 'revert' | 'create';
+  versionNumber: number;
+  changedBy?: string;
+  clientId?: string;
+  changedAt: string;
+}

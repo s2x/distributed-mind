@@ -18,6 +18,7 @@ import type {
   SpaceGraphResult,
   LegacyBrain,
   HotMemorySummary,
+  MemoryVersion,
 } from '../types';
 import type { MindStore, LinkedMemorySummary, MemoryPatchInput } from './mind-store';
 import { createLibsqlSpaceRepository } from './libsql-repositories/space-repository';
@@ -383,6 +384,10 @@ class LibsqlMindStore implements MindStore {
 
   async demoteToSoft(spaceName: string, memoryName: string): Promise<void> {
     return this.memoryRepository.demoteToSoft(spaceName, memoryName);
+  }
+
+  async getMemoryHistory(spaceName: string, memoryName: string): Promise<MemoryVersion[]> {
+    return this.memoryRepository.getMemoryHistory(spaceName, memoryName);
   }
 
   // ── Links ──

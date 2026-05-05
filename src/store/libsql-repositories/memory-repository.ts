@@ -67,6 +67,7 @@ export interface MemoryRepository {
   unpin(id: number): Promise<void>;
   promoteToHard(spaceName: string, memoryName: string): Promise<void>;
   demoteToSoft(spaceName: string, memoryName: string): Promise<void>;
+  getMemoryHistory(spaceName: string, memoryName: string): Promise<import('../../types').MemoryVersion[]>;
   importFromJson(brain: LegacyBrain): Promise<void>;
 }
 
@@ -941,6 +942,34 @@ export function createLibsqlMemoryRepository(
     });
   }
 
+  async function getMemoryHistory(
+    spaceName: string,
+    memoryName: string
+  ): Promise<import('../../types').MemoryVersion[]> {
+    const memResult = await client.execute({
+      sql: 'SELECT id FROM memories WHERE space_name = ? AND name = ?',
+      args: [spaceName, memoryName],
+    });
+    if (memResult.rows.length === 0) return [];
+    const memId = Number((memResult.rows[0] as any).id);
+    const result = await client.execute({
+      sql: 'SELECT * FROM memory_versions WHERE memory_id = ? ORDER BY version_number DESC',
+      args: [memId],
+    });
+    return result.rows.map((row: any) => ({
+      id: Number(row.id),
+      memoryId: Number(row.memory_id),
+      spaceName: String(row.space_name),
+      name: String(row.name),
+      content: String(row.content),
+      operation: row.operation as 'update' | 'delete' | 'revert' | 'create',
+      versionNumber: Number(row.version_number),
+      changedBy: row.changed_by ? String(row.changed_by) : undefined,
+      clientId: row.client_id ? String(row.client_id) : undefined,
+      changedAt: String(row.changed_at),
+    }));
+  }
+
   return {
     addMemory,
     getMemory,
@@ -960,6 +989,7 @@ export function createLibsqlMemoryRepository(
     unpin,
     promoteToHard,
     demoteToSoft,
+    getMemoryHistory,
     importFromJson,
   };
 }

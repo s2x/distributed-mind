@@ -1,6 +1,7 @@
 import type { ArgParser } from '../arg-parser';
 
 import { checkpointGroup } from './checkpoint';
+import { dimindMemoriesGroup } from './dimind-memories';
 import { guideGroup } from './guide';
 import { linksGroup } from './links';
 import { memoriesGroup } from './memories';
@@ -18,6 +19,9 @@ export const SERVER_GROUP_HELP: ArgParser[] = runtimeGroup.helpEntries;
 
 export const ALL_GROUPS: CommandGroup[] = [
   spacesGroup,
+  // dimindMemoriesGroup before memoriesGroup so `add` (with --soft default override)
+  // and `memory promote-to-hard` / `memory demote-to-soft` / `history` are matched first.
+  dimindMemoriesGroup,
   memoriesGroup,
   tiersGroup,
   linksGroup,
